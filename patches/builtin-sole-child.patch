@@ -1,0 +1,42 @@
+--- execute_cmd.c
++++ execute_cmd.c
+@@ -4472,6 +4472,14 @@
+    pipe. -1 when no handshake is armed. */
+ static int bashos_async_exec_wait_fd = -1;
+ 
++/* The builtin a forked simple-command child was made for, and the
++   executing_builtin depth it runs at. That builtin is the whole job of the
++   process: wrappers such as env, nice and nohup may then run their command
++   in place (exec it, as the GNU tools do) instead of forking again, so $!
++   and kill reach the command itself. */
++sh_builtin_func_t *bashos_sole_builtin = 0;
++int bashos_sole_depth = 0;
++
+ static void
+ bashos_release_async_exec (void)
+ {
+@@ -4898,6 +4906,11 @@
+ 	  /* The builtin runs in this process. Release the parent before
+ 	     it starts, or a background builtin would stall the shell. */
+ 	  bashos_release_async_exec ();
++	  if (builtin)
++	    {
++	      bashos_sole_builtin = builtin;
++	      bashos_sole_depth = executing_builtin + 1;
++	    }
+ 	  reset_terminating_signals ();	/* XXX */
+ 	  /* Reset the signal handlers in the child, but don't free the
+ 	     trap strings.  Set a flag noting that we have to free the
+--- execute_cmd.h
++++ execute_cmd.h
+@@ -132,6 +132,10 @@
+    armed asynchronous disk command has exec'd. */
+ extern void bashos_wait_async_exec (void);
+ 
++/* See execute_cmd.c: the builtin that owns a forked simple-command child. */
++extern sh_builtin_func_t *bashos_sole_builtin;
++extern int bashos_sole_depth;
++
+ extern char *save_lastarg (void);
+ extern void bind_lastarg (char *);
+ 

@@ -218,6 +218,57 @@ class NohupTests(BuiltinTest):
         self.assertEqual(result.returncode, 23, result.stderr)
 
 
+class SoleChildExecTests(BuiltinTest):
+    """Guest compatibility pass 2 (G26): in `WRAPPER CMD &` the wrapper is the
+    whole job of the child bash forks, so env, nice and nohup run CMD in that
+    process (GNU execs it) and $! is CMD; timeout stays as the supervisor
+    and forwards a TERM it receives. Commands after a wrapper inside a group,
+    subshell, eval or function must still run."""
+
+    def test_bang_is_the_command_and_kill_reaches_it(self):
+        for wrapper in ("env", "nice", "nohup", "timeout 30"):
+            with self.subTest(wrapper=wrapper):
+                result = self.shell(
+                    wrapper + ' /bin/sleep 30 >/dev/null 2>&1 & p=$!; '
+                    'for i in 1 2 3 4 5 6 7 8 9 10; do read -rt 0.1 <> <(:) || :; '
+                    '[[ $(</proc/$p/comm) == sleep ]] && break; done; '
+                    'printf "%s " "$(</proc/$p/comm)"; kill $p; wait $p; printf "%s\\n" "$?"')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                # timeout keeps a forked shell as the parent: its comm is the
+                # binary's own name (bash, bash-static, ...), at most 15 bytes.
+                comm = Path(BINARY).name[:15] if wrapper.startswith("timeout") else "sleep"
+                self.assertEqual(result.stdout, comm + " 143\n")
+
+    def test_timeout_forwards_term_to_the_command(self):
+        result = self.shell(
+            'timeout 30 /bin/sh -c \'echo $$ > pid; exec /bin/sleep 30\' & p=$!; '
+            'for i in {1..50}; do '
+            '[[ -s pid ]] && break; read -rt 0.1 <> <(:) || :; done; '
+            'c=$(<pid); kill $p; wait $p; s=$?; read -rt 0.3 <> <(:) || :; '
+            '[[ -e /proc/$c ]] && echo left-running; echo "status=$s"')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "status=143\n")
+
+    def test_statuses_and_following_commands(self):
+        result = self.shell(
+            "{ env /bin/true; echo group-after; } & wait\n"
+            "( nice /bin/true; echo paren-after ) & wait\n"
+            "eval 'env /bin/true; echo eval-after' & wait\n"
+            "env eval 'nice /bin/true; echo nested-after' & wait\n"
+            "f() { nohup /bin/true 2>/dev/null; echo func-after; }; f & wait\n"
+            "env printf 'pipe-ok\\n' | { read -r l; echo \"$l\"; }\n"
+            "env false & wait $!; echo env-false=$?\n"
+            "nice /bin/sh -c 'exit 3' & wait $!; echo nice-3=$?\n"
+            "env missing-command 2>/dev/null & wait $!; echo env-missing=$?\n"
+            "timeout 0.2 /bin/sleep 5 & wait $!; echo timeout-expired=$?\n"
+            "env /bin/true; echo fg-env=$?\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout,
+                         "group-after\nparen-after\neval-after\nnested-after\n"
+                         "func-after\npipe-ok\nenv-false=1\nnice-3=3\n"
+                         "env-missing=127\ntimeout-expired=124\nfg-env=0\n")
+
+
 class WrapperTests(BuiltinTest):
     wrappers = ("env", "nice -n 0", "nohup")
 

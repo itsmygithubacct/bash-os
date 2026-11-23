@@ -271,6 +271,11 @@ patch -p0 -s < "$HERE/patches/async-exec-handshake.patch" >>"$LOG" 2>&1 \
   || die "async-exec-handshake.patch did not apply (see $LOG)"
 patch -p0 -s < "$HERE/patches/enable-static-uv.patch" >>"$LOG" 2>&1 \
   || die "enable-static-uv.patch did not apply (see $LOG)"
+# The forked child of `builtin &` (or of a pipeline element) records which
+# builtin it was made for, so env, nice and nohup can run their command in
+# place, as the GNU tools exec it, and $! is the command.
+patch -p0 -s < "$HERE/patches/builtin-sole-child.patch" >>"$LOG" 2>&1 \
+  || die "builtin-sole-child.patch did not apply (see $LOG)"
 
 # --- 3. stage the loadable sources + helper headers ------------------------
 say "staging loadables"

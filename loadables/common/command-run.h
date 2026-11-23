@@ -10,6 +10,30 @@
 #include "flags.h"
 #include "unwind_prot.h"
 
+/* Set by patches/builtin-sole-child.patch in the child bash forks for one
+   simple command (`CMD &`, a pipeline element). Weak, so a harness linked
+   without that shell patch still links and simply never sees one. */
+extern sh_builtin_func_t *bashos_sole_builtin;
+extern int bashos_sole_depth;
+#pragma weak bashos_sole_builtin
+#pragma weak bashos_sole_depth
+
+/* True, once, when the running builtin is the whole job of this process:
+   it is the command bash forked a child for, at that command's own depth
+   (not reached through eval, source, command or a function). A wrapper may
+   then run its child side here instead of forking, so the command replaces
+   this process exactly as GNU env/nice/nohup exec it. */
+static int
+bos_owns_process (void)
+{
+    if (!&bashos_sole_builtin || !&bashos_sole_depth || !bashos_sole_builtin)
+        return 0;
+    if (bashos_sole_builtin != this_shell_builtin || executing_builtin != bashos_sole_depth)
+        return 0;
+    bashos_sole_builtin = 0;
+    return 1;
+}
+
 /* A raw fork must not let a builtin jump into the caller's function, loop,
    trap or cleanup stack. Run this before applying child-specific signals. */
 static void

@@ -143,7 +143,9 @@ nice_builtin (WORD_LIST *list)
     maybe_make_export_env ();
     fflush (stdout);
     fflush (stderr);
-    pid_t pid = fork ();
+    /* In a child bash forked just for this builtin, run CMD in place (GNU
+       nice execs it); that branch never returns. */
+    pid_t pid = bos_owns_process () ? 0 : fork ();
     if (pid < 0) {
         int e = errno;
         bos_child_wait_end (&child_wait);

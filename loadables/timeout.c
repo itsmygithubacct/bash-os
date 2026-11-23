@@ -203,6 +203,20 @@ bto_signal_child (pid_t child, int sig, int foreground)
         kill (child, sig);
 }
 
+/* A termination signal received while timeout is the whole job of its
+   process (`timeout D CMD &`): forwarded to CMD as GNU timeout does, after
+   which timeout keeps waiting and reports CMD's status. In the calling
+   shell's own process the shell keeps its usual dispositions. */
+static volatile sig_atomic_t bto_forward_sig;
+
+static void
+bto_forward_handler (int sig)
+{
+    bto_forward_sig = sig;
+}
+
+static const int bto_forwarded[] = { SIGTERM, SIGINT, SIGHUP, SIGQUIT };
+
 /* Close the child's pidfd (if any) and restore the caller's mask.
    SIGCHLD stays pending: we never dequeue it, so Bash still reaps
    any background job that exited while we ran. */
@@ -389,6 +403,10 @@ timeout_builtin (WORD_LIST *list)
     sigaddset (&chld_set, SIGCHLD);
     sigprocmask (SIG_BLOCK, &chld_set, &prev_set);
 
+    /* Decide before forking: the command child must not inherit the handler
+       or the sole-child mark. */
+    int forward = bos_owns_process ();
+
     maybe_make_export_env ();
     fflush (stdout);
     fflush (stderr);
@@ -434,6 +452,14 @@ timeout_builtin (WORD_LIST *list)
     if (!foreground)
         setpgid (child, child);  /* close parent/child process-group setup race */
     free (argv);
+    if (forward) {
+        bto_forward_sig = 0;
+        struct sigaction fa = {0};
+        fa.sa_handler = bto_forward_handler;
+        sigemptyset (&fa.sa_mask);
+        for (size_t k = 0; k < sizeof bto_forwarded / sizeof *bto_forwarded; k++)
+            sigaction (bto_forwarded[k], &fa, NULL);
+    }
 
     /* Parent: SIGCHLD stays blocked so Bash cannot steal this child, but
        we must not dequeue it (sigtimedwait would). pidfd+ppoll wakes when
@@ -451,6 +477,13 @@ timeout_builtin (WORD_LIST *list)
     int killed_hard = 0;
     double elapsed_at_signal = 0;
     for (;;) {
+        if (forward && bto_forward_sig) {
+            int fs = bto_forward_sig;
+            bto_forward_sig = 0;
+            bto_signal_child (child, fs, foreground);
+            if (fs != SIGKILL && fs != SIGCONT)
+                bto_signal_child (child, SIGCONT, foreground);
+        }
         pid_t r = waitpid (child, &status, WNOHANG);
         if (r == child) break;
         if (r < 0 && errno == EINTR) continue;

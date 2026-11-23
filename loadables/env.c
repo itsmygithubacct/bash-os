@@ -931,10 +931,13 @@ env_builtin (WORD_LIST *list)
     sigaddset (&chld_set, SIGCHLD);
     sigprocmask (SIG_BLOCK, &chld_set, &prev_mask);
 
-    /* Fork+exec so we don't replace the calling shell. */
+    /* Fork+exec so we don't replace the calling shell. When this builtin is
+       the whole job of a child bash forked for it (`env CMD &`), run the
+       child side here instead: CMD replaces this process, as with GNU env,
+       so $! and kill reach CMD. That branch never returns. */
     fflush (stdout);
     fflush (stderr);
-    pid_t pid = fork ();
+    pid_t pid = bos_owns_process () ? 0 : fork ();
     if (pid < 0) {
         int e = errno;
         sigprocmask (SIG_SETMASK, &prev_mask, NULL);
