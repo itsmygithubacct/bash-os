@@ -2,7 +2,7 @@
  *
  * Phase S of bash-os POSIX gap-fillers.
  *
- *   bashcp [-afinpRrv] [-HLP] {SOURCE... DEST | -t DIR SOURCE...}
+ *   bashcp [-abdfilnprRsTuvx] [-HLP] [-S SUFFIX] {SOURCE... DEST | -t DIR SOURCE...}
  *
  *   -a      archive: same as -dpR (preserve symlinks-as-symlinks, preserve
  *           metadata, recursive). Matches GNU coreutils cp -a semantics.
@@ -14,7 +14,16 @@
  *   -H      follow symlinks given on the command line; preserve nested
  *   -L      always follow symlinks
  *   -P      don't follow symlinks
- *           (default: follow unless recursive)
+ *           (default: follow unless recursive; -l always follows)
+ *   -b, -S, --backup[=CONTROL], --suffix   back up replaced files
+ *   -d      same as --no-dereference --preserve=links
+ *   -l, -s  hard / symbolic links instead of copies
+ *   -T      treat DEST as a normal file;  -u, --update[=WHEN]
+ *   -x      stay on the source file system
+ *   GNU long forms: --archive --preserve[=LIST] --no-preserve=LIST
+ *   --recursive --verbose --dereference --no-dereference --link
+ *   --symbolic-link --one-file-system --no-target-directory
+ *   --remove-destination --attributes-only --sparse=WHEN --reflink[=WHEN]
  *
  * Multiple SOURCE → DEST must be a directory. Single SOURCE → DEST
  * is either a target file or, if it's a directory, the file is
@@ -39,6 +48,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <utime.h>
+#include <sys/ioctl.h>
 
 #include "loadables.h"
 
@@ -56,9 +66,24 @@ typedef struct bcp_dir {
     struct bcp_dir *parent;
 } bcp_dir;
 
+enum { BCP_UPDATE_ALL, BCP_UPDATE_OLDER, BCP_UPDATE_NONE };
+enum { BCP_BACKUP_NONE, BCP_BACKUP_SIMPLE, BCP_BACKUP_NUMBERED, BCP_BACKUP_EXISTING };
+enum { BCP_SPARSE_AUTO, BCP_SPARSE_ALWAYS, BCP_SPARSE_NEVER };
+enum { BCP_REFLINK_NEVER, BCP_REFLINK_AUTO, BCP_REFLINK_ALWAYS };
+
 typedef struct {
     int fflag, iflag, nflag, pflag, rflag, vflag;
     int Hflag, Lflag, Pflag, aflag, parents;
+    /* What -p/-a/--preserve keep; pflag is "any of mode, owner, times". */
+    int pmode, powner, ptime, plinks;
+    int nomode;             /* --no-preserve=mode: create 0666/0777 & ~umask */
+    int update;             /* -u/--update[=WHEN] */
+    int link_mode;          /* 'l' (-l) or 's' (-s), else 0 */
+    int backup;             /* -b/--backup[=CONTROL] */
+    const char *suffix;     /* -S/--suffix, else $SIMPLE_BACKUP_SUFFIX or ~ */
+    int sparse, reflink;
+    int remove_dest, attr_only, xflag, Tflag;
+    dev_t top_dev;          /* -x: the file system of the current operand */
     bcp_link *links;
     bcp_dir *directories;
 } bcp_opts;
@@ -164,14 +189,52 @@ bcp_copy_link (const char *src, const char *dst, const struct stat *sst,
     return 0;
 }
 
-/* Fast path: read+write loop. No sendfile dependency — keep portable. */
 static int
-bcp_copy_data (int sfd, int dfd, const char *src, const char *dst)
+bcp_all_zero (const char *p, size_t n)
 {
+    for (size_t i = 0; i < n; i++)
+        if (p[i])
+            return 0;
+    return 1;
+}
+
+/* Fast path: read+write loop. No sendfile dependency — keep portable.
+   With HOLES, blocks of zeros become holes (GNU --sparse); the final size
+   is set with ftruncate so a trailing hole is kept. */
+static int
+bcp_copy_data (int sfd, int dfd, const char *src, const char *dst, int holes)
+{
+    enum { BLK = 4096 };
     char buf[64 * 1024];
     ssize_t n;
+    off_t total = 0;
+    int ended_in_hole = 0;
     while ((n = read (sfd, buf, sizeof buf)) > 0) {
         ssize_t off = 0;
+        total += n;
+        if (holes) {
+            while (off < n) {
+                size_t len = (size_t) (n - off) < BLK ? (size_t) (n - off) : BLK;
+                if (len == BLK && bcp_all_zero (buf + off, len)) {
+                    if (lseek (dfd, (off_t) len, SEEK_CUR) < 0) {
+                        fprintf (stderr, "cp: cannot lseek '%s': %s\n", dst, strerror (errno));
+                        return -1;
+                    }
+                    ended_in_hole = 1;
+                    off += (ssize_t) len;
+                    continue;
+                }
+                ssize_t w = write (dfd, buf + off, len);
+                if (w < 0) {
+                    if (errno == EINTR) continue;
+                    fprintf (stderr, "cp: error writing '%s': %s\n", dst, strerror (errno));
+                    return -1;
+                }
+                ended_in_hole = 0;
+                off += w;
+            }
+            continue;
+        }
         while (off < n) {
             ssize_t w = write (dfd, buf + off, (size_t) (n - off));
             if (w < 0) {
@@ -187,24 +250,30 @@ bcp_copy_data (int sfd, int dfd, const char *src, const char *dst)
         fprintf (stderr, "cp: error reading '%s': %s\n", src, strerror (errno));
         return -1;
     }
+    if (holes && ended_in_hole && ftruncate (dfd, total) < 0) {
+        fprintf (stderr, "cp: cannot extend '%s': %s\n", dst, strerror (errno));
+        return -1;
+    }
     return 0;
 }
 
 static int
-bcp_apply_metadata (const char *dst, const struct stat *st)
+bcp_apply_metadata (const char *dst, const struct stat *st, const bcp_opts *o)
 {
     int rc = 0;
     /* chown can clear set-ID bits, so apply the final mode afterwards. */
-    if (chown (dst, st->st_uid, st->st_gid) < 0) {
+    if (o->powner && chown (dst, st->st_uid, st->st_gid) < 0) {
         if (errno != EPERM) {
             builtin_error ("chown %s: %s", dst, strerror (errno));
             rc = -1;
         }
     }
-    if (chmod (dst, st->st_mode & 07777) < 0) {
+    if (o->pmode && chmod (dst, st->st_mode & 07777) < 0) {
         builtin_error ("chmod %s: %s", dst, strerror (errno));
         rc = -1;
     }
+    if (!o->ptime)
+        return rc;
     struct timespec ts[2];
     ts[0].tv_sec  = st->st_atim.tv_sec;
     ts[0].tv_nsec = st->st_atim.tv_nsec;
@@ -225,6 +294,96 @@ bcp_apply_metadata (const char *dst, const struct stat *st)
         rc = -1;
     }
     return rc;
+}
+
+#ifndef FICLONE
+#  define FICLONE _IOW (0x94, 9, int)
+#endif
+
+/* The backup made for the copy being reported; GNU -v appends it. */
+static char bcp_backup_note[4096 + 48];
+
+static void
+bcp_verbose (const char *src, const char *dst)
+{
+    if (bcp_backup_note[0])
+        printf ("'%s' -> '%s' (backup: '%s')\n", src, dst, bcp_backup_note);
+    else
+        printf ("'%s' -> '%s'\n", src, dst);
+    bcp_backup_note[0] = '\0';
+}
+
+/* GNU backup names: simple "DST~" (or the -S suffix), numbered
+   "DST.~N~", or "existing": numbered when numbered backups already exist. */
+static int
+bcp_make_backup (const char *dst, const bcp_opts *o)
+{
+    const char *slash = strrchr (dst, '/');
+    const char *base = slash ? slash + 1 : dst;
+    size_t dirlen = slash ? (size_t) (slash - dst) : 0;
+    int highest = 0;
+    int kind = o->backup;
+
+    if (kind == BCP_BACKUP_NUMBERED || kind == BCP_BACKUP_EXISTING) {
+        char *dir = dirlen ? strndup (dst, dirlen) : strdup (slash ? "/" : ".");
+        DIR *d = dir ? opendir (dir) : NULL;
+        size_t bl = strlen (base);
+        struct dirent *de;
+        while (d && (de = readdir (d)) != NULL) {
+            const char *n = de->d_name;
+            if (strncmp (n, base, bl) != 0 || strncmp (n + bl, ".~", 2) != 0)
+                continue;
+            char *end;
+            long v = strtol (n + bl + 2, &end, 10);
+            if (end != n + bl + 2 && end[0] == '~' && end[1] == '\0' && v > highest && v < 1000000000)
+                highest = (int) v;
+        }
+        if (d)
+            closedir (d);
+        free (dir);
+        if (kind == BCP_BACKUP_EXISTING)
+            kind = highest ? BCP_BACKUP_NUMBERED : BCP_BACKUP_SIMPLE;
+    }
+    const char *suffix = o->suffix;
+    if (!suffix || !*suffix || strchr (suffix, '/'))
+        suffix = "~";
+    size_t len = strlen (dst) + 32 + strlen (suffix);
+    char *name = malloc (len);
+    if (!name) {
+        builtin_error ("out of memory");
+        return -1;
+    }
+    if (kind == BCP_BACKUP_NUMBERED)
+        snprintf (name, len, "%s.~%d~", dst, highest + 1);
+    else
+        snprintf (name, len, "%s%s", dst, suffix);
+    int rc = rename (dst, name);
+    if (rc < 0)
+        builtin_error ("cannot backup '%s': %s", dst, strerror (errno));
+    else
+        snprintf (bcp_backup_note, sizeof bcp_backup_note, "%s", name);
+    free (name);
+    return rc;
+}
+
+/* Make way for a new DST: -b renames it, --remove-destination unlinks it. */
+static int
+bcp_clear_destination (const char *dst, const bcp_opts *o, int *exists)
+{
+    if (!*exists)
+        return 0;
+    if (o->backup != BCP_BACKUP_NONE) {
+        if (bcp_make_backup (dst, o) < 0)
+            return -1;
+        *exists = 0;
+    } else if (o->remove_dest) {
+        if (unlink (dst) < 0 && errno != ENOENT) {
+            builtin_error ("cannot remove '%s': %s", dst, strerror (errno));
+            return -1;
+        }
+        *exists = 0;
+    }
+    return 0;
 }
 
 /* Copy a regular file. dst is a full path — no path-joining here. */
@@ -275,8 +434,13 @@ bcp_copy_regular (const char *src, const char *dst,
         builtin_error ("open %s: %s", src, strerror (errno));
         return -1;
     }
+    if (dst_exists && !S_ISDIR (dst_st.st_mode) && !o->attr_only &&
+        bcp_clear_destination (dst, o, &dst_exists) < 0) {
+        close (sfd);
+        return -1;
+    }
     if (dst_exists &&
-        o->aflag && S_ISREG (dst_st.st_mode) && dst_st.st_nlink > 1) {
+        o->plinks && S_ISREG (dst_st.st_mode) && dst_st.st_nlink > 1) {
         if (unlink (dst) < 0 && errno != ENOENT) {
             builtin_error ("unlink %s: %s", dst, strerror (errno));
             close (sfd);
@@ -285,7 +449,8 @@ bcp_copy_regular (const char *src, const char *dst,
     }
     /* Open without truncating: dst may be a symlink back to src, and the
        lstat check above compares the link's inode rather than its target. */
-    int dfd = open (dst, O_WRONLY | O_CREAT | (o->nflag ? O_EXCL : 0), sst->st_mode & 0777);
+    mode_t create_mode = o->nomode ? 0666 : sst->st_mode & 0777;
+    int dfd = open (dst, O_WRONLY | O_CREAT | (o->nflag ? O_EXCL : 0), create_mode);
     /* -f is a retry after a failed write-open, not unconditional removal.
        Keep openable symlinks, hardlinks and destination modes intact. The
        source is already open and same-file checks precede any unlink. */
@@ -295,7 +460,7 @@ bcp_copy_regular (const char *src, const char *dst,
             close (sfd);
             return -1;
         }
-        dfd = open (dst, O_WRONLY | O_CREAT | O_EXCL, sst->st_mode & 0777);
+        dfd = open (dst, O_WRONLY | O_CREAT | O_EXCL, create_mode);
     }
     if (dfd < 0) {
         if (o->nflag && errno == EEXIST) { close (sfd); return 1; }
@@ -319,13 +484,27 @@ bcp_copy_regular (const char *src, const char *dst,
     }
     /* Truncate a regular file; a device, fifo or socket is simply written into. */
     int dst_regular = S_ISREG (opened_dst.st_mode);
-    if (dst_regular && ftruncate (dfd, 0) < 0) {
+    if (!o->attr_only && dst_regular && ftruncate (dfd, 0) < 0) {
         builtin_error ("truncate %s: %s", dst, strerror (errno));
         close (sfd);
         close (dfd);
         return -1;
     }
-    int rc = bcp_copy_data (sfd, dfd, src, dst);
+    int rc = 0, copied = o->attr_only;
+    if (!copied && dst_regular && o->reflink != BCP_REFLINK_NEVER) {
+        if (ioctl (dfd, FICLONE, sfd) == 0)
+            copied = 1;
+        else if (o->reflink == BCP_REFLINK_ALWAYS) {
+            builtin_error ("failed to clone '%s' from '%s': %s", dst, src, strerror (errno));
+            rc = -1;
+            copied = 1;
+        }
+    }
+    /* --sparse=auto makes holes only where the source has them. */
+    int holes = dst_regular && (o->sparse == BCP_SPARSE_ALWAYS ||
+        (o->sparse == BCP_SPARSE_AUTO && (off_t) opened_src.st_blocks * 512 < opened_src.st_size));
+    if (!copied)
+        rc = bcp_copy_data (sfd, dfd, src, dst, holes);
     if (close (sfd) < 0) {
         builtin_error ("close %s: %s", src, strerror (errno));
         rc = -1;
@@ -335,9 +514,9 @@ bcp_copy_regular (const char *src, const char *dst,
         rc = -1;
     }
     if (rc < 0) return -1;
-    if (o->pflag && dst_regular && bcp_apply_metadata (dst, sst) < 0) return -1;
+    if (o->pflag && dst_regular && bcp_apply_metadata (dst, sst, o) < 0) return -1;
     if (o->vflag)
-        printf ("'%s' -> '%s'\n", src, dst);  /* GNU cp -v writes to stdout */
+        bcp_verbose (src, dst);  /* GNU cp -v writes to stdout */
     return 0;
 }
 
@@ -368,6 +547,8 @@ bcp_copy_symlink (const char *src, const char *dst, const struct stat *sst,
         while (c != EOF && c != '\n') c = getchar ();
         if (answer != 'y' && answer != 'Y') return -1;
     }
+    if (dst_exists && !S_ISDIR (ds.st_mode) && bcp_clear_destination (dst, o, &dst_exists) < 0)
+        return -1;
     if (dst_exists) {
         char tmp_path[4096 + 32];
         int wlen = snprintf (tmp_path, sizeof tmp_path,
@@ -406,18 +587,18 @@ bcp_copy_symlink (const char *src, const char *dst, const struct stat *sst,
     }
     if (o->pflag) {
         /* lchown for symlink owner. */
-        if (lchown (dst, sst->st_uid, sst->st_gid) < 0 && errno != EPERM) {
+        if (o->powner && lchown (dst, sst->st_uid, sst->st_gid) < 0 && errno != EPERM) {
             builtin_error ("lchown %s: %s", dst, strerror (errno));
             return -1;
         }
         struct timespec ts[2] = { sst->st_atim, sst->st_mtim };
-        if (utimensat (AT_FDCWD, dst, ts, AT_SYMLINK_NOFOLLOW) < 0) {
+        if (o->ptime && utimensat (AT_FDCWD, dst, ts, AT_SYMLINK_NOFOLLOW) < 0) {
             builtin_error ("utimensat %s: %s", dst, strerror (errno));
             return -1;
         }
     }
     if (o->vflag)
-        printf ("'%s' -> '%s'\n", src, dst);  /* GNU cp -v writes to stdout */
+        bcp_verbose (src, dst);  /* GNU cp -v writes to stdout */
     return 0;
 }
 
@@ -451,7 +632,7 @@ bcp_copy_dir (const char *src, const char *dst, const struct stat *sst,
         }
         mode_t mask = umask (0);
         umask (mask);
-        final_mode = (sst->st_mode & 0777) & ~mask;
+        final_mode = (o->nomode ? 0777 : sst->st_mode & 0777) & ~mask;
         if (mkdir (dst, final_mode | S_IRWXU) < 0) {
             builtin_error ("mkdir %s: %s", dst, strerror (errno));
             return -1;
@@ -465,7 +646,7 @@ bcp_copy_dir (const char *src, const char *dst, const struct stat *sst,
             goto restore_mode;
         }
         if (o->vflag)
-            printf ("'%s' -> '%s'\n", src, dst);  /* GNU cp -v writes to stdout */
+            bcp_verbose (src, dst);  /* GNU cp -v writes to stdout */
     } else if (!S_ISDIR (ds.st_mode)) {
         builtin_error ("'%s' exists and is not a directory", dst);
         return -1;
@@ -478,6 +659,9 @@ bcp_copy_dir (const char *src, const char *dst, const struct stat *sst,
         rc = -1;
         goto restore_mode;
     }
+    /* -x: a directory on another file system is created but not entered. */
+    if (o->xflag && sst->st_dev != o->top_dev)
+        goto restore_mode;
     DIR *dir = opendir (src);
     if (!dir) {
         builtin_error ("opendir %s: %s", src, strerror (errno));
@@ -535,8 +719,61 @@ restore_mode:
         builtin_error ("chmod %s: %s", dst, strerror (errno));
         rc = -1;
     }
-    if (o->pflag && bcp_apply_metadata (dst, sst) < 0) rc = -1;
+    if (o->pflag && bcp_apply_metadata (dst, sst, o) < 0) rc = -1;
     return rc;
+}
+
+/* -l / -s: make a hard or symbolic link instead of copying data. */
+static int
+bcp_make_link (const char *src, const char *dst, const bcp_opts *o, int follow)
+{
+    struct stat cur;
+    int exists = lstat (dst, &cur) == 0;
+    const char *what = o->link_mode == 's' ? "symbolic link" : "hard link";
+
+    if (o->link_mode == 's' && src[0] != '/' && strchr (dst, '/')) {
+        /* GNU: a relative target only resolves beside the current directory. */
+        const char *d = dst;
+        while (d[0] == '.' && d[1] == '/')
+            d += 2;
+        if (strchr (d, '/')) {
+            builtin_error ("%s: can make relative symbolic links only in current directory", dst);
+            return -1;
+        }
+    }
+    if (exists) {
+        if (o->nflag)
+            return 0;
+        if (S_ISDIR (cur.st_mode)) {
+            builtin_error ("cannot overwrite directory '%s' with non-directory", dst);
+            return -1;
+        }
+        if (o->link_mode == 'l') {
+            struct stat sst;
+            if ((follow ? stat (src, &sst) : lstat (src, &sst)) == 0 &&
+                sst.st_dev == cur.st_dev && sst.st_ino == cur.st_ino)
+                return 0;   /* already that link */
+        }
+        if (o->backup != BCP_BACKUP_NONE) {
+            if (bcp_make_backup (dst, o) < 0)
+                return -1;
+        } else if (o->fflag || o->remove_dest) {
+            if (unlink (dst) < 0) {
+                builtin_error ("cannot remove '%s': %s", dst, strerror (errno));
+                return -1;
+            }
+        }
+    }
+    int rc = o->link_mode == 's'
+        ? symlink (src, dst)
+        : linkat (AT_FDCWD, src, AT_FDCWD, dst, follow ? AT_SYMLINK_FOLLOW : 0);
+    if (rc < 0) {
+        builtin_error ("cannot create %s '%s' to '%s': %s", what, dst, src, strerror (errno));
+        return -1;
+    }
+    if (o->vflag)
+        bcp_verbose (src, dst);
+    return 0;
 }
 
 /* Top-level dispatcher per source. dst must be a complete target path
@@ -545,8 +782,9 @@ static int
 bcp_one (const char *src, const char *dst, bcp_opts *o, int top_level_source)
 {
     struct stat sst;
+    /* GNU: with no -H/-L/-P, follow unless recursive; -l always follows. */
     int follow = o->Lflag || (top_level_source && o->Hflag)
-                 || (!o->rflag && !o->Pflag);
+                 || (!o->Pflag && !o->Hflag && (!o->rflag || o->link_mode == 'l'));
     int rc;
     if (follow) rc = stat (src, &sst);
     else        rc = lstat (src, &sst);
@@ -554,7 +792,23 @@ bcp_one (const char *src, const char *dst, bcp_opts *o, int top_level_source)
         builtin_error ("stat %s: %s", src, strerror (errno));
         return -1;
     }
+    if (top_level_source)
+        o->top_dev = sst.st_dev;
+    bcp_backup_note[0] = '\0';
     if (S_ISDIR (sst.st_mode))    return bcp_copy_dir     (src, dst, &sst, o);
+    /* -u/--update: keep a destination that is not older than the source. */
+    if (o->update != BCP_UPDATE_ALL) {
+        struct stat cur;
+        if (lstat (dst, &cur) == 0 && !S_ISDIR (cur.st_mode)) {
+            if (o->update == BCP_UPDATE_NONE)
+                return 0;
+            if (cur.st_mtim.tv_sec > sst.st_mtim.tv_sec ||
+                (cur.st_mtim.tv_sec == sst.st_mtim.tv_sec && cur.st_mtim.tv_nsec >= sst.st_mtim.tv_nsec))
+                return 0;
+        }
+    }
+    if (o->link_mode)
+        return bcp_make_link (src, dst, o, follow);
     if (S_ISREG (sst.st_mode) || S_ISLNK (sst.st_mode)) {
         /* -n skips existing entries before same-file checks or link tracking.
            GNU still diagnoses a dangling destination when copying regular
@@ -589,7 +843,7 @@ bcp_one (const char *src, const char *dst, bcp_opts *o, int top_level_source)
         }
         /* Scope link tracking to this invocation, including multiple source
            operands. Dereferencing may expose aliases whose link count is 1. */
-        int preserve_link = o->aflag && (sst.st_nlink > 1 || o->Hflag || o->Lflag);
+        int preserve_link = o->plinks && (sst.st_nlink > 1 || o->Hflag || o->Lflag);
         bcp_link *entry = preserve_link ? bcp_find_link (o, &sst) : NULL;
         if (entry) rc = bcp_copy_link (src, dst, &sst, entry, o);
         else rc = S_ISLNK (sst.st_mode) ? bcp_copy_symlink (src, dst, &sst, o)
@@ -704,7 +958,7 @@ bcp_copy_parents (const char *src, const char *dest, bcp_opts *o)
         bcp_parent *parent = parents;
         parents = parent->next;
         if (o->pflag) {
-            if (bcp_apply_metadata (parent->path, &parent->source) < 0) rc = -1;
+            if (bcp_apply_metadata (parent->path, &parent->source, o) < 0) rc = -1;
         } else if (chmod (parent->path, parent->mode) < 0) {
             builtin_error ("chmod %s: %s", parent->path, strerror (errno));
             rc = -1;
@@ -715,6 +969,108 @@ bcp_copy_parents (const char *src, const char *dest, bcp_opts *o)
     free (prefix);
     free (dst);
     return rc;
+}
+
+/* --preserve=LIST and --no-preserve=LIST. */
+static int
+bcp_preserve_list (bcp_opts *o, const char *list, int on)
+{
+    char *copy = strdup (list), *save = NULL;
+    int rc = 0;
+    if (!copy) {
+        builtin_error ("out of memory");
+        return -1;
+    }
+    for (char *t = strtok_r (copy, ",", &save); t; t = strtok_r (NULL, ",", &save)) {
+        if (!strcmp (t, "mode")) { o->pmode = on; o->nomode = !on; }
+        else if (!strcmp (t, "ownership")) o->powner = on;
+        else if (!strcmp (t, "timestamps")) o->ptime = on;
+        else if (!strcmp (t, "links")) o->plinks = on;
+        else if (!strcmp (t, "all")) { o->pmode = o->powner = o->ptime = o->plinks = on; o->nomode = !on; }
+        else if (!strcmp (t, "context") || !strcmp (t, "xattr")) ;  /* none kept here */
+        else {
+            builtin_error ("invalid argument '%s' for '--%spreserve'", t, on ? "" : "no-");
+            rc = -1;
+            break;
+        }
+    }
+    free (copy);
+    return rc;
+}
+
+static int
+bcp_backup_kind (const char *v, int *kind)
+{
+    if (!v || !*v) v = getenv ("VERSION_CONTROL");
+    if (!v || !*v || !strcmp (v, "existing") || !strcmp (v, "nil")) *kind = BCP_BACKUP_EXISTING;
+    else if (!strcmp (v, "simple") || !strcmp (v, "never")) *kind = BCP_BACKUP_SIMPLE;
+    else if (!strcmp (v, "numbered") || !strcmp (v, "t")) *kind = BCP_BACKUP_NUMBERED;
+    else if (!strcmp (v, "none") || !strcmp (v, "off")) *kind = BCP_BACKUP_NONE;
+    else {
+        builtin_error ("invalid argument '%s' for 'backup type'", v);
+        return -1;
+    }
+    return 0;
+}
+
+/* One GNU long option (without its "--"). 0 handled, 1 not a long option
+   this function owns, -1 error. VALUE is the text after '=', or NULL. */
+static int
+bcp_long_option (bcp_opts *o, const char *name, const char *value, WORD_LIST **pp)
+{
+#define BCP_IS(n) (!strcmp (name, n))
+    if (BCP_IS ("archive")) {
+        o->pmode = o->powner = o->ptime = o->plinks = 1;
+        o->aflag = o->rflag = 1;
+        o->Hflag = o->Lflag = 0;
+        o->Pflag = 1;
+    } else if (BCP_IS ("preserve")) {
+        if (value) return bcp_preserve_list (o, value, 1);
+        o->pmode = o->powner = o->ptime = 1;
+    } else if (BCP_IS ("no-preserve")) {
+        if (!value) { builtin_error ("option '--no-preserve' requires an argument"); return -1; }
+        return bcp_preserve_list (o, value, 0);
+    } else if (BCP_IS ("recursive")) o->rflag = 1;
+    else if (BCP_IS ("verbose")) o->vflag = 1;
+    else if (BCP_IS ("dereference")) { o->Lflag = 1; o->Hflag = o->Pflag = 0; }
+    else if (BCP_IS ("no-dereference")) { o->Pflag = 1; o->Hflag = o->Lflag = 0; }
+    else if (BCP_IS ("link")) o->link_mode = 'l';
+    else if (BCP_IS ("symbolic-link")) o->link_mode = 's';
+    else if (BCP_IS ("one-file-system")) o->xflag = 1;
+    else if (BCP_IS ("no-target-directory")) o->Tflag = 1;
+    else if (BCP_IS ("remove-destination")) o->remove_dest = 1;
+    else if (BCP_IS ("attributes-only")) o->attr_only = 1;
+    else if (BCP_IS ("strip-trailing-slashes") || BCP_IS ("copy-contents") || BCP_IS ("debug")
+             || BCP_IS ("context")) ;
+    else if (BCP_IS ("update")) {
+        if (!value || !strcmp (value, "older")) o->update = BCP_UPDATE_OLDER;
+        else if (!strcmp (value, "all")) o->update = BCP_UPDATE_ALL;
+        else if (!strcmp (value, "none") || !strcmp (value, "none-fail")) o->update = BCP_UPDATE_NONE;
+        else { builtin_error ("invalid argument '%s' for '--update'", value); return -1; }
+    } else if (BCP_IS ("backup")) {
+        return bcp_backup_kind (value, &o->backup);
+    } else if (BCP_IS ("suffix")) {
+        if (!value) {
+            if (!*pp || !(*pp)->next) { builtin_error ("option '--suffix' requires an argument"); return -1; }
+            *pp = (*pp)->next;
+            value = (*pp)->word->word;
+        }
+        o->suffix = value;
+        if (o->backup == BCP_BACKUP_NONE && bcp_backup_kind (NULL, &o->backup) < 0) return -1;
+    } else if (BCP_IS ("sparse")) {
+        if (value && !strcmp (value, "auto")) o->sparse = BCP_SPARSE_AUTO;
+        else if (value && !strcmp (value, "always")) o->sparse = BCP_SPARSE_ALWAYS;
+        else if (value && !strcmp (value, "never")) o->sparse = BCP_SPARSE_NEVER;
+        else { builtin_error ("invalid argument '%s' for '--sparse'", value ? value : ""); return -1; }
+    } else if (BCP_IS ("reflink")) {
+        if (!value || !strcmp (value, "always")) o->reflink = BCP_REFLINK_ALWAYS;
+        else if (!strcmp (value, "auto")) o->reflink = BCP_REFLINK_AUTO;
+        else if (!strcmp (value, "never")) o->reflink = BCP_REFLINK_NEVER;
+        else { builtin_error ("invalid argument '%s' for '--reflink'", value); return -1; }
+    } else
+        return 1;
+#undef BCP_IS
+    return 0;
 }
 
 int
@@ -746,6 +1102,26 @@ cp_builtin (WORD_LIST *list)
         if (!strcmp (w, "--no-clobber")) w = "-n";
         if (!strcmp (w, "--interactive")) { o.iflag = 1; o.nflag = 0; continue; }
         if (!strcmp (w, "--force")) { o.fflag = 1; continue; }
+        if (w[0] == '-' && w[1] == '-' && w[2]) {
+            char name[64];
+            const char *eq = strchr (w + 2, '=');
+            size_t nl = eq ? (size_t) (eq - (w + 2)) : strlen (w + 2);
+            if (nl < sizeof name) {
+                memcpy (name, w + 2, nl);
+                name[nl] = '\0';
+                int r = bcp_long_option (&o, name, eq ? eq + 1 : NULL, &p);
+                if (r < 0) {
+                    free (positional.v);
+                    return EXECUTION_FAILURE;
+                }
+                if (r == 0)
+                    continue;
+            }
+            builtin_error ("unrecognized option '%s'", w);
+            builtin_usage ();
+            free (positional.v);
+            return EXECUTION_FAILURE;
+        }
         if (strcmp (w, "--") == 0) {
             for (p = p->next; p; p = p->next) {
                 if (bcp_words_add (&positional, p->word->word) < 0) {
@@ -761,7 +1137,7 @@ cp_builtin (WORD_LIST *list)
                 case 'a':
                     /* Archive: -dpR. Reset earlier dereference flags;
                        later -H/-L/-P may select a different symlink mode. */
-                    o.pflag = 1;
+                    o.pmode = o.powner = o.ptime = o.plinks = 1;
                     o.aflag = 1;
                     o.rflag = 1;
                     o.Hflag = 0;
@@ -775,7 +1151,37 @@ cp_builtin (WORD_LIST *list)
                     builtin_warning ("behavior of -n is non-portable and may change in future; use --update=none instead");
 #endif
                     o.nflag = 1; o.iflag = 0; break;
-                case 'p': o.pflag = 1; break;
+                case 'p': o.pmode = o.powner = o.ptime = 1; break;
+                case 'd': o.Pflag = 1; o.Hflag = o.Lflag = 0; o.plinks = 1; break;
+                case 'l': o.link_mode = 'l'; break;
+                case 's': o.link_mode = 's'; break;
+                case 'u': o.update = BCP_UPDATE_OLDER; break;
+                case 'x': o.xflag = 1; break;
+                case 'T': o.Tflag = 1; break;
+                case 'Z': break;    /* SELinux context: nothing to set */
+                case 'b':
+                    if (o.backup == BCP_BACKUP_NONE && bcp_backup_kind (NULL, &o.backup) < 0) {
+                        free (positional.v);
+                        return EXECUTION_FAILURE;
+                    }
+                    break;
+                case 'S': {
+                    const char *v;
+                    if (w[i + 1]) v = w + i + 1;
+                    else if (p->next) { p = p->next; v = p->word->word; }
+                    else {
+                        builtin_error ("option requires an argument -- 'S'");
+                        free (positional.v);
+                        return EXECUTION_FAILURE;
+                    }
+                    o.suffix = v;
+                    if (o.backup == BCP_BACKUP_NONE && bcp_backup_kind (NULL, &o.backup) < 0) {
+                        free (positional.v);
+                        return EXECUTION_FAILURE;
+                    }
+                    i += strlen (w + i + 1);
+                    break;
+                }
                 case 'R': case 'r': o.rflag = 1; break;
                 case 'H': o.Hflag = 1; o.Lflag = 0; o.Pflag = 0; break;
                 case 'L': o.Lflag = 1; o.Hflag = 0; o.Pflag = 0; break;
@@ -809,6 +1215,18 @@ cp_builtin (WORD_LIST *list)
             }
         }
     }
+    o.pflag = o.pmode || o.powner || o.ptime;
+    if (!o.suffix) o.suffix = getenv ("SIMPLE_BACKUP_SUFFIX");
+    if (o.Tflag && target_dir) {
+        builtin_error ("cannot combine --target-directory (-t) and --no-target-directory (-T)");
+        free (positional.v);
+        return EXECUTION_FAILURE;
+    }
+    if (o.Tflag && positional.n > 2) {
+        builtin_error ("extra operand '%s'", positional.v[2]);
+        free (positional.v);
+        return EXECUTION_FAILURE;
+    }
     if (positional.n < (target_dir ? 1 : 2)) {
         builtin_error ("missing file operand");
         builtin_usage ();
@@ -820,7 +1238,7 @@ cp_builtin (WORD_LIST *list)
 
     /* Is DEST a directory? */
     struct stat dst_st;
-    int dst_is_dir = (stat (dest, &dst_st) == 0 && S_ISDIR (dst_st.st_mode));
+    int dst_is_dir = !o.Tflag && (stat (dest, &dst_st) == 0 && S_ISDIR (dst_st.st_mode));
 
     if ((target_dir || nsrc > 1 || o.parents) && !dst_is_dir) {
         builtin_error ("target '%s' is not a directory", dest);
@@ -875,8 +1293,8 @@ duplicate_target:
 char *cp_doc[] = {
     "Copy files and directories.",
     "",
-    "    bashcp [-afinpRrv] [-HLP] SOURCE... DEST",
-    "    bashcp [-afinpRrv] [-HLP] -t DIR SOURCE...",
+    "    bashcp [-abdfilnprRsTuvx] [-HLP] [-S SUFFIX] SOURCE... DEST",
+    "    bashcp [-abdfilnprRsTuvx] [-HLP] [-S SUFFIX] -t DIR SOURCE...",
     "",
     "    -a   archive: same as -dpR (clone symlinks as symlinks,",
     "         preserve hard links and metadata, recursive)",
@@ -888,6 +1306,21 @@ char *cp_doc[] = {
     "    -R, -r   recursive",
     "    -t DIR, --target-directory=DIR   copy all sources into DIR",
     "    -v   verbose: print each completed copy",
+    "    -b, --backup[=CONTROL]   back up each replaced file (none, simple,",
+    "         numbered, existing; default $VERSION_CONTROL or existing)",
+    "    -S SUFFIX, --suffix=SUFFIX   simple backup suffix (default ~)",
+    "    -d   same as --no-dereference --preserve=links",
+    "    -l, --link   hard-link files instead of copying (follows symlinks)",
+    "    -s, --symbolic-link   make symbolic links instead of copying",
+    "    -T, --no-target-directory   treat DEST as a normal file",
+    "    -u, --update[=all|none|older]   replace only older destinations",
+    "    -x, --one-file-system   stay on the source file systems",
+    "    --archive, --recursive, --verbose, --dereference, --no-dereference",
+    "    --preserve[=mode,ownership,timestamps,links,all], --no-preserve=LIST",
+    "    --remove-destination   remove each existing destination first",
+    "    --attributes-only   copy metadata only, not file data",
+    "    --sparse=auto|always|never   create holes for runs of zeros",
+    "    --reflink[=auto|always|never]   clone data when the file system can",
     "    -H   follow symlinks named on the command line",
     "    -L   always follow symlinks",
     "    -P   don't follow symlinks",
@@ -900,6 +1333,6 @@ struct builtin bashcp_struct = {
     cp_builtin,
     BUILTIN_ENABLED,
     cp_doc,
-    "bashcp [-afinpRrv] [-HLP] {SOURCE... DEST | -t DIR SOURCE...}",
+    "bashcp [-abdfilnprRsTuvx] [-HLP] [-S SUFFIX] {SOURCE... DEST | -t DIR SOURCE...}",
     0
 };

@@ -14,7 +14,8 @@
     "Interactive overwrite acceptance and decline using bounded here-string input",
     "Bash type/help metadata contract for the registered cp builtin",
     "Additional bounded regular-file, hardlink, symlink and multi-operand error continuation regressions.",
-    "GNU --parents path retention, parent modes, archive links, and failure continuation."
+    "GNU --parents path retention, parent modes, archive links, and failure continuation.",
+    "GNU long options and -u/-l/-s/-b/-S/-T/-x/-d, --preserve/--no-preserve lists, --update=WHEN, --backup=CONTROL, --remove-destination, --attributes-only, --sparse and --reflink (guest compatibility pass 1)."
   ],
   "exclusions": [
     "Device nodes, FIFOs, sockets, ACLs, extended attributes, and security labels are outside this private regular-file/symlink fixture suite.",
@@ -142,7 +143,7 @@
       "id": "builtin_type_help_contract",
       "kind": "contract",
       "purpose": "Checks Bash metadata only: cp is registered as a builtin and help exposes the documented synopsis. This does not count as cp operation coverage.",
-      "script": "[[ $(type -t cp) == builtin ]] || exit 1\nhelp_text=$(help cp) || exit 1\n[[ $help_text == *'Copy files and directories.'* && $help_text == *'bashcp [-afinpRrv] [-HLP] SOURCE... DEST'* ]] || exit 1\nprintf 'type=builtin\\nhelp=cp synopsis present\\n'",
+      "script": "[[ $(type -t cp) == builtin ]] || exit 1\nhelp_text=$(help cp) || exit 1\n[[ $help_text == *'Copy files and directories.'* && $help_text == *'bashcp [-abdfilnprRsTuvx] [-HLP] [-S SUFFIX] SOURCE... DEST'* ]] || exit 1\nprintf 'type=builtin\\nhelp=cp synopsis present\\n'",
       "expected_status": 0,
       "stdout": "type=builtin\nhelp=cp synopsis present\n",
       "stderr": "empty"
@@ -410,6 +411,110 @@
         "mkdir"
       ],
       "script": "mkdir x y; : > a\ncp -tx -t y a",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu_long_preserve",
+      "kind": "parity",
+      "purpose": "--archive, --preserve[=LIST] and --no-preserve=mode keep or drop modes like GNU (guest pass 1).",
+      "requires": [
+        "cp",
+        "mkdir",
+        "chmod",
+        "ln"
+      ],
+      "script": "mkdir d; printf a > d/f; chmod 640 d/f; ln -s f d/l\ncp --archive d e\ncp --preserve=mode d/f m\ncp --preserve d/f p\ncp -a --no-preserve=mode d/f nm\ncp --preserve=mode,timestamps d/f mt\ncp --preserve=bogus d/f x || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu_update",
+      "kind": "parity",
+      "purpose": "-u/--update[=older|all|none] keep a destination that is not older than the source.",
+      "requires": [
+        "cp",
+        "touch",
+        "cat"
+      ],
+      "script": "printf new > s; printf old > d; touch -t 200101010000 d\ncp -u s d; cat d; echo\nprintf keep > d; touch -t 203001010000 d\ncp --update s d; cat d; echo\ncp --update=none s d; cat d; echo\ncp --update=all s d; cat d; echo\ncp --update=bogus s d || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu_link_modes",
+      "kind": "parity",
+      "purpose": "-l, -s and -rl make hard and symbolic links; -l follows source symlinks like GNU. Re-linking onto an existing hard link to the same file succeeds silently.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "ln"
+      ],
+      "script": "printf a > f; mkdir d; printf b > d/x; ln -s x d/y\ncp -l f h\ncp --link f h2\ncp -s f s\ncp --symbolic-link f s2\ncp -rl d e\ncp -l f h\ncp -s f sub/s 2>/dev/null || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu_backups",
+      "kind": "parity",
+      "purpose": "-b, --backup=CONTROL, -S/--suffix and -v report and keep backups like GNU.",
+      "requires": [
+        "cp",
+        "ls"
+      ],
+      "script": "printf 1 > f; printf 0 > o\ncp -b f o\nprintf 2 > f; cp --backup=numbered f o\nprintf 3 > f; cp --backup=numbered f o\nprintf 4 > f; cp --backup=existing f o\nprintf 5 > f; cp -S .bak -b f o\nprintf 6 > f; cp -vb --suffix=.old f o\nls\ncp --backup=bogus f o || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu_no_target_directory",
+      "kind": "parity",
+      "purpose": "-T/--no-target-directory copies onto the named path instead of into it.",
+      "requires": [
+        "cp",
+        "mkdir"
+      ],
+      "script": "mkdir d e; printf a > d/f\ncp -rT d e\ncp --no-target-directory d/f g\ncp -T d/f g h || echo rc=$?\ncp -T -t e d/f || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu_replace_modes",
+      "kind": "parity",
+      "purpose": "--remove-destination unlinks first (breaking hard links); --attributes-only copies only metadata.",
+      "requires": [
+        "cp",
+        "chmod",
+        "ln",
+        "cat"
+      ],
+      "script": "printf new > s; chmod 600 s; printf old > d; ln d dl\ncp --remove-destination s d\ncat d dl; echo\nprintf keep > k\ncp --attributes-only -p s k\ncat k; echo",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu_sparse_reflink_onefs",
+      "kind": "parity",
+      "purpose": "Sparse sources stay sparse, --sparse=never writes data, and --reflink=auto, -x and -d are accepted.",
+      "requires": [
+        "cp",
+        "truncate",
+        "du",
+        "mkdir",
+        "ln"
+      ],
+      "script": "truncate -s 1M sp; printf x >> sp\ncp sp c1; cp --sparse=always sp c2; cp --sparse=never sp c3\nfor f in c1 c2 c3; do b=$(du -k $f); b=${b%%[[:space:]]*}; if [ $b -lt 100 ]; then echo $f sparse; else echo $f dense; fi; done\ncp --reflink=auto c1 r; cp --reflink=never c1 r2\nmkdir d; ln -s ../c1 d/l; cp -rx d x; cp -rd d y\ncp --sparse=bogus sp z || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu_unknown_long_option",
+      "kind": "parity",
+      "purpose": "An unknown long option fails with status 1 instead of 2.",
+      "requires": [
+        "cp"
+      ],
+      "script": "printf a > f\ncp --bogus f g",
       "expected_status": 1,
       "stderr": "nonempty"
     }

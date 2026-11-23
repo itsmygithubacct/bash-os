@@ -55,7 +55,7 @@ bashmount|bashmount [-t TYPE] [-o OPTS] [-B|-R|--remount|-u|-l|--mountpoint|--fi
 bashlogger|bashlogger [-i] [-t TAG] [-p PRI] [MESSAGE...]
 bashsyslogd|bashsyslogd
 ls|ls [OPTION]... [FILE]...
-cp|cp [-r] SRC... DST
+cp|cp [-abdfilnprRsTuvx] [-HLP] [-S SUFFIX] SRC... DST
 mv|mv SRC... DST
 touch|touch FILE...
 find|find [PATH] [EXPR]

@@ -144,7 +144,7 @@
       "id": "builtin_type_help_contract",
       "kind": "contract",
       "purpose": "Checks Bash metadata only: cp is registered as a builtin and help exposes the documented synopsis. This does not count as cp operation coverage.",
-      "script": "[[ $(type -t cp) == builtin ]] || exit 1\nhelp_text=$(help cp) || exit 1\n[[ $help_text == *'Copy files and directories.'* && $help_text == *'bashcp [-afinpRrv] [-HLP] SOURCE... DEST'* ]] || exit 1\nprintf 'type=builtin\\nhelp=cp synopsis present\\n'",
+      "script": "[[ $(type -t cp) == builtin ]] || exit 1\nhelp_text=$(help cp) || exit 1\n[[ $help_text == *'Copy files and directories.'* && $help_text == *'bashcp [-abdfilnprRsTuvx] [-HLP] [-S SUFFIX] SOURCE... DEST'* ]] || exit 1\nprintf 'type=builtin\\nhelp=cp synopsis present\\n'",
       "expected_status": 0,
       "stdout": "type=builtin\nhelp=cp synopsis present\n",
       "stderr": "empty"
