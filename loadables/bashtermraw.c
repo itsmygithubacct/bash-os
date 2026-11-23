@@ -337,6 +337,38 @@ btr_stty_set (const char *state)
   return 0;
 }
 
+/* stty rows/cols: set the kernel window size (TIOCSWINSZ), which also
+   delivers SIGWINCH to the terminal's foreground process group. */
+static int
+btr_resize (const char *rows_s, const char *cols_s)
+{
+  char *end;
+  long rows, cols;
+  int fd, close_fd;
+
+  errno = 0;
+  rows = strtol (rows_s, &end, 10);
+  if (errno || end == rows_s || *end || rows < 0 || rows > 65535)
+    { builtin_error ("resize: invalid row count: %s", rows_s); return 1; }
+  cols = strtol (cols_s, &end, 10);
+  if (errno || end == cols_s || *end || cols < 0 || cols > 65535)
+    { builtin_error ("resize: invalid column count: %s", cols_s); return 1; }
+  if (btr_open_tty (&fd, &close_fd) < 0) return 1;
+  struct winsize ws;
+  memset (&ws, 0, sizeof ws);
+  (void) ioctl (fd, TIOCGWINSZ, &ws);
+  ws.ws_row = (unsigned short) rows;
+  ws.ws_col = (unsigned short) cols;
+  if (ioctl (fd, TIOCSWINSZ, &ws) < 0)
+    {
+      builtin_error ("ioctl(TIOCSWINSZ): %s", strerror (errno));
+      if (close_fd) close (fd);
+      return 1;
+    }
+  if (close_fd) close (fd);
+  return 0;
+}
+
 /* --- Keypress decoder ----------------------------------------------------
  * Reads one logical keypress event from /dev/tty (in whatever mode the
  * terminal is currently in — this builtin is most useful right after
@@ -727,6 +759,12 @@ bashtermraw_builtin (WORD_LIST *list)
   if (strcmp (cmd, "raw") == 0)        return btr_raw () == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
   if (strcmp (cmd, "cooked") == 0)     return btr_cooked () == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
   if (strcmp (cmd, "size") == 0)       return btr_size () == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+  if (strcmp (cmd, "resize") == 0)
+    {
+      if (!args || !args->next)
+        { builtin_error ("resize: ROWS and COLS arguments required"); return (EX_USAGE); }
+      return btr_resize (args->word->word, args->next->word->word) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+    }
   if (strcmp (cmd, "stty-g") == 0)     return btr_stty_g () == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
   if (strcmp (cmd, "stty-set") == 0)
     {
@@ -793,6 +831,7 @@ char *bashtermraw_doc[] = {
   "    size               echo \"ROWS COLS\" (TIOCGWINSZ)",
   "    stty-g             echo saveable full termios state string",
   "    stty-set STATE     restore state emitted by stty-g",
+  "    resize ROWS COLS   set the window size (TIOCSWINSZ)",
   "    keypress           read one key, echo decoded name on stdout",
   "                       (UP / DOWN / F1 / C-x / TAB / RET / ESC /",
   "                       BS / DEL / S-UP / C-LEFT / M-a / printable /",
