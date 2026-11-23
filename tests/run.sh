@@ -548,6 +548,13 @@ check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/cl
   else
     echo 'FAIL grep harness compilation'; fail=$((fail+1))
   fi
+  # The engine non-glibc builds use (musl has no REG_STARTEND).
+  if "$CC" -O1 -g -fsanitize=address,undefined -DBASHGREP_PORTABLE_REGEX "${INC[@]}" -Iloadables/common \
+      loadables/grep.c tests/grep-host.c -lpcre2-8 -o "$scratch/grep-portable"; then
+    check 'grep parity, portable regex, under ASan+UBSan' env GREP_IMPL="$scratch/grep-portable" bash tests/grep-parity.sh out/bash
+  else
+    echo 'FAIL portable grep harness compilation'; fail=$((fail+1))
+  fi
 else
   echo "FAIL C harness prerequisites (need a built tree + $CC)"; fail=$((fail+1))
 fi

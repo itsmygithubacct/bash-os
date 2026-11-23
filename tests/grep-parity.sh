@@ -443,6 +443,14 @@ printf 'ab\0cd\n' | grep -c d
 printf 'ab\0cd\n' | grep -o d
 printf 'ab\0cd\n' | grep -a -c 'b[^x]c'
 grep -a -c 'cd' nulline
+# Matches after an embedded NUL, which need the regex engine (not a literal):
+# a regexec without REG_STARTEND stops at the first NUL of the line.
+printf 'x\0abc\n' | grep -a -c '.bc'
+printf 'x\0abc\n' | grep -a -o 'a.c'
+printf 'x\0././@LongLink\0\n' | grep -a -c '././@LongLink'
+printf 'x\0ab\0cd\n' | grep -a -o '[a-d]d'
+printf 'x\0foo bar\n' | grep -a -c '\<bar'
+printf 'x\0foo bar\n' | grep -a -c -E 'o+ b'
 grep -a -o 'b[^x]c' nulline | od -c | sed -n '1,1p'
 grep foo latenul.txt
 grep -c foo latenul.txt

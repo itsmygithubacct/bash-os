@@ -47,7 +47,15 @@
 #include <ctype.h>
 #include <wchar.h>
 #include <wctype.h>
-#include <regex.h>
+/* Non-glibc C libraries (musl) have no REG_STARTEND, and their regexec stops
+   at the first NUL of a line. Those builds use sed's private copy of the GNU
+   regex engine, which is glibc's and has it; BASHGREP_PORTABLE_REGEX selects
+   that engine on glibc too, so the same path can be checked on the host. */
+#if defined (__GLIBC__) && !defined (BASHGREP_PORTABLE_REGEX)
+#  include <regex.h>
+#else
+#  include "sed-regex.h"
+#endif
 #include <fnmatch.h>
 #include <dirent.h>
 #include <fcntl.h>
@@ -64,16 +72,11 @@
 
 #include "loadables.h"
 
-/* glibc's REG_STARTEND lets regexec see a whole line while matching a part
-   of it, so \< and \b know the character before the part and a NUL inside
-   the line (-a) is data. Without it (musl) the part is NUL-terminated in
-   place, and whether it follows the record delimiter decides REG_NOTBOL;
-   the one thing that path cannot do is match across a NUL under -a (noted
-   in docs/PROVENANCE.md). */
-#ifdef REG_STARTEND
-#  define BG_STARTEND 1
-#else
-#  define BG_STARTEND 0
+/* REG_STARTEND lets regexec see a whole line while matching a part of it,
+   so \< and \b know the character before the part and a NUL inside the
+   line (-a) is data. Both engines above have it. */
+#ifndef REG_STARTEND
+#  error "grep needs a regex engine with REG_STARTEND"
 #endif
 
 #define BG_BLOCK (96 * 1024)
@@ -832,21 +835,9 @@ static int
 bg_re_exec (const regex_t *re, char *line, size_t llen, size_t start, size_t end,
             int eflags, regmatch_t *m, int delim)
 {
-    int rc;
-#if BG_STARTEND
     (void) llen; (void) delim;
     m->rm_so = (regoff_t) start; m->rm_eo = (regoff_t) end;
-    rc = regexec (re, line, 1, m, eflags | REG_STARTEND);
-#else
-    (void) llen;
-    char saved = line[end];
-    line[end] = '\0';
-    if (start > 0 && line[start - 1] != delim) eflags |= REG_NOTBOL;
-    rc = regexec (re, line + start, 1, m, eflags);
-    line[end] = saved;
-    if (rc == 0) { m->rm_so += (regoff_t) start; m->rm_eo += (regoff_t) start; }
-#endif
-    return rc == 0;
+    return regexec (re, line, 1, m, eflags | REG_STARTEND) == 0;
 }
 
 /* The leftmost, then longest, match over the compiled regexes. */

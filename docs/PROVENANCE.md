@@ -251,14 +251,13 @@ Changes carried in the sources, noted there:
   for `-m` or at its end when grep stopped early. PCRE2 (`-P`) stays behind
   `BASHGREP_PCRE2` (default 0) so no libpcre2 is needed. Not reproduced:
   `--color` (accepted, no color), and `.` matching a NUL byte under `-a`
-  (glibc's `.` never matches NUL). Where the C library has no
-  `REG_STARTEND` (musl, so every cross build), a part of a line is matched
-  by terminating it in place, and a pattern that has to reach across an
-  embedded NUL under `-a` does not match there; measured by forcing that
-  path on the host, it is the only difference of the 574.
-  `tests/grep-parity.sh` holds it to GNU grep on those 574 command lines in
-  a UTF-8 and in the C locale, and `tests/grep-host.c` runs them again
-  under ASan+UBSan.
+  (glibc's `.` never matches NUL). Where the C library is not glibc (musl,
+  so every cross build) grep uses sed's private copy of the GNU regex
+  engine (`loadables/common/sed-regex.h`), whose `REG_STARTEND` keeps a NUL
+  inside a line as data; `BASHGREP_PORTABLE_REGEX` selects it on glibc.
+  `tests/grep-parity.sh` holds grep to GNU grep's output on its command
+  lines in a UTF-8 and in the C locale, and `tests/grep-host.c` runs them
+  again under ASan+UBSan.
 - `pax`: the collection's `bashpax.c`, renamed; plain libc ustar list, create,
   extract and copy with PAX and GNU long-name headers read and `..` rejected.
   Fixed here: bodies were skipped with `fseek`, which fails on a pipe, so
