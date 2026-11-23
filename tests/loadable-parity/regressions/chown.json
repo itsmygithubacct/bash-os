@@ -8,7 +8,8 @@
     "Group-only syntax across multiple operands",
     "Legacy OWNER.GROUP separator",
     "-h changes a dangling symlink itself; default behavior follows it",
-    "Invalid owner, negative numeric owner, missing operand, status, diagnostics, and unchanged fixture effects"
+    "Invalid owner, negative numeric owner, missing operand, status, diagnostics, and unchanged fixture effects",
+    "-R recursion with the default -P, -H and -L symlink traversal, and -f"
   ],
   "exclusions": [
     "A successful ownership change to a distinct UID or non-member GID needs CAP_CHOWN or a reviewed syscall mock. The mandatory runner has no capabilities, so that operation is deferred rather than represented as passing."
@@ -226,6 +227,52 @@
       ],
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "recursive_tree",
+      "kind": "parity",
+      "purpose": "-R walks a nested tree with files, an empty directory and an internal dangling symlink; under the default -P the link itself is changed, so the walk succeeds.",
+      "script": "mkdir -p tree/sub/deep tree/empty\nprintf 'a\\n' > tree/a\nprintf 'b\\n' > tree/sub/deep/b\nln -s missing-target tree/sub/dangling\nchown -R \"$EUID:runner\" tree\nprintf 'ok\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chown",
+        "ln"
+      ]
+    },
+    {
+      "id": "recursive_L_dangling",
+      "kind": "parity",
+      "purpose": "-R -L follows every symlink, so an internal dangling link cannot be dereferenced; the rest of the tree is still processed and the status is 1.",
+      "script": "mkdir -p tree/sub\nprintf 'a\\n' > tree/sub/a\nln -s missing-target tree/dangling\nrc=0\nchown -R -L \"$EUID:runner\" tree || rc=$?\nprintf 'status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "chown",
+        "ln"
+      ]
+    },
+    {
+      "id": "recursive_missing_operand",
+      "kind": "parity",
+      "purpose": "-R with a valid directory and a missing operand changes the directory, diagnoses the missing one and exits 1.",
+      "script": "mkdir -p tree/sub\nrc=0\nchown -R \":runner\" tree missing || rc=$?\nprintf 'status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "chown"
+      ]
+    },
+    {
+      "id": "recursive_silent_missing",
+      "kind": "parity",
+      "purpose": "-f suppresses the diagnostic for a missing operand while keeping status 1.",
+      "script": "rc=0\nchown -Rf \":runner\" missing || rc=$?\nprintf 'status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "empty",
+      "requires": [
+        "chown"
+      ]
     }
   ]
 }

@@ -2,7 +2,7 @@
 /* chown.c — change file owner/group via chown(2)/lchown(2). bash-os loadable
  * (MIT). Replaces busybox chown; mirrors the stock chmod loadable (plan D22).
  *
- *   chown [-h] OWNER[:GROUP] FILE...     chown [-h] :GROUP FILE...
+ *   chown [-fhR] [-H|-L|-P] OWNER[:GROUP] FILE...     chown [-fhR] [-H|-L|-P] :GROUP FILE...
  * OWNER/GROUP may be names or numeric ids. -h acts on symlinks (lchown).
  */
 #include <config.h>
@@ -95,14 +95,20 @@ parse_owner (char *spec, uid_t *uid, gid_t *gid)
 int
 chown_builtin (WORD_LIST *list)
 {
-  int opt, deref = 1, rc = EXECUTION_SUCCESS;
+  int opt, deref = 1, recurse = 0, traverse = BOS_TRAVERSE_P, rc = EXECUTION_SUCCESS;
   uid_t uid; gid_t gid;
   WORD_LIST *l;
 
+  bos_chown_quiet = 0;
   reset_internal_getopt ();
-  while ((opt = internal_getopt (list, "h")) != -1)
+  while ((opt = internal_getopt (list, "hRHLPf")) != -1)
     {
       if (opt == 'h') deref = 0;	/* operate on the link itself */
+      else if (opt == 'R') recurse = 1;
+      else if (opt == 'H') traverse = BOS_TRAVERSE_H;
+      else if (opt == 'L') traverse = BOS_TRAVERSE_L;
+      else if (opt == 'P') traverse = BOS_TRAVERSE_P;
+      else if (opt == 'f') bos_chown_quiet = 1;
       else { builtin_usage (); return (EXECUTION_FAILURE); }
     }
   list = loptend;
@@ -113,7 +119,8 @@ chown_builtin (WORD_LIST *list)
     return (EXECUTION_FAILURE);
 
   for (l = list->next; l; l = l->next)
-    if (bos_chown_operand (l->word->word, uid, gid, deref) < 0)
+    if ((recurse ? bos_chown_tree (l->word->word, uid, gid, deref, traverse, 1, NULL)
+                 : bos_chown_operand (l->word->word, uid, gid, deref)) < 0)
       rc = EXECUTION_FAILURE;
   return (rc);
 }
@@ -121,11 +128,11 @@ chown_builtin (WORD_LIST *list)
 char *chown_doc[] = {
   "Change file owner and group.",
   "",
-  "chown [-h] OWNER[:GROUP] FILE...   OWNER/GROUP are names or numeric ids;",
+  "chown [-fhR] [-H|-L|-P] OWNER[:GROUP] FILE...   OWNER/GROUP are names or numeric ids;",
   "-h changes a symlink itself rather than its target.",
   (char *) NULL
 };
 
 struct builtin chown_struct = {
-  "chown", chown_builtin, BUILTIN_ENABLED, chown_doc, "chown [-h] OWNER[:GROUP] FILE...", 0
+  "chown", chown_builtin, BUILTIN_ENABLED, chown_doc, "chown [-fhR] [-H|-L|-P] OWNER[:GROUP] FILE...", 0
 };

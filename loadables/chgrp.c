@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 /* chgrp.c — change file group via chown(2)/lchown(2). bash-os loadable (MIT).
- * Replaces busybox chgrp (plan D22).  chgrp [-h] GROUP FILE... */
+ * Replaces busybox chgrp (plan D22).  chgrp [-fhR] [-H|-L|-P] GROUP FILE... */
 #include <config.h>
 #include <errno.h>
 #include <string.h>
@@ -14,14 +14,20 @@
 int
 chgrp_builtin (WORD_LIST *list)
 {
-  int opt, deref = 1, rc = EXECUTION_SUCCESS;
+  int opt, deref = 1, recurse = 0, traverse = BOS_TRAVERSE_P, rc = EXECUTION_SUCCESS;
   gid_t gid; char *end; struct group *gr;
   WORD_LIST *l;
 
+  bos_chown_quiet = 0;
   reset_internal_getopt ();
-  while ((opt = internal_getopt (list, "h")) != -1)
+  while ((opt = internal_getopt (list, "hRHLPf")) != -1)
     {
       if (opt == 'h') deref = 0;
+      else if (opt == 'R') recurse = 1;
+      else if (opt == 'H') traverse = BOS_TRAVERSE_H;
+      else if (opt == 'L') traverse = BOS_TRAVERSE_L;
+      else if (opt == 'P') traverse = BOS_TRAVERSE_P;
+      else if (opt == 'f') bos_chown_quiet = 1;
       else { builtin_usage (); return (EXECUTION_FAILURE); }
     }
   list = loptend;
@@ -46,7 +52,8 @@ chgrp_builtin (WORD_LIST *list)
     }
 
   for (l = list->next; l; l = l->next)
-    if (bos_chown_operand (l->word->word, (uid_t) -1, gid, deref) < 0)
+    if ((recurse ? bos_chown_tree (l->word->word, (uid_t) -1, gid, deref, traverse, 1, NULL)
+                 : bos_chown_operand (l->word->word, (uid_t) -1, gid, deref)) < 0)
       rc = EXECUTION_FAILURE;
   return (rc);
 }
@@ -54,10 +61,10 @@ chgrp_builtin (WORD_LIST *list)
 char *chgrp_doc[] = {
   "Change file group.",
   "",
-  "chgrp [-h] GROUP FILE...   GROUP is a name or numeric id.",
+  "chgrp [-fhR] [-H|-L|-P] GROUP FILE...   GROUP is a name or numeric id.",
   (char *) NULL
 };
 
 struct builtin chgrp_struct = {
-  "chgrp", chgrp_builtin, BUILTIN_ENABLED, chgrp_doc, "chgrp [-h] GROUP FILE...", 0
+  "chgrp", chgrp_builtin, BUILTIN_ENABLED, chgrp_doc, "chgrp [-fhR] [-H|-L|-P] GROUP FILE...", 0
 };

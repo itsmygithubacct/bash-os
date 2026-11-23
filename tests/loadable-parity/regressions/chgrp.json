@@ -4,7 +4,8 @@
   "reference": "GNU coreutils chgrp for private file metadata with the GID already owned by the fixture; no users, authentication, capabilities or group memberships change. Bash help/type are metadata contracts.",
   "coverage": [
     "Numeric existing-group application, symlink default/-h, multiple paths with a missing middle file, missing operands and unknown group.",
-    "Bash registration and documented help metadata only for the metadata cases."
+    "Bash registration and documented help metadata only for the metadata cases.",
+    "-R recursion with the default -P, -H and -L symlink traversal, and -f"
   ],
   "exclusions": [
     "Changing to distinct GIDs and controlled named-group resolution remain deferred for a disposable VM or syscall mock."
@@ -34,7 +35,7 @@
       "purpose": "Check Bash's long help text against the documented chgrp description and usage line, without running an ownership operation.",
       "script": "help chgrp",
       "expected_status": 0,
-      "stdout": "chgrp: chgrp GROUP FILE...\n    Change file group.\n    \n    chgrp [-h] GROUP FILE...   GROUP is a name or numeric id.\n",
+      "stdout": "chgrp: chgrp GROUP FILE...\n    Change file group.\n    \n    chgrp [-fhR] [-H|-L|-P] GROUP FILE...   GROUP is a name or numeric id.\n",
       "stderr": "empty"
     },
     {
@@ -101,6 +102,30 @@
       "stderr": "nonempty",
       "requires": [
         "chgrp"
+      ]
+    },
+    {
+      "id": "recursive_tree",
+      "kind": "parity",
+      "purpose": "chgrp -R walks a nested tree containing an internal dangling symlink; the default -P changes the link itself.",
+      "script": "mkdir -p tree/sub/deep\nprintf 'b\\n' > tree/sub/deep/b\nln -s missing-target tree/sub/dangling\nchgrp -R runner tree\nprintf 'ok\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chgrp",
+        "ln"
+      ]
+    },
+    {
+      "id": "recursive_H_command_line_link",
+      "kind": "parity",
+      "purpose": "-R -H follows a symlink named on the command line into its directory.",
+      "script": "mkdir -p real/sub\nprintf 'x\\n' > real/sub/x\nln -s real link\nchgrp -R -H runner link\nprintf 'ok\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chgrp",
+        "ln"
       ]
     }
   ]
