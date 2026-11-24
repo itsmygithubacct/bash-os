@@ -1,0 +1,29 @@
+[
+ {
+  "expect": "parity> "
+ },
+ {
+  "send": "sleep 30; echo after-sleep\n"
+ },
+ {
+  "sleep": 0.5
+ },
+ {
+  "send_b64": "Aw=="
+ },
+ {
+  "expect": "parity> "
+ },
+ {
+  "send": "echo \"rc=$?\"\n"
+ },
+ {
+  "expect": "rc=130\r\n"
+ },
+ {
+  "expect": "parity> "
+ },
+ {
+  "send": "exit 0\n"
+ }
+]

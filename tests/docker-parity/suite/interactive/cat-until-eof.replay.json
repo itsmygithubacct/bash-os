@@ -1,0 +1,29 @@
+[
+ {
+  "expect": "parity> "
+ },
+ {
+  "send": "cat > typed; wc -l < typed\n"
+ },
+ {
+  "sleep": 0.3
+ },
+ {
+  "send": "first\nsecond\n"
+ },
+ {
+  "expect": "second\r\n"
+ },
+ {
+  "eof": true
+ },
+ {
+  "expect": "2\r\n"
+ },
+ {
+  "expect": "parity> "
+ },
+ {
+  "send": "exit 0\n"
+ }
+]

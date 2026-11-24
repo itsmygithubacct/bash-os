@@ -120,3 +120,67 @@ python3 tests/docker-parity-check.py --workspace "$PARITY_WORKSPACE"
 ```
 
 This checks matching execution, saved-input reproduction, deliberate stdout/stderr/status/filesystem differences, unreadable entries, reference failure, binary input, timeout cleanup, interactive behavior, live capture/replay, and cleanup after a terminal hangup. These checks validate the harness; they are separate from a claim of complete Bash or command compatibility.
+
+## Parity suite
+
+`scripts/docker-parity-suite.py` runs every case in `tests/docker-parity/suite` through this runner, one `run` (or `replay`) invocation per case, and classifies the results against `tests/docker-parity/suite/known-differences.json`:
+
+```sh
+python3 scripts/docker-parity-suite.py --workspace "$PARITY_WORKSPACE"            # all cases
+python3 scripts/docker-parity-suite.py --workspace "$PARITY_WORKSPACE" --area text --area sed
+python3 scripts/docker-parity-suite.py --workspace "$PARITY_WORKSPACE" 'errors/*' --case 'files/ls-*'
+python3 scripts/docker-parity-suite.py --list                                    # show the selection
+```
+
+`--workspace` defaults to `$PARITY_WORKSPACE`. `--jobs N` (default 6) runs that many cases at once; each case starts two containers, so keep it well below the host's core count when other work shares the machine. The image tags are resolved once and every case runs against the same immutable image IDs, which the driver prints at the start and end and records in the summary. `--timeout`, `--memory` and `--cpus` are passed to the runner. `--compare EARLIER/summary.json` lists every case whose result changed since an earlier run, which is the check for flaky cases.
+
+Each run writes a new directory, `WORKSPACE/suite-results/TIMESTAMP` (or `--output`): `cases/AREA/NAME/` holds that case's complete runner evidence (`report.json`, both output streams, both trees, `replay-command.json`), `cases/AREA/NAME.log` the runner's own output, and `summary.json` and `summary.md` the per-area table followed by every failure with a short diff. A result is one of:
+
+| Result | Meaning |
+| --- | --- |
+| pass | The runner found no difference. |
+| fail | The case differs, or the runner reported an error, and no known difference covers it. |
+| xfail | A known difference that still differs, only in the aspects its entry allows. |
+| xpass | A known difference that now matches. Remove the entry. |
+
+The driver exits 0 only when every selected case is a pass or an xfail. A full run (no `--area` or pattern) also fails on a known-differences entry that names no case.
+
+### Adding a case
+
+A case is a Bash script, `tests/docker-parity/suite/AREA/NAME.sh`, with id `AREA/NAME`. It runs from `/work` in both images exactly as `run` mode runs a script. Keep it small and deterministic:
+
+- Set `export LC_ALL=C TZ=UTC0` (or `C.UTF-8` for a multibyte case) and `umask 022` at the top.
+- Give files fixed times with `touch -d @N`, and format dates from fixed epochs (`date -u -d @N`).
+- Do not depend on PIDs, the clock, host or user names, or directory order: sort listings unless the order is the subject of the case, and show modes and sizes rather than owners (`ls -lgo`, `stat -c`).
+- Report the status of an expected error inline (`cmd; echo "rc=$?"`) so the script itself exits 0. Use a `.status` sidecar only when the script's own exit status is the point.
+- Keep files that embed the time or that are implementation-specific but not under test (archives that are only listed or extracted, incremental snapshots) under `/tmp`, which is not compared.
+- When a command exists in the candidate only as a `coreutils` verb, add `command -v NAME >/dev/null || NAME() { coreutils NAME "$@"; }` so the case tests the behaviour, not the name.
+- When a case finds a bug, move the failing commands into their own case so that the rest of the original case keeps guarding.
+
+Optional sidecars next to the script: `NAME.stdin` (bytes for the script's stdin), `NAME.args` (one argument per line), `NAME.status` (the expected reference exit status), `NAME.timeout` (seconds) and a `NAME.fixture/` directory (the starting `/work` tree). An interactive case is `AREA/NAME.replay.json`, an event file in the format described under [Interactive replay](#interactive-replay); compare only behaviour whose terminal bytes are stable, since full-screen redraws differ between implementations.
+
+Run the new case on its own (`--case AREA/NAME`) and then twice in a full run with `--compare` before committing it.
+
+### Known differences
+
+`known-differences.json` maps a case id to an entry with a `category`, a `reason` and, optionally, `differences`, the aspects that may differ (`stdout`, `stderr`, `terminal`, `exit status`, `filesystem`, `candidate` for a candidate timeout or crash). An entry without `differences` allows any candidate-side difference; a difference in an undeclared aspect, any reference failure and any runner error is still a fail. Keys starting with `_` are comments.
+
+The categories are:
+
+| Category | Use for |
+| --- | --- |
+| `version-string` | `--version` or help/usage text that names the bash-os implementation and does not claim to be GNU. |
+| `known-partial` | Behaviour documented as a known partial implementation. |
+| `missing-tool` | A command that one image does not provide. |
+| `by-design` | A documented, deliberate bash-os behaviour (for example the awk `system()` gate). |
+| `environment` | An image difference outside the command itself, such as missing data files or locales. |
+
+Only accepted, real differences belong in the file. A bug is reported and its case is left failing until it is fixed; it is never listed as a known difference. When a known difference disappears the case is reported as an xpass, and the entry should be removed.
+
+Validate the driver itself with:
+
+```sh
+python3 tests/docker-parity-suite-check.py --workspace "$PARITY_WORKSPACE"
+```
+
+It plants a matching case, a failing case, known differences that still differ, that now match, that differ in an undeclared stream or that break the reference, sidecar files, a replay case and a stale entry, and checks the driver's classification, exit status, summaries and container cleanup.

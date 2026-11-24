@@ -1,0 +1,23 @@
+[
+ {
+  "expect": "parity> "
+ },
+ {
+  "send": "read -r -p 'name? ' n; printf 'hi <%s>\\n' \"$n\"\n"
+ },
+ {
+  "expect": "name? "
+ },
+ {
+  "send": "world wide\n"
+ },
+ {
+  "expect": "hi <world wide>\r\n"
+ },
+ {
+  "expect": "parity> "
+ },
+ {
+  "send": "exit 0\n"
+ }
+]

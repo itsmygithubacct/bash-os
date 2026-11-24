@@ -1,0 +1,33 @@
+{
+  "_policy": "Accepted, real differences only. Each entry names a category (see docs/docker-parity.md) and the aspects that may differ; any other difference still fails. Never list a bug here: report it and leave the case failing.",
+  "avail/coreutils-names": {
+    "category": "missing-tool",
+    "reason": "The candidate image provides these coreutils programs only as verbs of the `coreutils` builtin (install, fmt, factor, numfmt, tsort, shuf, nproc, yes, shred, groups, mknod) or not at all (sha1sum, sha224sum, sha384sum, sha512sum, b2sum, sum, base32, basenc, dircolors, ptx); its PATH holds only bash, bash-os and sh. Behaviour cases reach the verbs through a `coreutils` fallback function.",
+    "differences": ["stdout"]
+  },
+  "avail/other-names": {
+    "category": "missing-tool",
+    "reason": "egrep, fgrep, gunzip, xz, unxz, xzcat, bzip2, xxd, sdiff, diff3 and gawk are not reachable by name in the candidate image (grep -E/-F, gzip -d and awk cover the common uses). cpio is in neither image.",
+    "differences": ["stdout"]
+  },
+  "avail/version-first-lines": {
+    "category": "version-string",
+    "reason": "--version names the bash-os implementation (for example `sort (bash-os builtin, Bash 5.3)`) and does not claim to be GNU.",
+    "differences": ["stdout"]
+  },
+  "errors/sed-usage": {
+    "category": "known-partial",
+    "reason": "sed prints a one-line usage (`sed: usage: sed [OPTION] SCRIPT [FILE]`, `sed: no script`) instead of GNU sed's full option summary for --bogus and a missing script; the guest review lists `sed --bogus` as a known partial.",
+    "differences": ["stderr"]
+  },
+  "errors/awk-usage": {
+    "category": "version-string",
+    "reason": "On a usage error gawk prints its own multi-page option summary and bug-report text; bash-os awk prints a one-line `Usage: awk [-F SEP] ...` and does not claim to be gawk. Statuses match.",
+    "differences": ["stderr"]
+  },
+  "awk/awk-system": {
+    "category": "by-design",
+    "reason": "awk system() is gated: without BASHAWK_ALLOW_SYSTEM=1 it prints a notice and returns 1 without running the command (the same deliberate gate as sed's e command; kept by the maintainers, guest finding G24).",
+    "differences": ["stdout", "stderr"]
+  }
+}

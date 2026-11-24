@@ -1,0 +1,8 @@
+# find/find-size: -size rounding for k, M, c, b units
+export LC_ALL=C TZ=UTC0
+umask 022
+t() { printf '$ %s\n' "$*"; "$@"; printf 'rc=%s\n' "$?"; }
+mkdir -p t/a/b t/c t/.hid; printf 'x' > t/one; printf '%0600d' 0 > t/a/six; printf '%02000d' 0 > t/a/b/two
+: > t/c/empty; printf 'hi\n' > t/.hid/h.txt; ln -s one t/lnk; ln -s missing t/dang; chmod 755 t/a; chmod 700 t/c
+touch -h -d @1600000000 t/one t/lnk t/dang; touch -d @1700000000 t/a/six t/c/empty; touch -d @1650000000 t/a/b/two t/.hid/h.txt
+for s in -1k 1k +1k 2k -2k 0 -1 1 +0 600c +599c -601c 1M -1M 4 +3; do printf '%s: ' "$s"; find t -type f -size "$s" | sort | tr '\n' ' '; echo; done

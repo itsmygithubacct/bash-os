@@ -1,0 +1,17 @@
+[
+ {
+  "expect": "parity> "
+ },
+ {
+  "send": "printf 'line one\\nline two\\n' > f; more f; echo \"rc=$?\"\n"
+ },
+ {
+  "expect": "rc=0\r\n"
+ },
+ {
+  "expect": "parity> "
+ },
+ {
+  "send": "exit 0\n"
+ }
+]

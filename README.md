@@ -158,6 +158,9 @@ python3 scripts/docker-parity.py live --workspace /path/on/nvme/bash-os-parity
 
 The defaults are `bash-os:parity-debian` and `bash-os:parity-bash-os`; override
 them with `--reference` and `--candidate`. The reference must run Bash 5.3.20.
+The [parity suite](docs/docker-parity.md#parity-suite) runs the cases in
+`tests/docker-parity/suite` through the runner with
+`scripts/docker-parity-suite.py` and checks them against its known differences.
 
 Build a minimal local image from the static binary:
 
