@@ -46,6 +46,7 @@
 #include <string.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <ctype.h>
 #include <limits.h>
 #include <dirent.h>
 #include <fnmatch.h>
@@ -72,11 +73,17 @@ typedef struct {
     int cap;
 } bdu_words;
 
+/* How sizes are printed. The last of -b, -k, -m, -h, --si, -B and
+   --block-size given wins, as in GNU du. */
+enum { BDU_BLOCKS, BDU_HUMAN, BDU_SI };
+
 typedef struct {
-    int aflag, apparent, cflag, count_links, hflag, si, null_terminate, separate_dirs, sflag, xflag;
+    int aflag, apparent, cflag, count_links, null_terminate, separate_dirs, sflag, xflag;
     int dereference;
     int inodes;
-    uint64_t block_size;
+    int fmt;                /* BDU_BLOCKS, BDU_HUMAN or BDU_SI */
+    uint64_t block_size;    /* BDU_BLOCKS: output unit in bytes */
+    char unit[8];           /* suffix printed after each amount ("K", "kB", "MiB") */
     int max_depth;
     const bdu_words *excludes;
 } bdu_opts;
@@ -100,9 +107,6 @@ typedef struct { dev_t d; ino_t i; } bdu_key;
 static bdu_key *bdu_seen = NULL;
 static size_t bdu_seen_cap = 0;
 static size_t bdu_seen_n = 0;
-static bdu_key *bdu_alias = NULL;
-static size_t bdu_alias_cap = 0;
-static size_t bdu_alias_n = 0;
 
 static int
 bdu_seen_add (dev_t d, ino_t i)
@@ -137,79 +141,46 @@ bdu_seen_add (dev_t d, ino_t i)
     return 0;
 }
 
-static int
-bdu_key_add (bdu_key **tab, size_t *cap, size_t *n, dev_t d, ino_t i)
+/* GNU du's -h and --si: below one unit the plain number; otherwise the
+   amount in the largest unit that keeps it under BASE, rounded up (never
+   down), to one decimal below 10 and to a whole number from 10 on. A
+   value that rounds up to BASE moves on to the next unit ("1.0M" for
+   1048575 bytes under -h). */
+static void
+bdu_human_base (uint64_t bytes, unsigned base, char *out, size_t outsz)
 {
-    if (*cap == 0) {
-        *cap = 64;
-        *tab = calloc (*cap, sizeof (bdu_key));
-        if (!*tab) return -1;
+    static const char unit_1024[] = "KMGTPE", unit_1000[] = "kMGTPE";
+    const char *units = base == 1024 ? unit_1024 : unit_1000;
+    uint64_t div = base;
+    int u = 0;
+
+    if (bytes < base) {
+        snprintf (out, outsz, "%" PRIu64, bytes);
+        return;
     }
-    if (*n * 2 >= *cap) {
-        size_t new_cap = *cap * 2;
-        bdu_key *nt = calloc (new_cap, sizeof (bdu_key));
-        if (!nt) return -1;
-        for (size_t k = 0; k < *cap; k++) {
-            if ((*tab)[k].i == 0 && (*tab)[k].d == 0) continue;
-            size_t h = ((size_t) (*tab)[k].i * 31 + (size_t) (*tab)[k].d) % new_cap;
-            while (nt[h].i != 0 || nt[h].d != 0) h = (h + 1) % new_cap;
-            nt[h] = (*tab)[k];
+    while (u < 5 && bytes / div >= base) {
+        div *= base;
+        u++;
+    }
+    {
+        uint64_t whole = bytes / div, rest = bytes % div;
+        if (whole < 10) {
+            /* tenths, rounded up; 11 * div fits: div <= 2^60 */
+            uint64_t tenths = whole * 10 + (rest * 10 + div - 1) / div;
+            if (tenths < 100) {
+                snprintf (out, outsz, "%" PRIu64 ".%" PRIu64 "%c", tenths / 10, tenths % 10, units[u]);
+                return;
+            }
+            whole = 10, rest = 0;
         }
-        free (*tab);
-        *tab = nt;
-        *cap = new_cap;
+        uint64_t up = whole + (rest != 0);
+        if (up < base || u == 5) {
+            snprintf (out, outsz, "%" PRIu64 "%c", up, units[u]);
+            return;
+        }
+        /* rounds up to one of the next unit */
+        snprintf (out, outsz, "1.0%c", units[u + 1]);
     }
-    size_t h = ((size_t) i * 31 + (size_t) d) % *cap;
-    while ((*tab)[h].i != 0 || (*tab)[h].d != 0) {
-        if ((*tab)[h].i == i && (*tab)[h].d == d) return 1;
-        h = (h + 1) % *cap;
-    }
-    (*tab)[h].d = d;
-    (*tab)[h].i = i;
-    (*n)++;
-    return 0;
-}
-
-static int
-bdu_key_has (const bdu_key *tab, size_t cap, dev_t d, ino_t i)
-{
-    if (!tab || cap == 0) return 0;
-    size_t h = ((size_t) i * 31 + (size_t) d) % cap;
-    while (tab[h].i != 0 || tab[h].d != 0) {
-        if (tab[h].i == i && tab[h].d == d) return 1;
-        h = (h + 1) % cap;
-    }
-    return 0;
-}
-
-static void
-bdu_note_alias_target (dev_t d, ino_t i)
-{
-    (void) bdu_key_add (&bdu_alias, &bdu_alias_cap, &bdu_alias_n, d, i);
-}
-
-static void
-bdu_human (uint64_t bytes, char *out, size_t outsz)
-{
-    static const char unit[] = " KMGTPE";
-    double v = (double) bytes;
-    int u = 0;
-    while (v >= 1024.0 && u < 6) { v /= 1024.0; u++; }
-    if (u == 0) snprintf (out, outsz, "%" PRIu64, bytes);
-    else if (v < 10.0) snprintf (out, outsz, "%.1f%c", v, unit[u]);
-    else snprintf (out, outsz, "%.0f%c", v, unit[u]);
-}
-
-static void
-bdu_human_si (uint64_t bytes, char *out, size_t outsz)
-{
-    static const char unit[] = " kMGTPE";
-    double v = (double) bytes;
-    int u = 0;
-    while (v >= 1000.0 && u < 6) { v /= 1000.0; u++; }
-    if (u == 0) snprintf (out, outsz, "%" PRIu64, bytes);
-    else if (v < 10.0) snprintf (out, outsz, "%.1f%c", v, unit[u]);
-    else snprintf (out, outsz, "%.0f%c", v, unit[u]);
 }
 
 /* GNU du's --exclude match (gnulib exclude_fnmatch without
@@ -278,30 +249,19 @@ bdu_read_list (const char *file, int delim, bdu_words *words, bdu_words *keep,
 static void
 bdu_print (uint64_t amount, const char *path, const bdu_opts *o)
 {
-    if (o->inodes) {
-        char h[32];
-        if (o->hflag)
-            bdu_human (amount, h, sizeof h);
-        else if (o->si)
-            bdu_human_si (amount, h, sizeof h);
-        else
-            snprintf (h, sizeof h, "%" PRIu64, amount);
-        printf ("%s\t%s%c", h, path, o->null_terminate ? '\0' : '\n');
-    } else if (o->hflag || o->si) {
-        char h[32];
-        if (o->si)
-            bdu_human_si (o->apparent ? amount : amount * 512, h, sizeof h);
-        else
-            bdu_human (o->apparent ? amount : amount * 512, h, sizeof h);
-        printf ("%s\t%s%c", h, path, o->null_terminate ? '\0' : '\n');
+    char h[48];
+    if (o->inodes && o->fmt == BDU_BLOCKS) {
+        /* -B, -k and -m do not scale inode counts */
+        snprintf (h, sizeof h, "%" PRIu64, amount);
+    } else if (o->fmt != BDU_BLOCKS) {
+        uint64_t bytes = o->inodes || o->apparent ? amount : amount * 512;
+        bdu_human_base (bytes, o->fmt == BDU_SI ? 1000 : 1024, h, sizeof h);
     } else {
-        /* GNU default = 1024-byte blocks (512 with POSIXLY_CORRECT). */
-        uint64_t out, bytes, unit;
-        unit = o->block_size ? o->block_size : (getenv ("POSIXLY_CORRECT") ? 512 : 1024);
-        bytes = o->apparent ? amount : amount * 512;
-        out = (bytes + unit - 1) / unit;
-        printf ("%" PRIu64 "\t%s%c", out, path, o->null_terminate ? '\0' : '\n');
+        uint64_t bytes = o->apparent ? amount : amount * 512;
+        uint64_t unit = o->block_size ? o->block_size : 1024;
+        snprintf (h, sizeof h, "%" PRIu64 "%s", bytes / unit + (bytes % unit != 0), o->unit);
     }
+    printf ("%s\t%s%c", h, path, o->null_terminate ? '\0' : '\n');
 }
 
 static int
@@ -320,32 +280,115 @@ bdu_parse_depth (const char *arg, int *out)
     return 0;
 }
 
+/* GNU du's SIZE for -B, --block-size and the DU_BLOCK_SIZE, BLOCK_SIZE and
+   BLOCKSIZE variables (coreutils manual, "Block size", and observed
+   coreutils 9.7): "human-readable" or "si", or a positive integer (C
+   notation: 0x10 and 010 work) and/or a unit letter K, M, G, T, P or E
+   (k, m, g and t also), powers of 1024, followed by "B" for powers of 1000
+   or "iB" for powers of 1024. A unit without a number also names the
+   suffix printed after each amount ("K", "kB", "MiB"). Returns 0, or -1
+   for an invalid argument, -2 for an invalid suffix, -3 for a size that
+   does not fit in 64 bits. */
 static int
-bdu_parse_block_size (const char *arg, uint64_t *out)
+bdu_parse_block_size (const char *arg, bdu_opts *o)
 {
-    char *end = NULL;
-    unsigned long long v;
-    uint64_t mult = 1;
+    const char *p = arg;
+    uint64_t n = 1, mult = 1, base = 1024;
+    int have_number = 0, power = 0;
+    char *end;
 
-    if (!arg || !*arg)
+    if (!arg)
         return -1;
-    errno = 0;
-    v = strtoull (arg, &end, 10);
-    if (errno || !end || end == arg || v == 0)
-        return -1;
-    if (*end) {
-        if ((end[0] == 'K' || end[0] == 'k') && end[1] == '\0')
-            mult = 1024;
-        else if ((end[0] == 'M' || end[0] == 'm') && end[1] == '\0')
-            mult = 1024 * 1024;
-        else if ((end[0] == 'G' || end[0] == 'g') && end[1] == '\0')
-            mult = 1024ULL * 1024 * 1024;
-        else
-            return -1;
+    if (!strcmp (arg, "human-readable") || !strcmp (arg, "si")) {
+        o->fmt = arg[0] == 'h' ? BDU_HUMAN : BDU_SI;
+        return 0;
     }
-    if (v > UINT64_MAX / mult)
+    while (*p == ' ' || (*p >= '\t' && *p <= '\r'))
+        p++;
+    if (*p == '-')
         return -1;
-    *out = (uint64_t) v * mult;
+    if (isdigit ((unsigned char) *p) || (*p == '+' && isdigit ((unsigned char) p[1]))) {
+        uintmax_t v;
+        errno = 0;
+        v = strtoumax (p, &end, 0);
+        if (errno == ERANGE || v > UINT64_MAX)
+            return -3;
+        n = (uint64_t) v;
+        if (n == 0)
+            return -1;    /* "0K", "08" and "0x" too: zero comes first */
+        have_number = 1;
+        p = end;
+    } else if (p != arg || !*p || !strchr ("KMGTPEZYkmgtpezy", *p)) {
+        return -1;
+    }
+    if (*p) {
+        static const char letters[] = "KMGTPEZY";
+        const char *l = strchr (letters, toupper ((unsigned char) *p));
+        if (!l || strchr ("pezy", *p))
+            return -2;
+        power = (int) (l - letters) + 1;
+        p++;
+        if (p[0] == 'B' && !p[1])
+            base = 1000;
+        else if (p[0] == 'i' && p[1] == 'B' && !p[2])
+            base = 1024;
+        else if (*p)
+            return -2;
+        for (int i = 0; i < power; i++) {
+            if (mult > UINT64_MAX / base)
+                return -3;
+            mult *= base;
+        }
+    }
+    if (n > UINT64_MAX / mult)
+        return -3;
+    o->fmt = BDU_BLOCKS;
+    o->block_size = n * mult;
+    o->unit[0] = '\0';
+    if (!have_number && power) {
+        char letter = "KMGTPEZY"[power - 1];
+        if (base == 1000 && letter == 'K')
+            letter = 'k';
+        snprintf (o->unit, sizeof o->unit, "%c%s", letter,
+                  base == 1000 ? "B" : strchr (arg, 'i') ? "iB" : "");
+    }
+    return 0;
+}
+
+static void
+bdu_set_unit (bdu_opts *o, uint64_t size)
+{
+    o->fmt = BDU_BLOCKS;
+    o->block_size = size;
+    o->unit[0] = '\0';
+}
+
+/* Ancestor directories of the entry being walked, to stop at a directory
+   loop that -L (or -l, which visits directories again) would follow. */
+static bdu_key *bdu_stack = NULL;
+static size_t bdu_stack_n = 0, bdu_stack_cap = 0;
+
+static int
+bdu_on_stack (dev_t d, ino_t i)
+{
+    for (size_t k = 0; k < bdu_stack_n; k++)
+        if (bdu_stack[k].d == d && bdu_stack[k].i == i)
+            return 1;
+    return 0;
+}
+
+static int
+bdu_push (dev_t d, ino_t i)
+{
+    if (bdu_stack_n == bdu_stack_cap) {
+        size_t ncap = bdu_stack_cap ? bdu_stack_cap * 2 : 64;
+        bdu_key *nv = realloc (bdu_stack, ncap * sizeof *nv);
+        if (!nv) return -1;
+        bdu_stack = nv;
+        bdu_stack_cap = ncap;
+    }
+    bdu_stack[bdu_stack_n].d = d;
+    bdu_stack[bdu_stack_n++].i = i;
     return 0;
 }
 
@@ -356,7 +399,6 @@ bdu_walk (const char *path, int depth, dev_t root_dev, const bdu_opts *o, int *e
 {
     struct stat st;
     int follow = (o->dereference == 2 || (o->dereference == 1 && depth == 0));
-    int followed_symlink = 0;
     if (bdu_excluded (path, o))
         return 0;
     if ((follow ? stat (path, &st) : lstat (path, &st)) < 0) {
@@ -364,24 +406,17 @@ bdu_walk (const char *path, int depth, dev_t root_dev, const bdu_opts *o, int *e
         *err = 1;
         return 0;
     }
-    if (follow) {
-        struct stat lst;
-        if (lstat (path, &lst) == 0 && S_ISLNK (lst.st_mode)) {
-            followed_symlink = 1;
-            if (!S_ISDIR (st.st_mode))
-                bdu_note_alias_target (st.st_dev, st.st_ino);
-        }
-    }
     if (o->xflag && depth > 0 && st.st_dev != root_dev) return 0;
 
-    /* GNU du also deduplicates symlink aliases when -H/-L dereferences them. */
-    int seen = 0;
-    int alias_target = bdu_key_has (bdu_alias, bdu_alias_cap, st.st_dev, st.st_ino);
-    /* Under -L, remember ordinary files before a later symlink can name
-       them too. Discovering aliases only when visiting the link is too late. */
-    if (!o->count_links && !S_ISDIR (st.st_mode)
-        && (o->dereference == 2 || st.st_nlink > 1 || alias_target || followed_symlink)) {
-        seen = bdu_seen_add (st.st_dev, st.st_ino);
+    /* GNU du counts each file and directory once per run, however it is
+       reached: through another hard link, a followed symbolic link, a
+       repeated operand or an operand inside another one (observed
+       coreutils 9.7: "du -sb DIR DIR/SUB" prints only DIR). -l counts
+       every name, and only a directory loop stops it. */
+    if (S_ISDIR (st.st_mode) && bdu_on_stack (st.st_dev, st.st_ino))
+        return 0;
+    if (!o->count_links) {
+        int seen = bdu_seen_add (st.st_dev, st.st_ino);
         if (seen == 1) return 0;  /* already counted earlier */
         if (seen < 0) {
             builtin_error ("%s: cannot allocate file accounting state", path);
@@ -390,11 +425,10 @@ bdu_walk (const char *path, int depth, dev_t root_dev, const bdu_opts *o, int *e
         }
     }
 
-    /* GNU du: in apparent-size mode a node's own contribution is its
-       st_size only when "usable" — regular files and symlinks. Directories
-       and special files contribute 0 (NOT st_blocks); their reported size
-       comes purely from summing children. Non-apparent mode always uses the
-       allocated block count. Matches coreutils du.c usable_st_size(). */
+    /* Apparent sizes count only regular files and symbolic links;
+       directories and special files add 0 (coreutils NEWS, 9.2: "du
+       --apparent now counts apparent sizes only of regular files and
+       symbolic links"). Disk usage counts every allocated block. */
     uint64_t total;
     if (o->inodes)
         total = 1;
@@ -408,6 +442,10 @@ bdu_walk (const char *path, int depth, dev_t root_dev, const bdu_opts *o, int *e
         DIR *d = opendir (path);
         if (!d) {
             bdu_error ("cannot read directory", path, errno);
+            *err = 1;
+        } else if (bdu_push (st.st_dev, st.st_ino) < 0) {
+            closedir (d);
+            builtin_error ("%s: cannot allocate file accounting state", path);
             *err = 1;
         } else {
             struct dirent *de;
@@ -425,6 +463,7 @@ bdu_walk (const char *path, int depth, dev_t root_dev, const bdu_opts *o, int *e
                 total += child_total;
             }
             closedir (d);
+            bdu_stack_n--;
         }
     }
 
@@ -450,6 +489,50 @@ bdu_walk (const char *path, int depth, dev_t root_dev, const bdu_opts *o, int *e
     return total;
 }
 
+/* -B/--block-size SIZE: GNU's three diagnostics (no Try line), status 1. */
+static int
+bdu_block_size_arg (const char *arg, const char *opt, bdu_opts *o)
+{
+    int r = bdu_parse_block_size (arg, o);
+    if (r == 0)
+        return 0;
+    char *q = bos_quote (arg);
+    if (r == -2)
+        builtin_error ("invalid suffix in %s argument %s", opt, q ? q : arg);
+    else if (r == -3)
+        builtin_error ("%s argument %s too large", opt, q ? q : arg);
+    else
+        builtin_error ("invalid %s argument %s", opt, q ? q : arg);
+    free (q);
+    return -1;
+}
+
+/* The unit before any option: the first of DU_BLOCK_SIZE, BLOCK_SIZE and
+   BLOCKSIZE that is set, even empty; when that one is invalid, or none is
+   set, 512 under POSIXLY_CORRECT, else 1024 (observed coreutils 9.7). */
+static const char *
+bdu_env (const char *name)
+{
+    SHELL_VAR *v = find_variable (name);
+    return v && exported_p (v) && !array_p (v) && !assoc_p (v) ? value_cell (v) : NULL;
+}
+
+static void
+bdu_default_block_size (bdu_opts *o)
+{
+    static const char *const vars[] = { "DU_BLOCK_SIZE", "BLOCK_SIZE", "BLOCKSIZE" };
+    bdu_set_unit (o, bdu_env ("POSIXLY_CORRECT") ? 512 : 1024);
+    for (size_t i = 0; i < sizeof vars / sizeof vars[0]; i++) {
+        const char *v = bdu_env (vars[i]);
+        if (v) {
+            bdu_opts t = *o;
+            if (bdu_parse_block_size (v, &t) == 0)
+                *o = t;
+            return;
+        }
+    }
+}
+
 /* GNU du's usage errors all exit 1; most end with the help hint. */
 static int
 bdu_usage_error (const char *fmt, const char *arg)
@@ -473,6 +556,7 @@ int
 du_builtin (WORD_LIST *list)
 {
     bdu_opts o = { .max_depth = -1 };
+    bdu_default_block_size (&o);
     bdu_words paths = {0};
     bdu_words excludes = {0};
     bdu_words owned = {0};          /* strings read from -X/--files0-from */
@@ -540,11 +624,11 @@ du_builtin (WORD_LIST *list)
             continue;
         }
         if (strcmp (w, "--human-readable") == 0) {
-            o.hflag = 1;
+            o.fmt = BDU_HUMAN;
             continue;
         }
         if (strcmp (w, "--si") == 0) {
-            o.si = 1;
+            o.fmt = BDU_SI;
             continue;
         }
         if (strcmp (w, "--count-links") == 0) {
@@ -557,7 +641,7 @@ du_builtin (WORD_LIST *list)
         }
         if (strcmp (w, "--bytes") == 0) {
             o.apparent = 1;
-            o.block_size = 1;
+            bdu_set_unit (&o, 1);
             continue;
         }
         if (strcmp (w, "--apparent-size") == 0) {
@@ -569,15 +653,15 @@ du_builtin (WORD_LIST *list)
                 rc = bdu_usage_error ("option '%s' requires an argument", "--block-size");
                 goto out;
             }
-            if (bdu_parse_block_size (p->next->word->word, &o.block_size) < 0) {
-                rc = bdu_bad_value ("--block-size argument", p->next->word->word, 0);
+            if (bdu_block_size_arg (p->next->word->word, "--block-size", &o) < 0) {
+                rc = EXECUTION_FAILURE;
                 goto out;
             }
             p = p->next; continue;
         }
         if (strncmp (w, "--block-size=", 13) == 0) {
-            if (bdu_parse_block_size (w + 13, &o.block_size) < 0) {
-                rc = bdu_bad_value ("--block-size argument", w + 13, 0);
+            if (bdu_block_size_arg (w + 13, "--block-size", &o) < 0) {
+                rc = EXECUTION_FAILURE;
                 goto out;
             }
             continue;
@@ -668,18 +752,18 @@ du_builtin (WORD_LIST *list)
                         p = p->next;
                         arg = p->word->word;
                     }
-                    if (bdu_parse_block_size (arg, &o.block_size) < 0) {
-                        rc = bdu_bad_value ("-B argument", arg, 0);
+                    if (bdu_block_size_arg (arg, "-B", &o) < 0) {
+                        rc = EXECUTION_FAILURE;
                         goto out;
                     }
                     goto next_word;
                 }
-                case 'b': o.apparent = 1; o.block_size = 1; break;
+                case 'b': o.apparent = 1; bdu_set_unit (&o, 1); break;
                 case 'c': o.cflag = 1; break;
-                case 'h': o.hflag = 1; break;
-                case 'k': o.block_size = 1024; break;
+                case 'h': o.fmt = BDU_HUMAN; break;
+                case 'k': bdu_set_unit (&o, 1024); break;
                 case 'l': o.count_links = 1; break;
-                case 'm': o.block_size = 1024 * 1024; break;
+                case 'm': bdu_set_unit (&o, 1024 * 1024); break;
                 case 'H': o.dereference = 1; break;
                 case 'D': o.dereference = 1; break;  /* GNU alias for -H */
                 case 'L': o.dereference = 2; break;
@@ -754,17 +838,6 @@ du_builtin (WORD_LIST *list)
         }
     }
 
-    if (o.dereference != 0) {
-        for (int i = 0; i < paths.n; i++) {
-            struct stat lst, st;
-            if (lstat (paths.v[i], &lst) == 0
-                && S_ISLNK (lst.st_mode)
-                && stat (paths.v[i], &st) == 0
-                && !S_ISDIR (st.st_mode))
-                bdu_note_alias_target (st.st_dev, st.st_ino);
-        }
-    }
-
     int err = 0;
     uint64_t grand_total = 0;
     for (int i = 0; i < paths.n; i++) {
@@ -792,9 +865,9 @@ du_builtin (WORD_LIST *list)
     free (bdu_seen);
     bdu_seen = NULL;
     bdu_seen_cap = bdu_seen_n = 0;
-    free (bdu_alias);
-    bdu_alias = NULL;
-    bdu_alias_cap = bdu_alias_n = 0;
+    free (bdu_stack);
+    bdu_stack = NULL;
+    bdu_stack_cap = bdu_stack_n = 0;
     rc = err ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
 out:
     free (paths.v);

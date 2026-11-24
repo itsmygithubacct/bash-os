@@ -10,7 +10,8 @@
     "Block-size ceiling, grand totals, binary human-readable units, and decimal SI units",
     "Default hard-link de-duplication and --count-links behavior",
     "Default symlink handling, command-line dereferencing, and recursive dereferencing",
-    "Guest compatibility pass 6 (G90): GNU diagnostic wording for operand and usage errors."
+    "Guest compatibility pass 6 (G90): GNU diagnostic wording for operand and usage errors.",
+    "Guest pass 10 (G144) against GNU coreutils 9.7: -h/--si round up, -B/--block-size units with and without a number (and their suffixes), the last of -b/-k/-m/-h/--si/-B winning, DU_BLOCK_SIZE/BLOCK_SIZE, and each directory or file counted once across operands. Apparent sizes still leave directories at 0, as coreutils 9.2+ does."
   ],
   "exclusions": [
     "The cross-filesystem effect of -x is deferred because it requires a separate disposable filesystem mount.",
@@ -226,6 +227,60 @@
         "du"
       ],
       "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\ns 'du --bogus'\ns 'du -Q'\ns 'du -d x .'\ns 'du --max-depth=x .'\ns 'du -B x .'\ns 'du --block-size=x .'\ns 'du -as .'\ns 'du -s -d 1 .'\ns 'du -s -d 0 . >/dev/null'\ns 'du -d'\ns 'du --block-size'\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g144-human-rounds-up",
+      "kind": "parity",
+      "purpose": "G144: GNU du -h and --si round up to one decimal below 10 and to a whole number from 10 on, moving to the next unit when a value rounds up to it (1048575 bytes is 1.0M); bash-os rounded to nearest. Sizes stay under the runner's 8 MiB file-size limit.",
+      "script": "for s in 0 999 1000 1001 1023 1024 1025 9999 10239 10240 10241 102401 999999 1000001 1048575 1048577 5000000 8000000; do truncate -s $s z; printf '%s %s %s\\n' $s \"$(du -bh z | cut -f1)\" \"$(du --apparent-size --si z | cut -f1)\"; done\nmkdir many; for i in $(seq 1500); do : > many/$i; done\ndu --inodes -h many; du --inodes --si many",
+      "requires": [
+        "du",
+        "truncate",
+        "cut",
+        "mkdir",
+        "seq"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g144-block-size-units",
+      "kind": "parity",
+      "purpose": "G144: -B and --block-size take K, M, G, T, P, E (k, m, g, t), KB/MB (powers of 1000) and KiB forms; a unit without a number is printed after each amount (K, kB, MiB); C-notation numbers work; zero, a bad suffix and a size over 64 bits are GNU's three diagnostics with status 1. The script line prefix the shell adds to a builtin's message is removed.",
+      "script": "s() { local rc=0 out; out=$(du -b \"$@\" z 2>&1) || rc=$?; printf '%s\\n' \"$out\" | sed 's/^fixture: line [0-9]*: //'; echo \"rc=$rc\"; }\ntruncate -s 8000000 z\nfor b in K M G T P E k m g KB kB MB mB KiB MiB 1K 1KB 1MiB 2KB 10K 0x10 010 +5 human-readable si 15E 0 0K 08 x '' 12x 1.5K p KK Pb 1Z ZB 16E 99999999999999999999; do printf '[%s] ' \"$b\"; s -B \"$b\"; done\nfor b in MB x Z 7x; do s --block-size=\"$b\"; done",
+      "requires": [
+        "du",
+        "truncate",
+        "sed"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g144-last-unit-option-wins",
+      "kind": "parity",
+      "purpose": "G144: the last of -b, -k, -m, -h, --si, -B and --block-size decides the output unit (bash-os let -h and --si win wherever they were); BLOCK_SIZE and DU_BLOCK_SIZE set the default, the first one set deciding even when invalid.",
+      "script": "truncate -s 8000000 z\nfor o in '-b -k -h' '-b -h -k' '-b -m -B 1' '-b -B 1 -m' '-h -b' '--si -b' '-b --si' '-b -BK -h' '-b -h -BK' '-b --si -BK' '-k --si --apparent-size' '-hk --apparent-size' '--block-size=human-readable -b' '--apparent-size -hm' '--apparent-size -mh'; do printf '%s: ' \"$o\"; du $o z; done\nBLOCK_SIZE=K du --apparent-size z\nDU_BLOCK_SIZE=M BLOCK_SIZE=K du --apparent-size z\nDU_BLOCK_SIZE=x BLOCK_SIZE=K du --apparent-size z\nBLOCKSIZE=KB du --apparent-size z\nBLOCK_SIZE=si du --apparent-size z\nBLOCK_SIZE=K du -b z",
+      "requires": [
+        "du",
+        "truncate"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g144-count-once-across-operands",
+      "kind": "parity",
+      "purpose": "G144: GNU du counts each directory and file once per run: a repeated operand, an operand inside an earlier one, or an earlier operand inside a later one is not counted again (and not printed), also for --inodes and -c totals; -l counts every name again. Directories add 0 to apparent sizes (coreutils 9.2+), so du -sb EMPTYDIR is 0.",
+      "script": "mkdir -p t/a/b t/e emp\nprintf hello > t/f1\nprintf '%3000s' '' > t/a/f2\nprintf '%70000s' '' > t/a/b/f3\nln t/f1 t/a/hl\nfor o in '-sb emp' '-sb t t/a' '-sb t/a t' '-b t t' '-cb t/a t/a' '-acb t t/a' '-acb t/a t' '-cb t/a/f2 t/a/f2' '-ab t/a/f2 t/a' '-sb t/a/b t/a' '-cbl t/a t/a' '-s --inodes t t/a' '-s --inodes t/a t' '-csb t/a t' '-c --apparent-size -k t t/a'; do echo \"== $o\"; du $o | sort -k2; done",
+      "requires": [
+        "du",
+        "mkdir",
+        "ln",
+        "sort"
+      ],
       "expected_status": 0,
       "stderr": "empty"
     }

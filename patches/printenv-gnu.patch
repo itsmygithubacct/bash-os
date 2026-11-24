@@ -6,9 +6,11 @@
 +#include <string.h>
  #include <stdio.h>
  
-@@ -34,45 +35,82 @@
+@@ -34,45 +35,102 @@
  extern char **export_env;
  
++#include "shim-prog-name.h"
++
 +/* Read the exported environment, including temporary command assignments.
 +   A shell variable lookup would miss non-identifier environment names. */
 +static char *
@@ -33,7 +35,7 @@
 +  WORD_LIST *word;
 +  char **names, **entry, *value, *arg;
 +  size_t count, used, i;
-+  int delimiter = '\n', options = 1, result = EXECUTION_SUCCESS;
++  int delimiter = '\n', options = 1, result = EXECUTION_SUCCESS, bad = 0;
  
 -  reset_internal_getopt ();
 -  while ((opt = internal_getopt (list, "")) != -1)
@@ -57,7 +59,25 @@
 +        {
 +          if (arg[1] == '-')
 +            {
-+              size_t length = strlen (arg + 2);
++              /* GNU getopt_long: a unique prefix names the option, and
++                 none of the three takes an argument. */
++              size_t length = strcspn (arg + 2, "=");
++              const char *name = 0;
++              if (length && length <= 4 && strncmp (arg + 2, "null", length) == 0)
++                name = "null";
++              else if (length && length <= 4 && strncmp (arg + 2, "help", length) == 0)
++                name = "help";
++              else if (length && length <= 7 && strncmp (arg + 2, "version", length) == 0)
++                name = "version";
++              if (name && arg[2 + length])
++                {
++                  fflush (stdout);
++                  builtin_error ("option '--%s' doesn't allow an argument", name);
++                  bos_shim_try_help ("printenv");
++                  result = EX_USAGE;
++                  goto done;
++                }
++              if (!name) goto invalid;
 +              if (length <= 4 && strncmp (arg + 2, "null", length) == 0)
 +                delimiter = 0;
 +              else if (length <= 4 && strncmp (arg + 2, "help", length) == 0)
@@ -69,7 +89,7 @@
 +          else
 +            for (i = 1; arg[i]; i++)
 +              {
-+                if (arg[i] != '0') goto invalid;
++                if (arg[i] != '0') { bad = (unsigned char) arg[i]; goto invalid; }
 +                delimiter = 0;
 +              }
 +          continue;
@@ -113,15 +133,15 @@
 +      }
 +  goto done;
 +invalid:
-+  builtin_error ("invalid option: %s", arg);
-+  builtin_usage ();
++  /* glibc getopt's wording, the coreutils Try line, status 2. */
++  bos_shim_bad_option (arg, bad, "printenv");
 +  result = EX_USAGE;
 +done:
 +  free (names);
 +  return sh_chkwrite (result);
  }
  
-@@ -80,5 +118,9 @@
+@@ -80,5 +138,9 @@
  	"Display environment.",
  	"",
 -	"Print names and values of environment variables",
@@ -132,7 +152,7 @@
 +	"  --version   display the implementation identity",
  	(char *)NULL
  };
-@@ -89,5 +131,5 @@
+@@ -89,5 +151,5 @@
  	BUILTIN_ENABLED,
  	printenv_doc,
 -	"printenv [varname]",

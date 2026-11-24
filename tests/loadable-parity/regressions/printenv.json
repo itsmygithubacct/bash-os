@@ -8,7 +8,8 @@
     "No-operand environment listing includes an explicitly exported fixture entry",
     "Unset and unexported names return failure without output",
     "GNU option terminator, multiple operands, help, and invalid-option behavior",
-    "Exported Bash function name lookup"
+    "Exported Bash function name lookup",
+    "Guest pass 10 (G142): getopt wording, the Try line and status 2 for unknown options and an argument given to --null."
   ],
   "exclusions": [
     "The complete no-operand environment dump is not compared byte-for-byte because the runner deliberately gives reference and candidate Bash different PATH values; its case checks that a unique exported fixture entry is present.",
@@ -238,6 +239,18 @@
       "script": "printenv --version > version; [[ -s version ]]; rm version; printf \"version available\\n\"",
       "requires": [
         "printenv"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g142-option-errors",
+      "kind": "parity",
+      "purpose": "G142: printenv reports an unknown long option as \"unrecognized option '--bogus'\", an unknown short option as \"invalid option -- 'x'\" and --null=x as \"option '--null' doesn't allow an argument\", each followed by the Try line, with status 2 (it used to print \"invalid option\" and a usage line). The script line prefix the shell adds to a builtin's message is removed.",
+      "script": "s() { local rc=0 out; out=$(eval \"$1\" 2>&1) || rc=$?; printf '%s\\n' \"$out\" | sed 's/^fixture: line [0-9]*: //'; echo \"rc=$rc\"; }\ns 'printenv --bogus'\ns 'printenv -x'\ns 'printenv -0x'\ns 'printenv --null=x'\ns 'printenv --he=1'\n",
+      "requires": [
+        "printenv",
+        "sed"
       ],
       "expected_status": 0,
       "stderr": "empty"
