@@ -63,6 +63,7 @@ check 'builtin regressions' python3 tests/regressions.py out/bash
 check 'blkid low-level probe on image files' python3 tests/blkid-probe.py out/bash
 check 'GNU command compatibility and archive interoperability' python3 tests/gnu-command-compat.py out/bash
 check 'tar incremental dumps round-trip with GNU tar' python3 tests/tar-incremental-gnu.py out/bash
+check 'ramdisk mounts in a private user namespace' python3 tests/ramdisk-smoke.py out/bash
 check 'clear terminal bytes and shell output recovery' python3 tests/clear-check.py out/bash
 check 'clip contract' python3 tests/sol-clip-check.py out/bash
 check 'lpr list readdir error' python3 tests/sol-lpr-list-readdir.py out/bash

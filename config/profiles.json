@@ -131,6 +131,7 @@
       "mkswap",
       "swapon",
       "swapoff",
+      "ramdisk",
       "wipefs",
       "fincore",
       "fsfreeze",

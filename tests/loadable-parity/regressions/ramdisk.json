@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "loadable": "ramdisk",
+  "reference": "No GNU or util-linux ramdisk exists, so every executed case is a contract: the documented bash-os interface (help text, synopsis, glibc getopt diagnostics with the coreutils Try line, dry-run output) checked in the candidate arm only.",
+  "coverage": [
+    "Builtin registration, short and long help, --help and --version output.",
+    "Option and usage errors: wording, the Try line and status 1.",
+    "Validation before any filesystem change, and setup --dry-run reporting without creating anything.",
+    "The zram-unavailable path, with and without --root."
+  ],
+  "exclusions": [
+    "Mounting, remounting and unmounting are not possible in the parity sandbox; tests/ramdisk-smoke.py covers them in a private namespace.",
+    "zram devices need the kernel module; the smoke test drives the sysfs sequence against a fake tree."
+  ],
+  "cases": [
+    {
+      "id": "builtin_type",
+      "kind": "contract",
+      "purpose": "The statically registered ramdisk command is a builtin; nothing is mounted.",
+      "script": "type -t ramdisk",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "short_help_summary",
+      "kind": "contract",
+      "purpose": "Bash short help shows the catalog synopsis from config/bash-loadables.list.",
+      "script": "help -s ramdisk",
+      "expected_status": 0,
+      "stdout": "ramdisk: ramdisk [list|setup|create|resize|remove|zram] [OPTION]... [ARG]...\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "long_help_contract",
+      "kind": "contract",
+      "purpose": "Bash help carries the documented verbs, the standard set setup mounts and the exit status.",
+      "script": "doc=$(help ramdisk)\nif [[ $doc == *'/dev/shm   tmpfs nosuid,nodev, mode 1777'* && $doc == *'/run/lock  tmpfs nosuid,nodev,noexec, mode 1777, size 5m'* && $doc == *'/dev/mqueue  mqueue'* && $doc == *'only with --tmp'* && $doc == *'-f/--force'* && $doc == *'/sys/class/zram-control'* && $doc == *'Exit Status: 0 on success'* ]]; then\n  printf 'documented ramdisk contract present\\n'\nelse\n  exit 1\nfi",
+      "expected_status": 0,
+      "stdout": "documented ramdisk contract present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_option_shape",
+      "kind": "contract",
+      "purpose": "--help prints the summary line and the usage synopsis of every verb on stdout, status 0.",
+      "script": "ramdisk --help > out\nhead -n 9 out",
+      "expected_status": 0,
+      "stdout": "Manage RAM-backed filesystems: tmpfs, ramfs, mqueue and zram.\n\n    ramdisk [list] [-b|-h] [PATH...]\n    ramdisk setup [-n|--dry-run] [--tmp] [--no-run] [--root DIR]\n    ramdisk create [-s SIZE] [-m MODE] [-u UID] [-g GID] [-i INODES]\n                   [-o OPTS] [-f|--force] PATH\n    ramdisk resize PATH SIZE\n    ramdisk remove [-l|--lazy] [--rmdir] PATH...\n    ramdisk zram [--root DIR] add SIZE [-a ALGO] | remove N...\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "verb_help_is_the_same",
+      "kind": "contract",
+      "purpose": "Each verb's --help prints the same complete text as ramdisk --help.",
+      "script": "ramdisk --help > all\nfor verb in list setup create resize remove zram; do\n  ramdisk $verb --help > one\n  cmp -s all one || { echo \"$verb differs\"; exit 1; }\ndone\necho same",
+      "expected_status": 0,
+      "stdout": "same\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "version",
+      "kind": "contract",
+      "purpose": "--version names the bash-os release.",
+      "script": "ramdisk --version",
+      "expected_status": 0,
+      "stdout": "ramdisk (bash-os) 0.1.5\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "unrecognized_long_option",
+      "kind": "contract",
+      "purpose": "An unknown long option gets glibc getopt's wording and the coreutils Try line, status 1.",
+      "script": "if ramdisk --x 2>err; then exit 90; else echo rc=$?; fi\nmsg=$(<err); printf '%s\\n' \"${msg#*ramdisk: }\"",
+      "expected_status": 0,
+      "stdout": "rc=1\nunrecognized option '--x'\nTry 'ramdisk --help' for more information.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid_short_option",
+      "kind": "contract",
+      "purpose": "An unknown short option of a verb gets glibc getopt's wording and the Try line, status 1.",
+      "script": "if ramdisk setup -q 2>err; then exit 90; else echo rc=$?; fi\nmsg=$(<err); printf '%s\\n' \"${msg#*ramdisk: }\"",
+      "expected_status": 0,
+      "stdout": "rc=1\ninvalid option -- 'q'\nTry 'ramdisk --help' for more information.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "missing_option_argument",
+      "kind": "contract",
+      "purpose": "A long option missing its argument gets glibc getopt's wording and the Try line, status 1.",
+      "script": "if ramdisk setup --root 2>err; then exit 90; else echo rc=$?; fi\nmsg=$(<err); printf '%s\\n' \"${msg#*ramdisk: }\"",
+      "expected_status": 0,
+      "stdout": "rc=1\noption '--root' requires an argument\nTry 'ramdisk --help' for more information.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "unknown_command",
+      "kind": "contract",
+      "purpose": "An unknown verb is a usage error with the Try line, status 1.",
+      "script": "if ramdisk frob 2>err; then exit 90; else echo rc=$?; fi\nmsg=$(<err); printf '%s\\n' \"${msg#*ramdisk: }\"",
+      "expected_status": 0,
+      "stdout": "rc=1\nunknown command 'frob'\nTry 'ramdisk --help' for more information.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid_size_mounts_nothing",
+      "kind": "contract",
+      "purpose": "create validates SIZE before touching the filesystem: status 1, no directory made, no mount attempted.",
+      "script": "if ramdisk create -s 12x d 2>err; then exit 90; else echo rc=$?; fi\nmsg=$(<err); printf '%s\\n' \"${msg#*ramdisk: }\"\n[[ ! -e d ]] && echo 'no d'",
+      "expected_status": 0,
+      "stdout": "rc=1\ncreate: invalid size '12x'\nno d\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "setup_dry_run_changes_nothing",
+      "kind": "contract",
+      "purpose": "setup -n --tmp --root r reports the standard set it would make and mount (the mqueue lines depend on the host kernel and are left out) and creates nothing.",
+      "script": "mkdir r\nramdisk setup -n --tmp --root r > out\nwhile IFS= read -r line; do [[ $line == *mqueue* ]] || printf '%s\\n' \"$line\"; done < out\nshopt -s nullglob dotglob\nset -- r/*\necho \"entries in r: $#\"",
+      "expected_status": 0,
+      "stdout": "would create r/run\nwould mount r/run (tmpfs, mode 755)\nwould create r/run/lock\nwould mount r/run/lock (tmpfs, mode 1777, size 5m)\nwould create r/dev/shm\nwould mount r/dev/shm (tmpfs, mode 1777)\nwould create r/tmp\nwould mount r/tmp (tmpfs, mode 1777)\nentries in r: 0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "zram_unavailable",
+      "kind": "contract",
+      "purpose": "The sandbox has no sysfs, so there is no /sys/class/zram-control: zram add says zram is not available, status 1.",
+      "script": "if ramdisk zram add 64m 2>err; then exit 90; else echo rc=$?; fi\nmsg=$(<err); printf '%s\\n' \"${msg#*ramdisk: }\"",
+      "expected_status": 0,
+      "stdout": "rc=1\nzram not available in this kernel (no /sys/class/zram-control)\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "zram_unavailable_root",
+      "kind": "contract",
+      "purpose": "With --root, the zram-control directory is looked for below that root; a fixture root without one gives the same refusal.",
+      "script": "mkdir r\nif ramdisk zram --root r remove 0 2>err; then exit 90; else echo rc=$?; fi\nmsg=$(<err); printf '%s\\n' \"${msg#*ramdisk: }\"",
+      "expected_status": 0,
+      "stdout": "rc=1\nzram not available in this kernel (no r/sys/class/zram-control)\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "defer_mounts",
+      "kind": "deferred",
+      "purpose": "setup, create, resize, remove and list against real tmpfs and mqueue mounts.",
+      "reason": "The parity sandbox forbids mounts. tests/ramdisk-smoke.py runs these in a private user, mount and IPC namespace (unshare -rmi) below a scratch root and checks the results with mountinfo, statvfs and stat."
+    }
+  ]
+}

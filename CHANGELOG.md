@@ -5,6 +5,11 @@ All notable changes to bash-os are recorded here. Versions follow
 
 ## 0.1.5 — Unreleased
 
+- New `ramdisk` builtin for RAM-backed storage. `ramdisk setup` mounts /run, /run/lock,
+  /dev/shm and /dev/mqueue (and /tmp with `--tmp`) for an init script, skipping what is
+  already mounted; `--root DIR` sets up another tree and `-n` only reports. `ramdisk list`
+  shows tmpfs, ramfs, mqueue and zram mounts with their size, use and mode; `create`,
+  `resize` and `remove` manage tmpfs mounts, and `ramdisk zram add SIZE` makes a zram device.
 - `grep` accepts a separate argument to `--regexp` and highlights matches with `--color`. `diff -w` ignores whitespace and `diff -u --label` sets patch headers.
 - `sed --posix` selects POSIX script and regular expression behavior. `xargs -d` reads arguments separated by a specified byte.
 - `basename -a` accepts multiple paths, `realpath -m` resolves paths with missing components, and `touch -d` accepts a date and time followed by UTC.

@@ -53,6 +53,15 @@ bash-os is assembled from these sources:
   takes the source's mode and mtime. `tests/zstd-check.sh` checks it against
   the host's zstd both ways; `tests/zstd-host.c` runs the buffer paths under
   the sanitizers.
+- **Written for bash-os** (MIT): `ramdisk`, RAM-backed storage for an init:
+  `setup` mounts /run, /run/lock, /dev/shm, /dev/mqueue and (`--tmp`) /tmp,
+  leaving whatever is already mounted, and `list`, `create`, `resize`,
+  `remove` and `zram` manage tmpfs mounts and zram devices. Written from the
+  Linux man pages (mount(2), umount(2), statfs(2), tmpfs(5), mq_overview(7),
+  shm_overview(7), proc_pid_mountinfo(5)), the kernel's zram documentation
+  and observed kernel behaviour, in the style of `bashmount` and `mkswap`;
+  no util-linux, systemd or kernel source was read. `tests/ramdisk-smoke.py`
+  mounts for real in a private user namespace.
 
 ## Licences, file by file
 
