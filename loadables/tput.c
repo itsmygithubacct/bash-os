@@ -1443,13 +1443,64 @@ emit_cap (const char *cap, WORD_LIST *args, const char *var, const char *term, i
   return EXECUTION_SUCCESS;
 }
 
+extern WORD_LIST *make_word_list (WORD_DESC *, WORD_LIST *);
+extern WORD_DESC *make_word (const char *);
+extern void dispose_words (WORD_LIST *);
+
+/* tput -S (ncurses tput(1)): one "CAP [ARGS...]" per line of standard
+   input, blank lines skipped. An unknown capability or terminal stops
+   with its usual status (4, 3); a line that reports "absent" (status 1)
+   counts as not interpreted, and the status is then 4 plus that count,
+   as ncurses 6.5 exits. Operands on the command line are ignored. */
+static int
+tput_read_stdin (const char *term, int explicit_term)
+{
+  char *line = NULL;
+  size_t cap = 0;
+  ssize_t len;
+  int failed = 0, rc = EXECUTION_SUCCESS;
+
+  while ((len = getline (&line, &cap, stdin)) >= 0)
+    {
+      WORD_LIST *words = NULL, **tail = &words;
+      char *p = line, *w;
+      int r;
+
+      if (len && line[len - 1] == '\n')
+        line[len - 1] = '\0';
+      while ((w = strtok (p, " \t\r")) != NULL)
+        {
+          p = NULL;
+          *tail = make_word_list (make_word (w), (WORD_LIST *) NULL);
+          tail = &(*tail)->next;
+        }
+      if (!words)
+        continue;
+      r = emit_cap (words->word->word, words->next, NULL, term, explicit_term);
+      dispose_words (words);
+      fflush (stdout);
+      if (r == 1)
+        failed++;
+      else if (r != 0)
+        {
+          rc = r;
+          break;
+        }
+    }
+  free (line);
+  clearerr (stdin);
+  if (rc == EXECUTION_SUCCESS && failed)
+    rc = failed > 251 ? 255 : 4 + failed;
+  return rc;
+}
+
 int
 tput_builtin (WORD_LIST *list)
 {
   const char *term = getenv ("TERM");
   const char *var = NULL;
   const char *verb;
-  int i, explicit_term = 0;
+  int i, explicit_term = 0, from_stdin = 0;
 
   if (!list) { builtin_usage (); return EX_USAGE; }
   if (!strcmp (list->word->word, "--help") || !strcmp (list->word->word, "-h"))
@@ -1463,6 +1514,7 @@ tput_builtin (WORD_LIST *list)
     {
       const char *opt = list->word->word;
       if (!strcmp (opt, "--")) { list = list->next; break; }
+      if (!strcmp (opt, "-S")) { from_stdin = 1; list = list->next; continue; }
       if (!strncmp (opt, "-T", 2))
         {
           if (opt[2]) term = opt + 2;
@@ -1477,6 +1529,8 @@ tput_builtin (WORD_LIST *list)
       else { builtin_error ("unknown option: %s", opt); return EX_USAGE; }
       list = list->next;
     }
+  if (from_stdin)
+    return tput_read_stdin (term, explicit_term);
   if (!list) { builtin_usage (); return EX_USAGE; }
   verb = list->word->word;
   list = list->next;
@@ -1608,6 +1662,7 @@ char *tput_doc[] = {
   "",
   "    tput query CAP [-T TERM] [-V VAR] [ARGS...]",
   "    tput [-T TERM] CAP [ARGS...]",
+  "    tput [-T TERM] -S < FILE        one CAP [ARGS...] per input line",
   "    tput cap-list [-T TERM] [-V VAR]",
   "    tput entry-list",
   "    tput info [-T TERM]",
@@ -1615,6 +1670,8 @@ char *tput_doc[] = {
   "Common boolean queries return 0 for true and 1 for false, without output.",
   "With no parameters, parameterized strings are returned verbatim.",
   "Statuses: 2 for usage/missing TERM, 3 for unknown terminal, 4 for unknown CAP.",
+  "With -S: 0 when every line was interpreted, 4 plus the number of lines",
+  "that reported absent; an unknown CAP or terminal stops with 4 or 3.",
   "A compiled terminfo entry (TERMINFO, ~/.terminfo, TERMINFO_DIRS, or the",
   "system database) is used before an unknown terminal is reported. A",
   "compiled string with parameters is expanded only when it uses %p1-%p9,",

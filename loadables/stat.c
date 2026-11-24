@@ -38,6 +38,7 @@
 #include <fcntl.h>
 #include "loadables.h"
 #include "bashgetopt.h"
+#include "shim-prog-name.h"
 
 /* coreutils 9.x layouts */
 #define STAT_FMT_DEFAULT \
@@ -512,7 +513,7 @@ stat_builtin (WORD_LIST *list)
       if (strcmp (w, "--format") == 0 || strcmp (w, "--printf") == 0)
         {
           if (l->next == 0)
-            { builtin_error ("option '%s' requires an argument", w); builtin_usage (); return EX_USAGE; }
+            { builtin_error ("option '%s' requires an argument", w); bos_shim_try_help ("stat"); return EXECUTION_FAILURE; }
           escapes = w[2] == 'p';
           l = l->next; fmt = l->word->word;
           continue;
@@ -520,7 +521,8 @@ stat_builtin (WORD_LIST *list)
       if (strcmp (w, "--dereference") == 0) { follow = 1; continue; }
       if (strcmp (w, "--terse") == 0) { terse = 1; continue; }
       if (strcmp (w, "--file-system") == 0) { fsmode = 1; continue; }
-      if (w[1] == '-') { builtin_error ("%s: invalid option", w); builtin_usage (); return EX_USAGE; }
+      /* glibc getopt's wording, coreutils' hint and status 1. */
+      if (w[1] == '-') { builtin_error ("unrecognized option '%s'", w); bos_shim_try_help ("stat"); return EXECUTION_FAILURE; }
       for (p = w + 1; *p && consumed_next == 0; p++)
         switch (*p)
           {
@@ -532,16 +534,16 @@ stat_builtin (WORD_LIST *list)
               char *arg;
               if (p[1]) arg = p + 1;
               else if (l->next) { l = l->next; arg = l->word->word; }
-              else { builtin_error ("-%c: option requires an argument", *p); builtin_usage (); return EX_USAGE; }
+              else { builtin_error ("option requires an argument -- '%c'", *p); bos_shim_try_help ("stat"); return EXECUTION_FAILURE; }
               if (*p == 'c') { fmt = arg; escapes = 0; } else aname = arg;
               consumed_next = 1;
             }
             break;
           default:
-            builtin_error ("-%c: invalid option", *p); builtin_usage (); return EX_USAGE;
+            builtin_error ("invalid option -- '%c'", *p); bos_shim_try_help ("stat"); return EXECUTION_FAILURE;
           }
     }
-  if (l == 0) { builtin_error ("missing operand"); builtin_usage (); return EX_USAGE; }
+  if (l == 0) { builtin_error ("missing operand"); bos_shim_try_help ("stat"); return EXECUTION_FAILURE; }
   if (aname && legal_identifier ((char *) aname) == 0)
     { sh_invalidid ((char *) aname); return EX_USAGE; }
 

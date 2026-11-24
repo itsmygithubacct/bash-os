@@ -188,6 +188,17 @@
       "kind": "deferred",
       "purpose": "Verify block and inode counters, -h/-H rounding, -B/-m scaling, and --total arithmetic at controlled boundary values.",
       "reason": "Requires a disposable VM or reviewed statvfs mock that supplies fixed block, free, available, inode, and free-inode counts. Live counters can change between the sequential GNU and candidate runs, and the harness cannot inject statvfs results."
+    },
+    {
+      "id": "g113-usage-errors",
+      "kind": "parity",
+      "purpose": "df usage errors print GNU's getopt wording and the Try line and exit 1 (they used to exit 2) (guest pass 7, G113).",
+      "requires": [
+        "df"
+      ],
+      "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\ns 'df -Q'\ns 'df --bogus'\ns 'df -t'\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

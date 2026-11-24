@@ -54,6 +54,7 @@
 
 #include "loadables.h"
 #include "gnu-quote.h"
+#include "shim-prog-name.h"
 
 /* GNU du's operand diagnostics: "cannot access 'NAME'" for a failed stat,
    "cannot read directory 'NAME'" for a failed open. */
@@ -449,6 +450,25 @@ bdu_walk (const char *path, int depth, dev_t root_dev, const bdu_opts *o, int *e
     return total;
 }
 
+/* GNU du's usage errors all exit 1; most end with the help hint. */
+static int
+bdu_usage_error (const char *fmt, const char *arg)
+{
+    builtin_error (fmt, arg);
+    bos_shim_try_help ("du");
+    return EXECUTION_FAILURE;
+}
+
+static int
+bdu_bad_value (const char *what, const char *arg, int hint)
+{
+    char *q = bos_quote (arg);
+    builtin_error ("invalid %s %s", what, q ? q : arg);
+    free (q);
+    if (hint) bos_shim_try_help ("du");
+    return EXECUTION_FAILURE;
+}
+
 int
 du_builtin (WORD_LIST *list)
 {
@@ -471,8 +491,8 @@ du_builtin (WORD_LIST *list)
         if (strcmp (w, "--exclude") == 0 || strcmp (w, "--exclude-from") == 0
             || strcmp (w, "-X") == 0 || strcmp (w, "--files0-from") == 0) {
             if (!p->next) {
-                builtin_error ("option '%s' requires an argument", w);
-                rc = EXECUTION_FAILURE;
+                if (w[1] == 'X') rc = bdu_usage_error ("option requires an argument -- '%s'", "X");
+                else rc = bdu_usage_error ("option '%s' requires an argument", w);
                 goto out;
             }
             p = p->next;
@@ -546,21 +566,18 @@ du_builtin (WORD_LIST *list)
         }
         if (strcmp (w, "--block-size") == 0) {
             if (!p->next) {
-                builtin_error ("--block-size requires an argument");
-                rc = EX_USAGE;
+                rc = bdu_usage_error ("option '%s' requires an argument", "--block-size");
                 goto out;
             }
             if (bdu_parse_block_size (p->next->word->word, &o.block_size) < 0) {
-                builtin_error ("invalid block size: %s", p->next->word->word);
-                rc = EX_USAGE;
+                rc = bdu_bad_value ("--block-size argument", p->next->word->word, 0);
                 goto out;
             }
             p = p->next; continue;
         }
         if (strncmp (w, "--block-size=", 13) == 0) {
             if (bdu_parse_block_size (w + 13, &o.block_size) < 0) {
-                builtin_error ("invalid block size: %s", w + 13);
-                rc = EX_USAGE;
+                rc = bdu_bad_value ("--block-size argument", w + 13, 0);
                 goto out;
             }
             continue;
@@ -604,37 +621,36 @@ du_builtin (WORD_LIST *list)
         }
         if (strcmp (w, "-d") == 0) {
             if (!p->next) {
-                builtin_error ("-d requires an argument");
-                rc = EX_USAGE;
+                rc = bdu_usage_error ("option requires an argument -- '%s'", "d");
                 goto out;
             }
             if (bdu_parse_depth (p->next->word->word, &o.max_depth) < 0) {
-                builtin_error ("invalid maximum depth: %s", p->next->word->word);
-                rc = EX_USAGE;
+                rc = bdu_bad_value ("maximum depth", p->next->word->word, 1);
                 goto out;
             }
             p = p->next; continue;
         }
         if (strcmp (w, "--max-depth") == 0) {
             if (!p->next) {
-                builtin_error ("--max-depth requires an argument");
-                rc = EX_USAGE;
+                rc = bdu_usage_error ("option '%s' requires an argument", "--max-depth");
                 goto out;
             }
             if (bdu_parse_depth (p->next->word->word, &o.max_depth) < 0) {
-                builtin_error ("invalid maximum depth: %s", p->next->word->word);
-                rc = EX_USAGE;
+                rc = bdu_bad_value ("maximum depth", p->next->word->word, 1);
                 goto out;
             }
             p = p->next; continue;
         }
         if (strncmp (w, "--max-depth=", 12) == 0) {
             if (bdu_parse_depth (w + 12, &o.max_depth) < 0) {
-                builtin_error ("invalid maximum depth: %s", w + 12);
-                rc = EX_USAGE;
+                rc = bdu_bad_value ("maximum depth", w + 12, 1);
                 goto out;
             }
             continue;
+        }
+        if (w[0] == '-' && w[1] == '-') {
+            rc = bdu_usage_error ("unrecognized option '%s'", w);
+            goto out;
         }
         if (w[0] == '-' && w[1] && strcmp (w, "-") != 0) {
             for (int i = 1; w[i]; i++) {
@@ -646,16 +662,14 @@ du_builtin (WORD_LIST *list)
                     const char *arg = w + i + 1;
                     if (!*arg) {
                         if (!p->next) {
-                            builtin_error ("-B requires an argument");
-                            rc = EX_USAGE;
+                            rc = bdu_usage_error ("option requires an argument -- '%s'", "B");
                             goto out;
                         }
                         p = p->next;
                         arg = p->word->word;
                     }
                     if (bdu_parse_block_size (arg, &o.block_size) < 0) {
-                        builtin_error ("invalid block size: %s", arg);
-                        rc = EX_USAGE;
+                        rc = bdu_bad_value ("-B argument", arg, 0);
                         goto out;
                     }
                     goto next_word;
@@ -677,24 +691,23 @@ du_builtin (WORD_LIST *list)
                     const char *arg = w + i + 1;
                     if (!*arg) {
                         if (!p->next) {
-                            builtin_error ("-d requires an argument");
-                            rc = EX_USAGE;
+                            rc = bdu_usage_error ("option requires an argument -- '%s'", "d");
                             goto out;
                         }
                         p = p->next;
                         arg = p->word->word;
                     }
                     if (bdu_parse_depth (arg, &o.max_depth) < 0) {
-                        builtin_error ("invalid maximum depth: %s", arg);
-                        rc = EX_USAGE;
+                        rc = bdu_bad_value ("maximum depth", arg, 1);
                         goto out;
                     }
                     goto next_word;
                 }
-                default:
-                    builtin_error ("unknown flag: -%c", w[i]);
-                    rc = EX_USAGE;
+                default: {
+                    char opt[2] = { w[i], '\0' };
+                    rc = bdu_usage_error ("invalid option -- '%s'", opt);
                     goto out;
+                }
                 }
             }
         } else {
@@ -724,14 +737,21 @@ du_builtin (WORD_LIST *list)
     if (o.inodes && o.apparent)
         fprintf (stderr, "du: warning: options --apparent-size and -b are ineffective with --inodes\n");
     if (o.sflag && o.aflag) {
-        builtin_error ("-a and -s are mutually exclusive");
-        rc = EX_USAGE;
+        rc = bdu_usage_error ("%s", "cannot both summarize and show all entries");
         goto out;
     }
     if (o.sflag && o.max_depth >= 0) {
-        builtin_error ("-s and --max-depth are mutually exclusive");
-        rc = EX_USAGE;
-        goto out;
+        /* GNU allows -s with --max-depth=0 (the same thing), with a warning. */
+        if (o.max_depth == 0)
+            builtin_error ("warning: summarizing is the same as using --max-depth=0");
+        else {
+            char depth[32];
+            snprintf (depth, sizeof depth, "%d", o.max_depth);
+            builtin_error ("warning: summarizing conflicts with --max-depth=%s", depth);
+            bos_shim_try_help ("du");
+            rc = EXECUTION_FAILURE;
+            goto out;
+        }
     }
 
     if (o.dereference != 0) {

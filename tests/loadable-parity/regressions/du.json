@@ -217,6 +217,17 @@
       ],
       "expected_status": 0,
       "stderr": "exact"
+    },
+    {
+      "id": "g113-usage-errors",
+      "kind": "parity",
+      "purpose": "du usage errors print GNU's message and \"Try 'du --help' for more information.\" and exit 1 (they used to exit 2): unknown options, missing arguments, a bad --max-depth or block size, -a with -s, -s with --max-depth=N; -s -d 0 only warns (guest pass 7, G113).",
+      "requires": [
+        "du"
+      ],
+      "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\ns 'du --bogus'\ns 'du -Q'\ns 'du -d x .'\ns 'du --max-depth=x .'\ns 'du -B x .'\ns 'du --block-size=x .'\ns 'du -as .'\ns 'du -s -d 1 .'\ns 'du -s -d 0 . >/dev/null'\ns 'du -d'\ns 'du --block-size'\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

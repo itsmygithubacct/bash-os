@@ -171,6 +171,72 @@ bck_hex (const unsigned char *digest, size_t len, char *out)
     out[len * 2] = '\0';
 }
 
+/* RFC 4648 base64 (with '=' padding) of LEN digest bytes, for --base64. */
+static void
+bck_base64 (const unsigned char *d, size_t len, char *out)
+{
+    static const char tab[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    size_t o = 0;
+    for (size_t i = 0; i < len; i += 3) {
+        unsigned long w = (unsigned long) d[i] << 16;
+        if (i + 1 < len) w |= (unsigned long) d[i + 1] << 8;
+        if (i + 2 < len) w |= d[i + 2];
+        out[o++] = tab[(w >> 18) & 63];
+        out[o++] = tab[(w >> 12) & 63];
+        out[o++] = i + 1 < len ? tab[(w >> 6) & 63] : '=';
+        out[o++] = i + 2 < len ? tab[w & 63] : '=';
+    }
+    out[o] = '\0';
+}
+
+static int
+bck_base64_value (unsigned char c)
+{
+    if (c >= 'A' && c <= 'Z') return c - 'A';
+    if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+    if (c >= '0' && c <= '9') return c - '0' + 52;
+    if (c == '+') return 62;
+    if (c == '/') return 63;
+    return -1;
+}
+
+/* The digest field of a checksum line, in hexadecimal or (as --base64
+   writes it) base64, as lowercase hex in OUT. -1 when TEXT is neither
+   form of a LEN-byte digest. */
+static int
+bck_digest_to_hex (const char *text, size_t len, char *out)
+{
+    size_t n = strlen (text);
+    if (n == 2 * len) {
+        for (size_t i = 0; i < n; i++) {
+            if (!isxdigit ((unsigned char) text[i])) return -1;
+            out[i] = (char) tolower ((unsigned char) text[i]);
+        }
+        out[n] = '\0';
+        return 0;
+    }
+    if (!len || n != 4 * ((len + 2) / 3)) return -1;
+    unsigned char bytes[66];
+    size_t got = 0;
+    for (size_t i = 0; i < n; i += 4) {
+        int v[4], pad = 0;
+        for (int k = 0; k < 4; k++) {
+            unsigned char c = (unsigned char) text[i + k];
+            if (c == '=' && i + 4 == n && k >= 2) { v[k] = 0; pad++; continue; }
+            if (pad) return -1;
+            if ((v[k] = bck_base64_value (c)) < 0) return -1;
+        }
+        unsigned long w = ((unsigned long) v[0] << 18) | ((unsigned long) v[1] << 12)
+                        | ((unsigned long) v[2] << 6) | (unsigned long) v[3];
+        unsigned char b[3] = { (unsigned char) (w >> 16), (unsigned char) (w >> 8), (unsigned char) w };
+        for (int k = 0; k < 3 - pad; k++) bytes[got++] = b[k];
+    }
+    if (got != len) return -1;
+    bck_hex (bytes, len, out);
+    return 0;
+}
+
 static int
 bck_compute_digest_fd (int fd, enum bck_alg alg, unsigned char digest[64])
 {
@@ -281,6 +347,7 @@ bck_unescape (char *s)
 }
 
 /* Hash NAME with ALG into HEX. MISSING is set when it does not exist. */
+/* QUIET (--ignore-missing) silences the error only for a missing file. */
 static int
 bck_hash_name (const char *name, enum bck_alg alg, char *hex, int quiet, int *missing)
 {
@@ -290,14 +357,14 @@ bck_hash_name (const char *name, enum bck_alg alg, char *hex, int quiet, int *mi
     *missing = 0;
     if (fd < 0) {
         *missing = errno == ENOENT;
-        if (!quiet) builtin_error ("%s: %s", name, strerror (errno));
+        if (!(quiet && *missing)) builtin_error ("%s: %s", name, strerror (errno));
         return -1;
     }
     int failed = bck_compute_digest_fd (fd, alg, digest) < 0;
     int saved = errno;
     if (!from_stdin) close (fd);
     if (failed) {
-        if (!quiet) builtin_error ("%s: %s", name, strerror (saved ? saved : EIO));
+        builtin_error ("%s: %s", name, strerror (saved ? saved : EIO));
         return -1;
     }
     bck_hex (digest, bck_alg_digest_len (alg), hex);
@@ -313,7 +380,7 @@ bck_verify (const char *file, const struct bck_check *o)
     };
     int from_stdin = !strcmp (file, "-");
     FILE *f = from_stdin ? fdopen (dup (STDIN_FILENO), "r") : fopen (file, "r");
-    if (!f) { if (!o->status) builtin_error ("%s: %s", file, strerror (errno)); return 1; }
+    if (!f) { builtin_error ("%s: %s", file, strerror (errno)); return 1; }
     char *line = NULL;
     size_t cap = 0, number = 0, valid = 0, checked = 0, bad = 0, mismatched = 0, unreadable = 0;
     enum bck_alg last = o->alg;
@@ -359,15 +426,18 @@ bck_verify (const char *file, const struct bck_check *o)
             *end = 0;
             digest = end + 4;
         } else {
+            /* The digest runs to the first blank: hex, or base64 as
+               --base64 writes it. */
+            size_t hl = strcspn (p, " ");
             if (o->alg == BCK_ALG_BLAKE2B) {
-                /* GNU infers an untagged BLAKE2b digest's length. */
+                /* GNU infers an untagged BLAKE2b digest's length from its
+                   hex digits; it reads no untagged base64 BLAKE2b line. */
                 size_t hx = 0;
                 while (isxdigit ((unsigned char) p[hx])) hx++;
-                if (hx < 2 || hx % 2 || hx > 128) goto malformed;
+                if (hx != hl || hx < 2 || hx % 2 || hx > 128) goto malformed;
                 bck_b2_len = hx / 2;
             }
-            size_t hl = 2 * bck_alg_digest_len (o->alg);
-            if (!o->alg_given || strlen (p) < hl + 3 || p[hl] != ' '
+            if (!o->alg_given || !hl || strlen (p) < hl + 3
                 || (p[hl + 1] != ' ' && p[hl + 1] != '*'))
                 goto malformed;
             alg = o->alg;
@@ -376,16 +446,18 @@ bck_verify (const char *file, const struct bck_check *o)
             p[hl] = 0;
         }
         last = alg;
-        if (strlen (digest) != 2 * bck_alg_digest_len (alg)) goto malformed;
-        for (const char *d = digest; *d; d++) if (!isxdigit ((unsigned char) *d)) goto malformed;
+        char wanted[129];
+        if (bck_digest_to_hex (digest, bck_alg_digest_len (alg), wanted) < 0) goto malformed;
         if (!*name || (escape && bck_unescape (name))) goto malformed;
         valid++;
         char actual[129];
         int missing = 0;
-        int failed = bck_hash_name (name, alg, actual, o->status || o->ignore, &missing) < 0;
+        /* GNU reports an unreadable listed file even under --status;
+           --ignore-missing silences only one that does not exist. */
+        int failed = bck_hash_name (name, alg, actual, o->ignore, &missing) < 0;
         if (failed && missing && o->ignore) continue;
         checked++;
-        int matches = !failed && !strcasecmp (actual, digest);
+        int matches = !failed && !strcmp (actual, wanted);
         if (!matches) { rc = 1; if (failed) unreadable++; else mismatched++; }
         if (!o->status && (!o->quiet || !matches)) {
             bck_put_name (name);
@@ -400,18 +472,21 @@ malformed:
     if (ferror (f)) { if (!o->status) builtin_error ("%s: read error", file); rc = 1; }
     free (line);
     if (fclose (f)) rc = 1;
+    /* As GNU: a list with no well-formed line gets only that error, even
+       under --status; otherwise the WARNING counts come first and "no file
+       was verified" (every file skipped by --ignore-missing) last. */
     if (!valid) {
-        if (!o->status) builtin_error ("%s: no properly formatted checksum lines found", file);
-        return 1;
-    }
-    if (!checked) {
-        if (!o->status) builtin_error ("%s: no file was verified", file);
+        builtin_error ("%s: no properly formatted checksum lines found", file);
         return 1;
     }
     if (!o->status) {
         if (bad) builtin_error ("WARNING: %zu line%s improperly formatted", bad, bad == 1 ? " is" : "s are");
         if (unreadable) builtin_error ("WARNING: %zu listed file%s could not be read", unreadable, unreadable == 1 ? "" : "s");
         if (mismatched) builtin_error ("WARNING: %zu computed checksum%s did NOT match", mismatched, mismatched == 1 ? "" : "s");
+    }
+    if (!checked) {
+        if (!o->status) builtin_error ("%s: no file was verified", file);
+        return 1;
     }
     if (bad && o->strict) rc = 1;
     return rc;
@@ -424,13 +499,22 @@ bck_try (void)
     return EXECUTION_FAILURE;
 }
 
+/* Output encodings of a digest: hex (default), --base64 and --raw. */
+enum { BCK_ENC_HEX, BCK_ENC_BASE64, BCK_ENC_RAW };
+
 static void
 bck_print_digest (enum bck_alg alg, const char *name,
-                  const unsigned char digest[64], int untagged, int delim)
+                  const unsigned char digest[64], int untagged, int delim, int enc)
 {
     char hex[129];
     size_t dlen = bck_alg_digest_len (alg);
-    bck_hex (digest, dlen, hex);
+    if (enc == BCK_ENC_RAW) {
+        /* --raw: the digest bytes alone, no name or line end. */
+        fwrite (digest, 1, dlen, stdout);
+        return;
+    }
+    if (enc == BCK_ENC_BASE64) bck_base64 (digest, dlen, hex);
+    else bck_hex (digest, dlen, hex);
     if (untagged)
         printf ("%s  %s%c", hex, name, delim);
     else if (alg == BCK_ALG_BLAKE2B && bck_b2_len < 64)
@@ -439,13 +523,22 @@ bck_print_digest (enum bck_alg alg, const char *name,
         printf ("%s (%s) = %s%c", bck_alg_tag (alg), name, hex, delim);
 }
 
+/* --raw CRC: the four bytes of the CRC, most significant first. */
+static void
+bck_put_crc_raw (uint32_t crc)
+{
+    unsigned char b[4] = { (unsigned char) (crc >> 24), (unsigned char) (crc >> 16),
+                           (unsigned char) (crc >> 8), (unsigned char) crc };
+    fwrite (b, 1, sizeof b, stdout);
+}
+
 int
 cksum_builtin (WORD_LIST *list)
 {
     int rc = EXECUTION_SUCCESS;
     int delim = '\n';   /* '\0' under -z/--zero */
     enum bck_alg selected_alg = BCK_ALG_CRC;
-    int untagged = 0, check = 0, tag_given = 0;
+    int untagged = 0, check = 0, tag_given = 0, base64 = 0, raw = 0, enc;
     struct bck_check co = { 0, 0, 0, 0, 0, 0, BCK_ALG_CRC };
     const char *length_arg = NULL;
     bck_b2_len = 64;
@@ -475,6 +568,8 @@ cksum_builtin (WORD_LIST *list)
         if (!strcmp (w, "--status")) { co.status = 1; list = list->next; continue; }
         if (!strcmp (w, "--strict")) { co.strict = 1; list = list->next; continue; }
         if (!strcmp (w, "--ignore-missing")) { co.ignore = 1; list = list->next; continue; }
+        if (!strcmp (w, "--base64")) { base64 = 1; list = list->next; continue; }
+        if (!strcmp (w, "--raw")) { raw = 1; list = list->next; continue; }
         if (!strcmp (w, "--untagged")) {
             untagged = 1;
             list = list->next;
@@ -553,6 +648,12 @@ cksum_builtin (WORD_LIST *list)
         }
         bck_b2_len = bits ? (size_t) bits / 8 : 64;
     }
+    if (base64 && raw) {
+        builtin_error ("--base64 and --raw are mutually exclusive");
+        return bck_try ();
+    }
+    /* CRC output has no base64 form: GNU ignores --base64 there. */
+    enc = raw ? BCK_ENC_RAW : base64 && selected_alg != BCK_ALG_CRC ? BCK_ENC_BASE64 : BCK_ENC_HEX;
     if (check) {
         if (co.alg_given && selected_alg == BCK_ALG_CRC) {
             builtin_error ("--check is not supported with --algorithm={bsd,sysv,crc,crc32b}");
@@ -580,6 +681,10 @@ cksum_builtin (WORD_LIST *list)
             return bck_try ();
         }
     }
+    if (raw && list && list->next) {
+        builtin_error ("the --raw option is not supported with multiple files");
+        return EXECUTION_FAILURE;
+    }
     if (!list) {
         if (selected_alg != BCK_ALG_CRC) {
             unsigned char digest[64];
@@ -587,7 +692,7 @@ cksum_builtin (WORD_LIST *list)
                 builtin_error ("read stdin: %s", strerror (errno));
                 return EXECUTION_FAILURE;
             }
-            bck_print_digest (selected_alg, "-", digest, untagged, delim);
+            bck_print_digest (selected_alg, "-", digest, untagged, delim, enc);
             return EXECUTION_SUCCESS;
         }
         uint32_t crc;
@@ -596,7 +701,8 @@ cksum_builtin (WORD_LIST *list)
             builtin_error ("read stdin: %s", strerror (errno));
             return EXECUTION_FAILURE;
         }
-        printf ("%" PRIu32 " %" PRIu64 "%c", crc, bytes, delim);
+        if (enc == BCK_ENC_RAW) bck_put_crc_raw (crc);
+        else printf ("%" PRIu32 " %" PRIu64 "%c", crc, bytes, delim);
         return EXECUTION_SUCCESS;
     }
     for (WORD_LIST *p = list; p; p = p->next) {
@@ -623,7 +729,7 @@ cksum_builtin (WORD_LIST *list)
                 rc = EXECUTION_FAILURE;
                 continue;
             }
-            bck_print_digest (selected_alg, from_stdin ? "-" : path, digest, untagged, delim);
+            bck_print_digest (selected_alg, from_stdin ? "-" : path, digest, untagged, delim, enc);
             if (!from_stdin) close (fd);
             continue;
         }
@@ -635,7 +741,8 @@ cksum_builtin (WORD_LIST *list)
             rc = EXECUTION_FAILURE;
             continue;
         }
-        printf ("%" PRIu32 " %" PRIu64 " %s%c", crc, bytes, path, delim);
+        if (enc == BCK_ENC_RAW) bck_put_crc_raw (crc);
+        else printf ("%" PRIu32 " %" PRIu64 " %s%c", crc, bytes, path, delim);
         if (!from_stdin) close (fd);
     }
     return rc;
@@ -644,7 +751,7 @@ cksum_builtin (WORD_LIST *list)
 char *cksum_doc[] = {
     "POSIX CRC-32 + byte-count, plus common GNU cksum digest modes.",
     "",
-    "    cksum [-a crc|md5|sha1|sha224|sha256|sha384|sha512|blake2b] [-l BITS] [-z] [--tag|--untagged] [FILE...]",
+    "    cksum [-a crc|md5|sha1|sha224|sha256|sha384|sha512|blake2b] [-l BITS] [-z] [--tag|--untagged] [--base64|--raw] [FILE...]",
     "    cksum [-a ALG] -c|--check [--quiet|--status] [--strict] [-w] [--ignore-missing] [FILE...]",
     "    cksum --help | --version",
     "        CRC mode prints '<crc> <bytes> <FILE>'. Digest modes",
@@ -661,10 +768,14 @@ char *cksum_doc[] = {
     "                          --strict, -w/--warn and --ignore-missing as GNU",
     "    -z, --zero            end each output line with NUL, not newline",
     "    --tag / --untagged    tagged or reversed digest output",
+    "    --base64              base64 digests instead of hex (CRC output unchanged);",
+    "                          -c accepts either form",
+    "    --raw                 the binary digest alone (CRC: 4 bytes, big-endian);",
+    "                          one FILE at most",
     "",
     "Algorithm is POSIX-mandated CRC-32 (polynomial 0x04C11DB7,",
     "non-reflected, with length-byte injection + final XOR).",
-    "Unsupported: --raw, --base64, sysv, bsd, crc32b, sm3.",
+    "Unsupported: sysv, bsd, crc32b, sm3.",
     (char *)NULL
 };
 

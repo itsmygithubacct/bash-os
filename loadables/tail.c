@@ -34,6 +34,8 @@
 #include <sys/stat.h>
 
 #include "loadables.h"
+#include "gnu-quote.h"
+#include "shim-prog-name.h"
 
 /* Never read through Bash's long-lived stdin FILE: its EOF flag and
    buffer survive a builtin call, so the second `tail -n 1 < file` in
@@ -286,6 +288,18 @@ bt_suffix_mult (const char *suf)
     return 0;
 }
 
+/* GNU's diagnostic for a bad -n/-c value: "invalid number of lines: 'V'"
+   (or "bytes"), with no usage line. V is the value as given, except that a
+   leading '-' (the default direction) is not shown. */
+static void
+bt_bad_count (const char *what, const char *shown)
+{
+    int bytes = !strcmp (what, "-c") || !strcmp (what, "--bytes");
+    char *q = bos_quote (shown);
+    builtin_error ("invalid number of %s: %s", bytes ? "bytes" : "lines", q ? q : shown);
+    free (q);
+}
+
 static int
 bt_parse_count (const char *s, const char *what, int allow_sign,
                 int *from_start, long long *out)
@@ -293,43 +307,39 @@ bt_parse_count (const char *s, const char *what, int allow_sign,
     char *end = NULL;
     long long n;
     int local_from_start = 0;
+    const char *shown;
 
-    if (s == NULL || *s == '\0') {
-        builtin_error ("%s needs N", what);
-        builtin_usage ();
-        return -1;
-    }
+    if (s == NULL)
+        s = "";
+    shown = s;
     if (*s == '+') {
         local_from_start = 1;
         s++;
     } else if (allow_sign && *s == '-') {
         s++;
+        shown = s;
     }
-    if (*s == '\0') {
-        builtin_error ("%s needs a non-negative count", what);
-        builtin_usage ();
+    if (!isdigit ((unsigned char) *s)) {
+        bt_bad_count (what, shown);
         return -1;
     }
     errno = 0;
     n = strtoll (s, &end, 10);
     if (errno || end == s || n < 0) {
-        builtin_error ("%s needs a non-negative count", what);
-        builtin_usage ();
+        bt_bad_count (what, shown);
         return -1;
     }
     /* Optional GNU multiplier suffix (e.g. 1K, 512b, 4M). */
     if (*end) {
         long long mult = bt_suffix_mult (end);
         if (mult == 0 || (mult > 1 && n > INT_MAX / mult)) {
-            builtin_error ("%s: invalid number: %s", what, s);
-            builtin_usage ();
+            bt_bad_count (what, shown);
             return -1;
         }
         n *= mult;
     }
     if (n > INT_MAX) {
-        builtin_error ("%s needs a non-negative count", what);
-        builtin_usage ();
+        bt_bad_count (what, shown);
         return -1;
     }
     if (from_start)
@@ -614,7 +624,7 @@ tail_builtin (WORD_LIST *list)
         }
         if (!strcmp (w, "-n")) {
             long long n;
-            if (!list->next) { builtin_error ("-n needs N"); builtin_usage (); return EXECUTION_FAILURE; }
+            if (!list->next) { builtin_error ("option requires an argument -- 'n'"); bos_shim_try_help ("tail"); return EXECUTION_FAILURE; }
             list = list->next;
             if (bt_parse_count (list->word->word, "-n", 1, &from_start, &n) != 0) return EXECUTION_FAILURE;
             if (from_start) start_count = n;
@@ -625,7 +635,7 @@ tail_builtin (WORD_LIST *list)
         }
         if (!strcmp (w, "--lines")) {
             long long n;
-            if (!list->next) { builtin_error ("--lines needs N"); builtin_usage (); return EXECUTION_FAILURE; }
+            if (!list->next) { builtin_error ("option '--lines' requires an argument"); bos_shim_try_help ("tail"); return EXECUTION_FAILURE; }
             list = list->next;
             if (bt_parse_count (list->word->word, "--lines", 1, &from_start, &n) != 0) return EXECUTION_FAILURE;
             if (from_start) start_count = n;
@@ -655,7 +665,7 @@ tail_builtin (WORD_LIST *list)
         }
         if (!strcmp (w, "-c")) {
             long long n;
-            if (!list->next) { builtin_error ("-c needs N"); builtin_usage (); return EXECUTION_FAILURE; }
+            if (!list->next) { builtin_error ("option requires an argument -- 'c'"); bos_shim_try_help ("tail"); return EXECUTION_FAILURE; }
             list = list->next;
             if (bt_parse_count (list->word->word, "-c", 1, &from_start, &n) != 0) return EXECUTION_FAILURE;
             if (from_start) { start_count = n; n_bytes = 0; }
@@ -665,7 +675,7 @@ tail_builtin (WORD_LIST *list)
         }
         if (!strcmp (w, "--bytes")) {
             long long n;
-            if (!list->next) { builtin_error ("--bytes needs N"); builtin_usage (); return EXECUTION_FAILURE; }
+            if (!list->next) { builtin_error ("option '--bytes' requires an argument"); bos_shim_try_help ("tail"); return EXECUTION_FAILURE; }
             list = list->next;
             if (bt_parse_count (list->word->word, "--bytes", 1, &from_start, &n) != 0) return EXECUTION_FAILURE;
             if (from_start) { start_count = n; n_bytes = 0; }
@@ -728,8 +738,12 @@ tail_builtin (WORD_LIST *list)
             list = list->next;
             continue;
         }
-        builtin_error ("unknown flag: %s", w);
-        builtin_usage ();
+        /* glibc getopt's wording, then coreutils' help hint. */
+        if (w[1] == '-')
+            builtin_error ("unrecognized option '%s'", w);
+        else
+            builtin_error ("invalid option -- '%c'", w[1]);
+        bos_shim_try_help ("tail");
         return EXECUTION_FAILURE;
     }
 

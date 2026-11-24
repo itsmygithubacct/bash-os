@@ -57,6 +57,7 @@
 
 #include "loadables.h"
 #include "command-run.h"
+#include "shim-prog-name.h"
 
 /* This parent-side stdio optimization also stays instrumented in sanitizer
    builds. An older libc or a process that has created threads uses fgetc. */
@@ -1343,6 +1344,44 @@ bx_close_input (void *fp)
     bx_eof_seen = 0;
 }
 
+/* --show-limits, on stderr as GNU xargs prints it: the exported
+   environment's bytes (each string and its NUL), the system's argument
+   limit less POSIX's 2048 bytes of headroom and the environment, what is
+   left after the environment again, and the buffer in use (-s SIZE or
+   131072, at most the system limit). With a terminal as input, also the
+   notice that xargs goes on to read it. */
+static void
+bx_show_limits (long s_flag, int rflag, int tty_input, const char *cmd)
+{
+    long env_bytes = 0;
+    maybe_make_export_env ();
+    for (char **e = export_env; e && *e; e++)
+        env_bytes += (long) strlen (*e) + 1;
+    long arg_max = sysconf (_SC_ARG_MAX);
+    if (arg_max <= 0) arg_max = 131072;
+    long upper = arg_max - 2048 - env_bytes;
+    long usable = upper - env_bytes;
+    long buffer = s_flag > 0 ? s_flag : 131072;
+    if (s_flag > upper)
+        builtin_error ("value %ld for -s option should be <= %ld", s_flag, upper);
+    if (buffer > upper) buffer = upper;
+    fflush (stdout);
+    fprintf (stderr,
+             "Your environment variables take up %ld bytes\n"
+             "POSIX upper limit on argument length (this system): %ld\n"
+             "POSIX smallest allowable upper limit on argument length (all systems): %d\n"
+             "Maximum length of command we could actually use: %ld\n"
+             "Size of command buffer we are actually using: %ld\n"
+             "Maximum parallelism (--max-procs must be no greater): %d\n",
+             env_bytes, upper, 4096, usable, buffer, INT_MAX);
+    if (tty_input) {
+        fputs ("\nExecution of xargs will continue now, and it will try to read its input and run commands; if this is not what you wanted to happen, please type the end-of-file keystroke.\n", stderr);
+        if (!rflag)
+            fprintf (stderr, "Warning: %s will be run at least once.  If you do not want that to happen, then press the interrupt keystroke.\n", cmd);
+    }
+    fflush (stderr);
+}
+
 int
 xargs_builtin (WORD_LIST *list)
 {
@@ -1358,6 +1397,7 @@ xargs_builtin (WORD_LIST *list)
     const char *eof_str = NULL;   /* -E EOF */
     const char *slot_var = NULL;  /* --process-slot-var NAME */
     int open_tty = 0;             /* -o */
+    int show_limits = 0;          /* --show-limits */
     FILE *in = stdin;
 
     /* Parse flags. */
@@ -1371,6 +1411,9 @@ xargs_builtin (WORD_LIST *list)
         if (!strcmp (w, "--version")) {
             puts ("bashxargs 1.0 (bash-loadable)");
             return EXECUTION_SUCCESS;
+        }
+        if (!strcmp (w, "--show-limits")) {
+            show_limits = 1; list = list->next; continue;
         }
         if (!strcmp (w, "-0") || !strcmp (w, "--null")) {
             delimiter = 0; list = list->next; continue;
@@ -1442,8 +1485,8 @@ xargs_builtin (WORD_LIST *list)
         if (w[1] == 'n' && w[2]) {
             if (bx_parse_positive_int (w + 2, &max_n) != 0) {
                 builtin_error ("-n needs a positive count");
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_try_help ("xargs");
+                return EXECUTION_FAILURE;
             }
             if (max_l || (Iflag && max_n != 1)) {
                 builtin_error ("warning: -n overrides previous -L or -I");
@@ -1455,12 +1498,12 @@ xargs_builtin (WORD_LIST *list)
             continue;
         }
         if (!strcmp (w, "-n")) {
-            if (!list->next) { builtin_error ("-n needs MAX"); builtin_usage (); return EX_USAGE; }
+            if (!list->next) { builtin_error ("-n needs MAX"); bos_shim_try_help ("xargs"); return EXECUTION_FAILURE; }
             list = list->next;
             if (bx_parse_positive_int (list->word->word, &max_n) != 0) {
                 builtin_error ("-n needs a positive count");
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_try_help ("xargs");
+                return EXECUTION_FAILURE;
             }
             if (max_l || (Iflag && max_n != 1)) {
                 builtin_error ("warning: -n overrides previous -L or -I");
@@ -1474,8 +1517,8 @@ xargs_builtin (WORD_LIST *list)
         if (w[1] == 'L' && w[2]) {
             if (bx_parse_positive_int (w + 2, &max_l) != 0) {
                 builtin_error ("-L needs a positive count");
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_try_help ("xargs");
+                return EXECUTION_FAILURE;
             }
             if (max_n || Iflag) {
                 builtin_error ("warning: -L overrides previous -n or -I");
@@ -1486,12 +1529,12 @@ xargs_builtin (WORD_LIST *list)
             continue;
         }
         if (!strcmp (w, "-L")) {
-            if (!list->next) { builtin_error ("-L needs MAX"); builtin_usage (); return EX_USAGE; }
+            if (!list->next) { builtin_error ("-L needs MAX"); bos_shim_try_help ("xargs"); return EXECUTION_FAILURE; }
             list = list->next;
             if (bx_parse_positive_int (list->word->word, &max_l) != 0) {
                 builtin_error ("-L needs a positive count");
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_try_help ("xargs");
+                return EXECUTION_FAILURE;
             }
             if (max_n || Iflag) {
                 builtin_error ("warning: -L overrides previous -n or -I");
@@ -1504,19 +1547,19 @@ xargs_builtin (WORD_LIST *list)
         if (w[1] == 'P' && w[2]) {
             if (bx_parse_positive_int (w + 2, &max_p) != 0) {
                 builtin_error ("-P needs a positive count");
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_try_help ("xargs");
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             continue;
         }
         if (!strcmp (w, "-P")) {
-            if (!list->next) { builtin_error ("-P needs MAX"); builtin_usage (); return EX_USAGE; }
+            if (!list->next) { builtin_error ("-P needs MAX"); bos_shim_try_help ("xargs"); return EXECUTION_FAILURE; }
             list = list->next;
             if (bx_parse_positive_int (list->word->word, &max_p) != 0) {
                 builtin_error ("-P needs a positive count");
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_try_help ("xargs");
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             continue;
@@ -1524,19 +1567,19 @@ xargs_builtin (WORD_LIST *list)
         if (w[1] == 's' && w[2]) {
             if (bx_parse_positive_long (w + 2, &s_flag) != 0) {
                 builtin_error ("-s needs a positive byte count");
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_try_help ("xargs");
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             continue;
         }
         if (!strcmp (w, "-s")) {
-            if (!list->next) { builtin_error ("-s needs SIZE"); builtin_usage (); return EX_USAGE; }
+            if (!list->next) { builtin_error ("-s needs SIZE"); bos_shim_try_help ("xargs"); return EXECUTION_FAILURE; }
             list = list->next;
             if (bx_parse_positive_long (list->word->word, &s_flag) != 0) {
                 builtin_error ("-s needs a positive byte count");
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_try_help ("xargs");
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             continue;
@@ -1551,7 +1594,7 @@ xargs_builtin (WORD_LIST *list)
             continue;
         }
         if (!strcmp (w, "-I")) {
-            if (!list->next) { builtin_error ("-I needs REPL"); builtin_usage (); return EX_USAGE; }
+            if (!list->next) { builtin_error ("-I needs REPL"); bos_shim_try_help ("xargs"); return EXECUTION_FAILURE; }
             list = list->next;
             Iflag = list->word->word;
             if (max_n || max_l) {
@@ -1561,9 +1604,13 @@ xargs_builtin (WORD_LIST *list)
             list = list->next;
             continue;
         }
-        builtin_error ("unknown flag: %s", w);
-        builtin_usage ();
-        return EX_USAGE;
+        /* GNU getopt's wording; usage errors exit 1 (findutils). */
+        if (w[1] == '-')
+            builtin_error ("unrecognized option '%s'", w);
+        else
+            builtin_error ("invalid option -- '%c'", w[1]);
+        bos_shim_try_help ("xargs");
+        return EXECUTION_FAILURE;
     }
 
     if (eof_str && delimiter >= 0) {
@@ -1656,6 +1703,9 @@ xargs_builtin (WORD_LIST *list)
         }
         close (tty);
     }
+    if (show_limits)
+        bx_show_limits (s_flag, rflag, !arg_file && isatty (0),
+                        default_echo ? "echo" : tmpl[0]);
     sigemptyset (&block_chld);
     sigaddset (&block_chld, SIGCHLD);
     if (sigprocmask (SIG_BLOCK, &block_chld, NULL) < 0) {
@@ -1785,7 +1835,7 @@ xargs_builtin (WORD_LIST *list)
            so when -s is given we subtract the template overhead
            (sum of strlen(tmpl[i])+1) once up front. If the template
            already meets or exceeds SIZE, no input can fit — diagnose
-           and exit EX_USAGE, matching GNU "argument list too long". */
+           and exit 1, matching GNU "argument line too long". */
         long arg_max = sysconf (_SC_ARG_MAX);
         if (arg_max <= 0) arg_max = 131072;
         size_t cap_bytes;
@@ -1793,7 +1843,7 @@ xargs_builtin (WORD_LIST *list)
             if ((size_t) s_flag <= tmpl_bytes) {
                 builtin_error ("-s %ld: argument list too long (template alone needs %zu bytes)",
                                s_flag, tmpl_bytes);
-                rc = EX_USAGE;
+                rc = BX_BAD;
                 goto cleanup;
             }
             cap_bytes = (size_t) s_flag - tmpl_bytes;
@@ -2002,7 +2052,7 @@ char *xargs_doc[] = {
     "",
     "    bashxargs [-0rtpo] [-a FILE] [-E EOF] [-d DELIM] [-n MAX] [-L MAX]",
     "              [-P MAX] [-s SIZE] [-I REPL] [--process-slot-var=NAME]",
-    "              [CMD [ARG...]]",
+    "              [--show-limits] [CMD [ARG...]]",
     "    bashxargs --help | --version",
     "",
     "    -d DELIM, --delimiter=DELIM  split literal items at the given byte",
@@ -2021,6 +2071,9 @@ char *xargs_doc[] = {
     "              -e[EOF], --eof[=EOF] is the old form (no EOF: none)",
     "    -o, --open-tty  reopen /dev/tty as each command's standard input",
     "    --process-slot-var=NAME  set NAME to the command's -P slot number",
+    "    --show-limits  report the command-line length limits on stderr",
+    "",
+    "Usage errors exit 1, as in GNU findutils.",
     (char *)NULL
 };
 
@@ -2029,6 +2082,6 @@ struct builtin bashxargs_struct = {
     xargs_builtin,
     BUILTIN_ENABLED,
     xargs_doc,
-    "bashxargs [-0rtpo] [-a FILE] [-E EOF] [-d DELIM] [-n MAX] [-L MAX] [-P MAX] [-s SIZE] [-I REPL] [--process-slot-var=NAME] [CMD [ARG...]]",
+    "bashxargs [-0rtpo] [-a FILE] [-E EOF] [-d DELIM] [-n MAX] [-L MAX] [-P MAX] [-s SIZE] [-I REPL] [--process-slot-var=NAME] [--show-limits] [CMD [ARG...]]",
     0
 };

@@ -119,6 +119,17 @@
       "expected_status": 0,
       "stdout": "builtin\nhelp documents canonicalization\n",
       "stderr": "empty"
+    },
+    {
+      "id": "g113-usage-errors",
+      "kind": "parity",
+      "purpose": "readlink usage errors print GNU's wording and the Try line and exit 1 (guest pass 7, G113).",
+      "requires": [
+        "readlink"
+      ],
+      "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\ns 'readlink -Q'\ns 'readlink --bogus'\ns readlink\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

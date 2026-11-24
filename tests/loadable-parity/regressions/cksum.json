@@ -251,6 +251,43 @@
       "script": "s() { local rc=0; \"$@\" || rc=$?; echo \"rc=$rc\"; }\nprintf 'abc' > f; s cksum -l 16 f; s cksum -a sha256 -l 16 f; s cksum -a blake2b -l 7 f; s cksum -a blake2b -l abc f; s cksum -a blake2b -l -8 f",
       "expected_status": 0,
       "stderr": "nonempty"
+    },
+    {
+      "id": "g112-base64-and-raw",
+      "kind": "parity",
+      "purpose": "cksum --base64 prints digests in base64 (tagged and --untagged; ignored for the CRC), --raw writes the binary digest (CRC: 4 bytes big-endian) for one file only, the two are mutually exclusive, and -c reads base64 digests (guest pass 7, G112).",
+      "requires": [
+        "cksum",
+        "od",
+        "wc"
+      ],
+      "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\nprintf '' > e; echo hi > h\ns 'cksum -a sha256 --base64 e'\ns 'cksum -a sha256 --base64 --untagged e'\ns 'cksum -a md5 --base64 e h'\ns 'cksum -a blake2b -l 128 --base64 e'\ns 'cksum -a blake2b -l 128 --base64 --untagged e'\ns 'cksum --base64 e'\ns 'cksum -a sha256 --raw e | od -An -tx1'\ns 'cksum -a sha256 --raw e h'\ns 'cksum --raw e | od -An -tx1'\ns 'cksum --raw < h | od -An -tx1'\ns 'cksum -a sha1 --raw --tag e | od -An -tx1'\ns 'cksum -a sha1 --raw --base64 e'\ns 'cksum -a sha1 --base64 -z e | od -An -c'\ns 'cksum -a sha512 --raw < e | wc -c'\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g112-check-base64-digests",
+      "kind": "parity",
+      "purpose": "cksum -c verifies tagged and untagged base64 digests (BLAKE2b tagged at any length; an untagged base64 BLAKE2b line is improperly formatted, as in GNU) and reports a wrong one as FAILED (guest pass 7, G112).",
+      "requires": [
+        "cksum",
+        "sed"
+      ],
+      "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\necho hi > h\ns 'cksum -a sha256 --base64 h > b64; cksum -c b64'\ns 'cksum -a sha256 --base64 --untagged h > b64u; cksum -a sha256 -c b64u'\ns 'cksum -a blake2b --base64 h > b2; cksum -c b2'\ns 'cksum -a blake2b --base64 --untagged h > b2u; cksum -a blake2b -c b2u'\ns 'cksum -a blake2b -l 256 --base64 h > b3; cksum -c b3'\ns 'cksum -a md5 --base64 h | sed '\"'\"'s/= .*/= AAAAAAAAAAAAAAAAAAAAAA==/'\"'\"' > bad; cksum -c bad'\ns 'cksum -a md5 --base64 h | sed '\"'\"'s/==$/=x/'\"'\"' > bad2; cksum -c bad2'\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g105-check-summary-lines",
+      "kind": "parity",
+      "purpose": "cksum -c summaries in GNU's order and wording: \"WARNING: 1 line is improperly formatted\" / \"N lines are\", \"no properly formatted checksum lines found\" even under --status, open errors printed under --status, --ignore-missing silences only missing files (guest pass 7, G105).",
+      "requires": [
+        "cksum",
+        "sed"
+      ],
+      "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\necho 1 > a; cksum -a sha256 a > k; cp k k2; echo junk >> k; echo junk >> k2; echo junk >> k2; cksum -a sha256 a | sed 's/ a)/ a5)/' > k5; cat k > k5x; cat k5 >> k5x; echo junk > k7\ns 'cksum -c k'\ns 'cksum -c k2'\ns 'cksum -c --ignore-missing k5x'\ns 'cksum -c --status k7'\ns 'cksum -c --status nosuch'\ns 'cksum -c --status k5'\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

@@ -433,6 +433,39 @@
       "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nawk_cmd 'BEGIN { printf(\"%5s|\\n\", \"ab\"); printf (\"%s-%s\\n\", \"a\", \"b\"); print(\"a\", \"b\") }'\nprintf 'a b\\n' | awk_cmd '{ printf(\"%s:%s\\n\", $2, $1) }'\nawk_cmd 'BEGIN { printf(\"%s %s\\n\", \"x\", \"y\") > \"o\"; close(\"o\"); getline l < \"o\"; print l }'\nawk_cmd 'BEGIN { a[1, 2] = 3; print (1, 2) in a; print (1)+2, 3; print (\"a\")(\"b\"); x = 2; print (x > 1 ? \"big\" : \"small\"), \"z\" }'",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "g104-constant-division-by-zero",
+      "kind": "parity",
+      "purpose": "A constant zero divisor (0, -0, !1, 0^1; not a parenthesized one) is a parse-time error as in gawk 5.2: \"awk: cmd. line:1: error: division by zero attempted\" (\" in `%'\" for %), every such error is listed, nothing runs and the status is 1. Each -e counts lines from 1; -f FILE names the file (guest pass 7, G104).",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\na() { local rc=0 out; out=$(awk_cmd \"$@\" 2>&1) || rc=$?; out=${out//gawk: /awk: }; printf '%s\\nrc=%s\\n' \"$out\" \"$rc\"; }\na 'BEGIN{print 1/0}'\na 'BEGIN{print 1%0}'\na 'BEGIN{print 1/-0}'\na 'BEGIN{print 1/!1}'\na 'BEGIN{print 1/0^1}'\na 'BEGIN{print 1/- -0}'\na 'BEGIN{print 1e3%0}'\na 'BEGIN{print 0/0}'\na 'BEGIN{print 2*3/0}'\na 'BEGIN{print (1)/0}'\na 'BEGIN{x=1;print x/0}'\na 'BEGIN{print 1/0 1}'\na 'BEGIN{print \"a\"; print 1/0}'\na 'BEGIN{print 1/0; print 2%0}'\na -e 'BEGIN{x=1}' -e 'BEGIN{print 1/0}'\nprintf 'BEGIN{\\nprint 1\\nprint 2/0\\n}\\n' > d.awk; a -f d.awk\na 'BEGIN{print 1/0.5-0.5}'\na 'BEGIN { x = 6; x /= 3; print x; x %= 4; print x; print 7 % 3, 7 / 2 }'\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g104-runtime-division-by-zero",
+      "kind": "parity",
+      "purpose": "A zero divisor found while running is fatal as in gawk: \"awk: cmd. line:1: fatal: division by zero attempted\" (\" in `%'\", \" in `/='\", \" in `%='\"), status 2, END skipped, output printed before it kept in order; x/=0 and x%=0, 1/(0), 1/\"0\" and 1/(1-1) are runtime cases (guest pass 7, G104).",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\na() { local rc=0 out; out=$(awk_cmd \"$@\" 2>&1) || rc=$?; out=${out//gawk: /awk: }; printf '%s\\nrc=%s\\n' \"$out\" \"$rc\"; }\na 'BEGIN{x=1;x/=0;print x}'\na 'BEGIN{x=1;x%=0;print x}'\na 'BEGIN{z=0;print 1/z}'\na 'BEGIN{z=0;print 1%z}'\na 'BEGIN{z=0;x=1;x/=z;print x}'\na 'BEGIN{z=0;x=1;x%=z;print x}'\na 'BEGIN{print 1/(1-1)}'\na 'BEGIN{print 1/\"0\"}'\na 'BEGIN{print 1/(0)}'\na 'BEGIN{print 1/+0}'\na 'BEGIN{print 1/0.0}'\na 'function f(){return 1/z} BEGIN{f()}'\na 'BEGIN { printf \"%d\\n\", 1/z }'\na 'BEGIN { print \"a\", 1/z, \"b\" }'\na -e 'BEGIN{x=1}' -e 'BEGIN{print 1/z}'\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g104-runtime-division-location",
+      "kind": "parity",
+      "purpose": "With a record read, the fatal message carries \"(FILENAME=F FNR=N) \" (\"-\" for standard input, the assigned value after FILENAME=...), and a -f program names FILE:LINE (guest pass 7, G104).",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\na() { local rc=0 out; out=$(awk_cmd \"$@\" 2>&1) || rc=$?; out=${out//gawk: /awk: }; printf '%s\\nrc=%s\\n' \"$out\" \"$rc\"; }\nprintf '1\\n2\\n' > in2\necho 0 | a '{print 1/$1}'\necho 0 | a 'BEGIN{print \"a\"} END{print \"end\"} {print 5/$1}'\na 'END{print 1/z}' in2\na '{x=1} END{print 1/z}' in2\na 'NR==2{print 1%z}' in2\na '{print 1/z}' < in2\nprintf '' | a 'END{print 1/z}'\necho a | a 'END{FNR=0; print 1/z}'\necho a | a '{FILENAME=\"q\"; print 1/z}'\necho a | a 'END{NR=5;FNR=7; print 1/z}'\nprintf 'BEGIN{z=0\\nprint 1\\nprint 2/z\\n}\\n' > d2.awk; a -f d2.awk\nprintf 'BEGIN{\\n}\\n' > e1.awk; a -f e1.awk -e 'BEGIN{print 1/z}'\na -f e1.awk -f d2.awk\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

@@ -76,6 +76,72 @@
       "script": "mkdir -p x/w y/v\necho a > x/w/f\necho a > y/v/f\nchmod 0311 x y/v\n[ -r x ] || echo x-unreadable\n[ -r y/v ] || echo v-unreadable\nsed -i s/a/b/ \"$PWD/x/w/f\"\nsed -i s/b/c/ x/w/f\nsed -i.bak s/c/d/ x/w/f\nsed -i s/a/b/ y/v/f\n(cd y/v && sed -i.orig s/b/c/ f)\ncat x/w/f x/w/f.bak y/v/f\nchmod 0755 x y/v\nls x/w y/v",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "g105-s-command-errors",
+      "kind": "parity",
+      "purpose": "s/// parse errors name the expression and the character count GNU sed 4.9 shows (\"-e expression #1, char 5: unterminated `s' command\", \"unknown option to `s'\", repeated g/p/number options, a zero number, a missing w filename, modifiers on an empty regex); they used to read \"s/// unterminated regex\" and the like, and an unknown flag was parsed as the next command (guest pass 7, G105).",
+      "requires": [
+        "sed"
+      ],
+      "script": "t() { local rc=0; echo x | sed \"$@\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\nt -e $'s/a/b'\nt -e $'s/a'\nt -e $'s'\nt -e $'s/'\nt -e $'s/a/'\nt -e $'s/a/b/q'\nt -e $'s/a/b/gx'\nt -e $'s/a/b/ k'\nt -e $'s/a/b/33x'\nt -e $'s/a/b/gg'\nt -e $'s/a/b/pp'\nt -e $'s/a/b/3g3'\nt -e $'s/a/b/3 4'\nt -e $'s/a/b/0'\nt -e $'s/a/b/w'\nt -e $'s/a/b/w\\n'\nt -e $'s/a/b/}'\nt -e $'s//x/I'\nt -e $'s/a\\np'\nt -e $'s/a/b\\np'\nt -e $'s\\\\na\\\\nb\\\\n'\nt -e $'s/a/b/;k'\nt -e $'s/a/b/ ; k'\nt -e $'s/a/b/#c'\nt -e $'{s/a/b/}'\nt -e $'s/a/b/2g'\nt -e $'s/a/b/g 3'\nt -e $'s/a/b/gI3'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g105-y-command-errors",
+      "kind": "parity",
+      "purpose": "y/// parse errors: \"unterminated `y' command\" at the character GNU stops on, \"strings for `y' command are different lengths\" after the closing delimiter, and extra characters after it (guest pass 7, G105).",
+      "requires": [
+        "sed"
+      ],
+      "script": "t() { local rc=0; echo x | sed \"$@\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\nt -e $'y'\nt -e $'y/'\nt -e $'y/a'\nt -e $'y/a/'\nt -e $'y/a/b'\nt -e $'yaba'\nt -e $'y/ab/c/'\nt -e $'y/ab/cd'\nt -e $'y/abc/de/x'\nt -e $'y/abc/d/;p'\nt -e $'y/a//'\nt -e $'y/a/b/g'\nt -e $'y/a\\\\/b/c/'\nt -e $'y/a\\\\nb/cd/'\nt -e $'y/a\\np'\nt -e $'y/a/b/}'\nt -e $'y///'\nt -e $'y/a/b/ ;p'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g105-command-and-address-errors",
+      "kind": "parity",
+      "purpose": "Unknown commands (`k'), extra characters, missing commands, a stray `,', line address 0, multiple `!'s, a label-less `:', missing r/R/w/W filenames, unterminated address regexes and the version check report GNU's wording and character count, a newline included (guest pass 7, G105).",
+      "requires": [
+        "sed"
+      ],
+      "script": "t() { local rc=0; echo x | sed \"$@\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\nt -e $'k'\nt -e $'1k'\nt -e $'p;k'\nt -e $'p x'\nt -e $'=x'\nt -e $'q 5 5'\nt -e $'q x'\nt -e $'l 5 x'\nt -e $'l x'\nt -e $'F x'\nt -e $'/a/'\nt -e $'/a'\nt -e $'\\\\%a'\nt -e $'\\\\'\nt -e $'\\\\na'\nt -e $'/a/I'\nt -e $'/a/X'\nt -e $'3,'\nt -e $'1,p'\nt -e $'1,\\np'\nt -e $'/a/,'\nt -e $'1,2,3p'\nt -e $'1~2~3p'\nt -e $'1,+xp'\nt -e $','\nt -e $'!'\nt -e $'1!'\nt -e $'!!p'\nt -e $'1!!p'\nt -e $'1! !p'\nt -e $'0p'\nt -e $'0,5p'\nt -e $'0,5!p'\nt -e $':'\nt -e $': '\nt -e $'s/x/y/;:'\nt -e $'1:a'\nt -e $'a'\nt -e $'r'\nt -e $'r\\n'\nt -e $'W'\nt -e $'R'\nt -e $'v 9.9'\nt -e $'v 4.9.1'\nt -e $'/a/\\n'\nt -e $'!\\n'\nt -e $'k\\n'\nt -e $'p x\\n'\nt -e $'p\\nk'\nt -e $'\\n\\nk'\nt -e $'#n\\nk'\nt -e $'a foo\\nk'\nt -e $'i\\\\\\nfoo\\\\\\nbar\\nk'\nt -e $'s/a/b/;#x\\nk'\nt -e $'1~p'\nt -e $'1,~0p'\nt -e $'0~3p'\nt -e $'0,/a/p'\nt -e $'1~0p'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g105-brace-and-label-errors",
+      "kind": "parity",
+      "purpose": "Braces and labels: \"unexpected `}'\", \"unmatched `{'\" at char 0, \"`}' doesn't want any addresses\", extra characters after `}', and \"can't find label for jump to `foo'\" with status 4 (guest pass 7, G105).",
+      "requires": [
+        "sed"
+      ],
+      "script": "t() { local rc=0; echo x | sed \"$@\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\nt -e $'{p'\nt -e $'{'\nt -e $'{{p}'\nt -e $'1{\\np\\n'\nt -e $'}'\nt -e $'}x'\nt -e $'{p};}'\nt -e $'{p;};}'\nt -e $'p;}'\nt -e $'1,2}'\nt -e $'1{p;1}'\nt -e $'{p}x'\nt -e $'b foo'\nt -e $'b foo;'\nt -e $'T x'\nt -e $':a;:a'\nt -e $'b a\\n:a'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g105-regex-errors",
+      "kind": "parity",
+      "purpose": "Regex compile errors carry the regex library's message (\"Unmatched ( or \\\\(\") and the count GNU shows, which runs to the end of the command's flags; an out-of-range \\\\N reads \"invalid reference \\\\1 on `s' command's RHS\" (guest pass 7, G105).",
+      "requires": [
+        "sed"
+      ],
+      "script": "t() { local rc=0; echo x | sed \"$@\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\nt -e $'s/\\\\(a/b/'\nt -e $'s/a\\\\)/b/'\nt -e $'s/\\\\(a/b/g;p'\nt -e $'s/\\\\(a/b/g\\np'\nt -e $'s/\\\\(//#c'\nt -e $'s/\\\\(// '\nt -e $'s/\\\\(//g '\nt -e $'{s/\\\\(//}'\nt -e $'s/\\\\(a/b/w /dev/null'\nt -e $'s/a/b/;s/\\\\(//'\nt -e $'/\\\\(/p'\nt -e $'/\\\\(/Ip'\nt -e $'/\\\\(/I'\nt -e $'\\\\%\\\\(%p'\nt -e $'/a/,/\\\\(/p'\nt -e $'s/a/\\\\1/'\nt -e $'s/a/\\\\1/g'\nt -e $'s/\\\\(a\\\\)/\\\\2/'\nt -e $'s/[/x/'\nt -e $'/[/p'\nt -E 's/(/x/'\nt -E '/(/p'\nt -E 's/a)/x/'\nt -E 's/a{1/x/'\nt 's/a\\{1/x/'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g105-expression-and-file-locations",
+      "kind": "parity",
+      "purpose": "Each -e (and the program operand) is its own \"-e expression #N\", counted from 1 with characters counted from its start; a -f FILE error reads \"file FILE line N:\", \"-f -\" reads the script from standard input (\"file - line 1:\"), and an unmatched `{' in a file names the brace's line. When -e or -f appears anywhere, the first operand is an input file (guest pass 7, G105).",
+      "requires": [
+        "sed"
+      ],
+      "script": "t() { local rc=0; echo x | sed \"$@\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\nt -e p -e k\nt -e p -e s/a\nt -e 'p;p' -e 'y/a/bc/'\nt -e '1{' -e p\nt -n -e p -e '}'\nt --expression=p --expression=k\nt -ne p -e k\nprintf 'p\\nk\\n' > f1.sed; t -f f1.sed\nprintf 'p\\ns/a\\n' > f2.sed; t -f f2.sed\nprintf 'p\\n1{\\n' > f4.sed; t -f f4.sed\nt -e p -f f1.sed\nt -f f1.sed -e k\nprintf 's/a/b/\\n' > ok.sed; t -f ok.sed -e k\nt -e p -f ok.sed -e k\nprintf 'y/a/bc/' > f5.sed; t -f f5.sed\nprintf 'p\\n\\nk' > f6.sed; t -f f6.sed\nprintf '1{\\n' > ob.sed; t -f ob.sed -e p\nprintf 'p\\n}\\n' > cb.sed; t -f cb.sed\nt --file=f1.sed\nprintf 'p\\n' > ok2.sed; t -f ok2.sed -e 'b nolab'\nt -f nosuch\nrc=0; printf 'k\\n' | sed -f - 2>&1 || rc=$?; echo \"rc=$rc\"\nrc=0; printf 's/a/b/\\n' | sed -f - in1 2>&1 || rc=$?; echo \"rc=$rc\"\nprintf 'a\\n' > in1; rc=0; sed in1 -e s/a/b/ 2>&1 || rc=$?; echo \"rc=$rc\"\nt --sandbox 'r x'\nt --sandbox 's/a/b/w x'\nt -s -e k\nt --posix 'F'\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

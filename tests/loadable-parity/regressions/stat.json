@@ -266,6 +266,17 @@
       "script": "printf abc > f\nstat --printf '%n:%s\\n' f\nstat --printf='%s\\t%n\\n' f\nstat --format '%n %s' f\nstat --printf '%n' f f; echo",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "g113-usage-errors",
+      "kind": "parity",
+      "purpose": "stat usage errors print GNU's wording (\"missing operand\", getopt messages) and the Try line and exit 1 (guest pass 7, G113).",
+      "requires": [
+        "stat"
+      ],
+      "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\ns 'stat -Q'\ns 'stat --bogus'\ns stat\ns 'stat -c'\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

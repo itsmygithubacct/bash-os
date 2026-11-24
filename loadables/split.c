@@ -45,6 +45,15 @@
 #include "gnu-quote.h"
 #include "longopt-normalize.h"
 
+/* GNU's "invalid WHAT: 'VALUE'" for a bad option value; no usage line. */
+static void
+split_bad_value (const char *what, const char *value)
+{
+    char *q = bos_quote (value);
+    builtin_error ("invalid %s: %s", what, q ? q : value);
+    free (q);
+}
+
 static long long
 bs_parse_count (const char *s)
 {
@@ -662,7 +671,7 @@ invalid_start:
             const char *v = w + 20;
             if (strchr (v, '/')) {
                 builtin_error ("invalid suffix '%s', contains directory separator", v);
-                builtin_usage ();
+                lon_try_help ();
                 return EXECUTION_FAILURE;
             }
             bs_extra_suffix = v;
@@ -713,19 +722,19 @@ invalid_start:
             if (opt == 'l') {
                 long long value = bs_parse_count (v);
                 if (value <= 0 || value > LONG_MAX) {
-                    builtin_error ("-l: invalid line count: %s", v);
-                    builtin_usage ();
+                    split_bad_value ("number of lines", v);
                     return EXECUTION_FAILURE;
                 }
                 line_chunk = (long) value;
                 byte_chunk = 0;
                 line_bytes = 0;
             } else if (opt == 'b') {
-                if (bs_parse_size (v, &byte_chunk) < 0) { builtin_error ("-b: bad SIZE: %s", v); builtin_usage (); return EXECUTION_FAILURE; }
+                if (bs_parse_size (v, &byte_chunk) < 0) { split_bad_value ("number of bytes", v); return EXECUTION_FAILURE; }
                 line_bytes = 0;
             } else if (opt == 'C') {
                 if (bs_parse_size (v, &line_bytes) < 0) {
-                    builtin_error ("invalid number of bytes: '%s'", v);
+                    /* GNU split 9.7 words a bad -C SIZE this way. */
+                    split_bad_value ("number of lines", v);
                     return EXECUTION_FAILURE;
                 }
                 byte_chunk = 0;
@@ -733,7 +742,8 @@ invalid_start:
                 chunks = v;
             } else if (opt == 'a') {
                 long long value = bs_parse_count (v);
-                if (value < 1 || value > 6) { builtin_error ("-a: SUFLEN must be in 1..6"); builtin_usage (); return EXECUTION_FAILURE; }
+                if (!*v || strspn (v, "0123456789") != strlen (v)) { split_bad_value ("suffix length", v); return EXECUTION_FAILURE; }
+                if (value < 1 || value > 6) { builtin_error ("-a: SUFLEN must be in 1..6"); return EXECUTION_FAILURE; }
                 suflen = (int) value;
             } else {   /* -t SEP */
                 int sep;
@@ -818,7 +828,7 @@ invalid_start:
             rc = EXECUTION_FAILURE;
         } else if (bad == 0 && k && bs_filter) {
             builtin_error ("--filter does not process a chunk extracted to stdout");
-            builtin_usage ();
+            lon_try_help ();
             rc = EXECUTION_FAILURE;
         } else if (bad < 0) {
             const char *num = chunks;

@@ -242,6 +242,17 @@
       ],
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "g105-key-field-diagnostics",
+      "kind": "parity",
+      "purpose": "Bad -k specs read as GNU sort 9.7 prints them: \"sort: invalid number at field start: invalid count at start of 'x'\", \"field number is zero\", \"character offset is zero\", \"invalid number after '.'\" or \"','\", \"stray character in field spec\", status 2; leading blanks and '+' are accepted (guest pass 7, G105).",
+      "requires": [
+        "sort"
+      ],
+      "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\nprintf '2 b\\n1 a\\n' > in2\ns 'sort -k x </dev/null'\ns 'sort -k 0 </dev/null'\ns 'sort -k 1.x </dev/null'\ns 'sort -k 1.0 </dev/null'\ns 'sort -k 1,x </dev/null'\ns 'sort -k 1,1x </dev/null'\ns 'sort -k ,2 </dev/null'\ns 'sort -k 1,0 </dev/null'\ns 'sort -k '\"'\"''\"'\"' </dev/null'\ns 'sort -k 1.2.3 </dev/null'\ns 'sort -k '\"'\"' 1'\"'\"' in2'\ns 'sort -k +2 in2'\ns 'sort -k 99999999999999999999 in2'\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

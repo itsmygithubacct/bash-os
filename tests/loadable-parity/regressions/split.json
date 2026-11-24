@@ -257,6 +257,17 @@
       ],
       "expected_status": 0,
       "stderr": "exact"
+    },
+    {
+      "id": "g105-invalid-number-diagnostics",
+      "kind": "parity",
+      "purpose": "split -l x prints \"split: invalid number of lines: 'x'\" with no usage line, -b \"invalid number of bytes\", -C GNU 9.7's \"invalid number of lines\", -a \"invalid suffix length\"; status 1 (guest pass 7, G105).",
+      "requires": [
+        "split"
+      ],
+      "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\ns 'split -l x </dev/null'\ns 'split -l 0 </dev/null'\ns 'split -l '\"'\"''\"'\"' </dev/null'\ns 'split -l 1x </dev/null'\ns 'split --lines=x </dev/null'\ns 'split -b x </dev/null'\ns 'split -b 0 </dev/null'\ns 'split -C x </dev/null'\ns 'split -a x </dev/null'\ns 'split --bogus </dev/null'\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

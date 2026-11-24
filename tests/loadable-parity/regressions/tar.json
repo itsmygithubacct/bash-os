@@ -14,7 +14,8 @@
     "Ordinary FIFO metadata creation/extraction, independent USTAR input, -p and default umask behavior.",
     "Observe GNU-compatible late hardlink binding after an ordinary archive-name collision; this does not qualify preservation of source topology or data across collisions.",
     "--same-owner/--no-same-owner/--numeric-owner owner restoration against GNU tar in the same unprivileged sandbox (H2); delayed directory times.",
-    "G39-G41: leading '/' removal and -P, uname/gname in headers, --exclude/--wildcards on extract, -S sparse members, --acls, --transform, --delete and --to-command, against GNU tar."
+    "G39-G41: leading '/' removal and -P, uname/gname in headers, --exclude/--wildcards on extract, -S sparse members, --acls, --transform, --delete and --to-command, against GNU tar.",
+    "G111: -g/--listed-incremental level-0 and increments (GNU snapshot format 2, dumpdir members, renamed and swapped directories, deletion on -g /dev/null extraction), GNU-made incremental archives, -N/--newer/--after-date/--newer-mtime on create and list, and the incremental option diagnostics."
   ],
   "exclusions": [
     "Append/update, sparse formats, unsafe or absolute member/link paths, device nodes, and exact archive/compression bytes are not asserted.",
@@ -281,7 +282,7 @@
       "requires": [
         "tar"
       ],
-      "script": "/usr/bin/mkdir -p s out\nprintf hi > s/f\n/usr/bin/chmod 4755 s/f\n/usr/bin/tar --owner=12345 --group=12345 -cf other.tar s\ntar --same-owner -xf other.tar -C out 2>/tmp/err || echo rc=$?\n/usr/bin/sed 's/^.*tar: /tar: /' /tmp/err\n/usr/bin/stat -c '%a %n' out/s/f\n",
+      "script": "/usr/bin/mkdir -p s out\nprintf hi > s/f\n/usr/bin/chmod 4755 s/f\n/usr/bin/touch -d @86400 s/f s\n/usr/bin/tar --owner=12345 --group=12345 -cf other.tar s\ntar --same-owner -xf other.tar -C out 2>/tmp/err || echo rc=$?\n/usr/bin/sed 's/^.*tar: /tar: /' /tmp/err\n/usr/bin/stat -c '%a %n' out/s/f\n",
       "expected_status": 0,
       "stderr": "empty"
     },
@@ -303,7 +304,7 @@
       "requires": [
         "tar"
       ],
-      "script": "/usr/bin/mkdir -p s out num\nprintf hi > s/f\n/usr/bin/tar --owner=runner:12345 --group=runner:12345 -cf named.tar s/f\ntar --same-owner -xf named.tar -C out && echo named-ok\ntar --same-owner --numeric-owner -xf named.tar -C num 2>/tmp/err || echo rc=$?\n/usr/bin/sed 's/^.*tar: /tar: /' /tmp/err\n",
+      "script": "/usr/bin/mkdir -p s out num\nprintf hi > s/f\n/usr/bin/touch -d @86400 s/f\n/usr/bin/tar --owner=runner:12345 --group=runner:12345 -cf named.tar s/f\ntar --same-owner -xf named.tar -C out && echo named-ok\ntar --same-owner --numeric-owner -xf named.tar -C num 2>/tmp/err || echo rc=$?\n/usr/bin/sed 's/^.*tar: /tar: /' /tmp/err\n",
       "expected_status": 0,
       "stderr": "empty"
     },
@@ -314,7 +315,7 @@
       "requires": [
         "tar"
       ],
-      "script": "/usr/bin/mkdir -p s out\nprintf hi > s/f\n/usr/bin/chmod 4755 s/f\n/usr/bin/tar --owner=12345 --group=12345 -cf other.tar s\ntar --same-owner --no-same-owner -xf other.tar -C out && echo quiet\n",
+      "script": "/usr/bin/mkdir -p s out\nprintf hi > s/f\n/usr/bin/chmod 4755 s/f\n/usr/bin/touch -d @86400 s/f s\n/usr/bin/tar --owner=12345 --group=12345 -cf other.tar s\ntar --same-owner --no-same-owner -xf other.tar -C out && echo quiet\n",
       "expected_status": 0,
       "stderr": "empty"
     },
@@ -325,7 +326,7 @@
       "requires": [
         "tar"
       ],
-      "script": "/usr/bin/mkdir -p s/d out\nprintf hi > s/d/f\n/usr/bin/touch -d @86400 s/d s\n/usr/bin/tar -cf d.tar s\ntar -xf d.tar -C out\n/usr/bin/stat -c '%Y %n' out/s out/s/d\n",
+      "script": "/usr/bin/mkdir -p s/d out\nprintf hi > s/d/f\n/usr/bin/touch -d @86400 s/d/f s/d s\n/usr/bin/tar -cf d.tar s\ntar -xf d.tar -C out\n/usr/bin/stat -c '%Y %n' out/s out/s/d\n",
       "expected_status": 0,
       "stderr": "empty"
     },
@@ -473,6 +474,79 @@
       "purpose": "G62: fatal errors end with GNU tar's words and exit 2: not a tar archive, an archive that cannot be opened, a missing -C directory, and an archive cut short (Unexpected EOF in archive).",
       "script": "run() { r=0; \"$@\" >/tmp/o 2>/tmp/e || r=$?; /usr/bin/cat /tmp/o; /usr/bin/sed 's/^[^ ]*: line [0-9]*: //' /tmp/e; echo \"rc=$r\"; }\necho junk > j.tar; run tar -tf j.tar\n: > e.tar; run tar -tf e.tar\nrun tar -tf nope.tar\necho a > a; tar -cf /tmp/a.tar a\n/usr/bin/head -c 700 /tmp/a.tar > t.tar; run tar -tf t.tar\n/usr/bin/mkdir o; run tar -xf t.tar -C o\n/usr/bin/head -c 1024 /tmp/a.tar > n.tar; run tar -tf n.tar\nrun tar -xf /tmp/a.tar -C /nonexistent\nr=0; tar -tzf j.tar 2>/dev/null || r=$?; echo \"tzf junk rc=$r\"\n/usr/bin/rm -f t.tar n.tar\n",
       "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "listed-incremental-round-trip",
+      "kind": "parity",
+      "requires": [
+        "tar",
+        "find",
+        "touch",
+        "sleep",
+        "mv",
+        "rm",
+        "sort",
+        "head"
+      ],
+      "purpose": "G111: -g SNAPSHOT makes a level-0 dump (the snapshot names GNU's format 2) and two increments that store only changed files, with dumpdir 'D' members listed by -tvv -G (Y/N/D entries, R/T for a renamed directory, X and a temporary name for two swapped directories); extracting the three dumps with -g /dev/null deletes the files the increments no longer hold and leaves the dumped tree. Archives and snapshot live in /tmp: their times and inode numbers vary. Changes wait a clock tick after each dump: GNU takes a dump's start from the fine clock, so a change within the same coarse tick (the clock file times use) can look older than the dump.",
+      "script": "TOUCH() { /usr/bin/touch -h -d \"@$1\" \"${@:2}\"; }\n/usr/bin/mkdir -p s/a/b s/c s/old s/x s/y s/gone/sub\necho one > s/a/one; echo two > s/a/b/two; echo three > s/c/three; echo o > s/old/o\necho X > s/x/xf; echo Y > s/y/yf; echo g > s/gone/sub/g\nTOUCH 86400 $(/usr/bin/find s)\n/usr/bin/sleep 0.1\ntar -cf /tmp/l0.tar -g /tmp/snap s\n/usr/bin/head -c 15 /tmp/snap; echo\n/usr/bin/sleep 0.1\necho more >> s/a/one; echo new > s/c/new; /usr/bin/rm s/c/three; /usr/bin/rm -r s/gone; /usr/bin/mv s/old s/renamed\nTOUCH 172800 s/a/one s/c/new $(/usr/bin/find s -type d)\n/usr/bin/sleep 0.1\ntar -cf /tmp/l1.tar -g /tmp/snap s\n/usr/bin/sleep 0.1\n/usr/bin/mv s/x s/t; /usr/bin/mv s/y s/x; /usr/bin/mv s/t s/y; echo z > s/renamed/z\nTOUCH 259200 s/renamed/z $(/usr/bin/find s -type d)\n/usr/bin/sleep 0.1\ntar -cf /tmp/l2.tar -g /tmp/snap s\nfor l in 0 1 2; do echo \"== level $l\"; tar -tvv -G -f /tmp/l$l.tar; done\n/usr/bin/mkdir o; cd o\nfor l in 0 1 2; do tar -xf /tmp/l$l.tar -g /dev/null; /usr/bin/find . | LC_ALL=C /usr/bin/sort; done\n/usr/bin/cat s/a/one s/x/* s/y/*\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 15
+    },
+    {
+      "id": "incremental-gnu-made-archives",
+      "kind": "parity",
+      "requires": [
+        "tar",
+        "base64",
+        "find",
+        "sort",
+        "mkdir",
+        "cat"
+      ],
+      "purpose": "G111: two incremental archives made by GNU tar 1.35 (-g, gzip'ed: a level 0, then an increment that deletes and adds files, renames a directory and swaps two) are listed with -tvv -G (dumpdirs with X/R/T records) and extracted with -G over a tree holding extra files, which are deleted, with the renames applied.",
+      "script": "printf '%s' 'H4sIAAAAAAACA+3YQWqEMBTG8bfuKbxB8jTxXcBD1GVh0E0hME7B3L6xs2kVplDwTcr7/gsT1E0WP4NZHJ2eL0mMX2NpP3rPcp+30ffbfW5ZmJqBFPpYbm/XpqFrSrdH7/32fB/HzjNHkcA/5pU1XGhI7+Wy0pAJWWtxF/d0//7gP3AH/xqNE40zGBj2X77+7tn+w96/BPjX8Z9gwLb/tYL9Px72/y7Cv4r/dQIC0/5znf57+Ffxn+Hf+v//pOC/D+GB//bgX4Qa/5/9f19Qxf6nFxiw7n+uz38sA/wrNMO/cf/b+V+qzH/nt/M/+D+/BP/G/a/u7COgP+z/wvCv0iv8G/efXa7Rf4R/jUb4Rwghk30CC8FBRgAsAAA=' | /usr/bin/base64 -d > /tmp/l0.tgz\nprintf '%s' 'H4sIAAAAAAACA+3YP26DMBiH4W/OKbiB/2DjC3CCKEMyRgKmFks4Ve3bx66K1FKpUQYMkX/v4k8hGRiegO0YrR6PGa2/1thy5WKetRQqzUKKRlDVUoY+3O06VRVN1t7++96j68uErrkQ2hglfs07q+2onfrx+t7HwVMb6Ozo6FigU1o8ndJ8TItPH9i3Ls3zT9CL51jHtvYfbSz9K67hP0eXgS5j/wkIxfr//itnG/rnauG/jlbgP4t/CwNl+/fbP/+5/vP8rxX8Z/EfBiAo2n/Yp3+8/+fx7+G/9P3/kMF/o9Qz/nVcKv7K/n/e0I79D4dBHsCgaP9rn/889i+X+38epcB/hkbgL9z/fP5n9+S/MQ3858jCf+H+PVv7COh5/9IICf9Z9v/wX7j/wDz8F+v/DP8IIVRkd5egKLsALAAA' | /usr/bin/base64 -d > /tmp/l1.tgz\ntar -tvv -G -zf /tmp/l0.tgz; tar -tvv -G -zf /tmp/l1.tgz; tar -tzf /tmp/l1.tgz\n/usr/bin/mkdir o; cd o; tar -xzf /tmp/l0.tgz -G\necho junk > s/d/junk; /usr/bin/mkdir -p s/d/jd/deeper; echo k > s/x/keep-not\ntar -xzf /tmp/l1.tgz -G\n/usr/bin/find . | LC_ALL=C /usr/bin/sort; /usr/bin/cat s/x/* s/y/* s/d/f s/renamed/o\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "newer-date-options",
+      "kind": "parity",
+      "requires": [
+        "tar",
+        "touch",
+        "sort",
+        "sed",
+        "mkdir"
+      ],
+      "purpose": "G111: -N/--newer/--after-date DATE (data or status time) and --newer-mtime DATE (data time) on create keep directories and leave out older files (\"file is unchanged; not dumped\" with -v); a DATE starting with . or / names a file whose mtime is used; on -t only members not older than DATE are listed; GNU's \"Treating date\" note, unknown-date substitution and missing-file diagnostics.",
+      "script": "run() { r=0; \"$@\" >/tmp/o 2>/tmp/e || r=$?; /usr/bin/cat /tmp/o; /usr/bin/sed 's/^[^ ]*: line [0-9]*: //' /tmp/e; echo \"rc=$r\"; }\n/usr/bin/mkdir -p n/sub; echo o > n/old; echo e > n/edge; echo m > n/sub/mid\n/usr/bin/touch -d '2020-01-01 00:00:00' n/old; /usr/bin/touch -d '2021-01-01 00:00:00' n/edge ref\n/usr/bin/touch -d '2022-06-01 00:00:00' n/sub/mid; /usr/bin/touch -d '2019-01-01' n/sub n\nS() { /usr/bin/sed 's/^[^ ]*: line [0-9]*: //' | LC_ALL=C /usr/bin/sort; }\ntar -cf /tmp/a.tar --newer-mtime=2021-01-01 n; tar -tf /tmp/a.tar | S\ntar -cvf /tmp/b.tar --newer-mtime=./ref n 2>&1 | S\ntar -cvf /tmp/b.tar --newer-mtime '2021-01-01 00:00:01' n 2>&1 | S\ntar -cvf /tmp/c.tar -N 2030-01-01 n 2>&1 | S\ntar -cf /tmp/c.tar --after-date=2021-01-01 n; tar -tf /tmp/c.tar | S\ntar -cf /tmp/all.tar n\ntar -tvf /tmp/all.tar --newer-mtime=2021-01-01 2>&1 | S\ntar -tf /tmp/all.tar -N '2021-06-01 00:00:00' 2>&1 | S\nrun tar -cf /tmp/d.tar -N 'not a date' n\nrun tar -cf /tmp/d.tar -N ./missing n\nrun tar -cf /tmp/d.tar --newer=/missing n\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "incremental-diagnostics",
+      "kind": "parity",
+      "requires": [
+        "tar",
+        "mkdir",
+        "cat",
+        "sed"
+      ],
+      "purpose": "G111: GNU tar's checks of the incremental options: -g with -N, a bad --level, --level without -g (a warning; the archive is made), --level=0 forcing a full dump, and a dumpdir in an incompatible ustar archive.",
+      "script": "run() { r=0; \"$@\" >/tmp/o 2>/tmp/e || r=$?; /usr/bin/cat /tmp/o; /usr/bin/sed 's/^[^ ]*: line [0-9]*: //' /tmp/e; echo \"rc=$r\"; }\n/usr/bin/mkdir -p s/d; echo a > s/a; echo b > s/d/b\nrun tar -cf /tmp/x.tar -g /tmp/s1 -N 2021-01-01 s\nrun tar -cf /tmp/x.tar -g /tmp/s1 --level=x s\nrun tar -cf /tmp/x.tar --level=1 s\ntar -tf /tmp/x.tar | LC_ALL=C /usr/bin/sort\nrun tar -cf /tmp/x.tar --format=ustar -g /tmp/s2 s\ntar -cf /tmp/f0.tar -g /tmp/s3 s; tar -cf /tmp/f1.tar -g /tmp/s3 s; tar -tf /tmp/f1.tar\ntar -cf /tmp/f2.tar -g /tmp/s3 --level=0 s; tar -tf /tmp/f2.tar\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-builtin-help-contract",
+      "kind": "contract",
+      "purpose": "Bash exposes tar as a builtin whose help documents the incremental (-g, -G, --level) and date (-N, --newer-mtime) options.",
+      "script": "[[ $(type -t tar) == builtin ]] || exit 1; h=$(help tar) || exit 1; for w in --listed-incremental -G/--incremental --level=0 --newer-mtime=DATE -N/--newer; do [[ $h == *\"$w\"* ]] || exit 1; done; printf 'tar builtin and documented help available\\n'",
+      "expected_status": 0,
+      "stdout": "tar builtin and documented help available\n",
       "stderr": "empty"
     }
   ]

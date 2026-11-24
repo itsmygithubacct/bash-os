@@ -16,7 +16,8 @@
     "Bash type/help metadata contract; xdev mount-boundary behavior is deferred.",
     "Additional bounded regular-file, hardlink, symlink and multi-operand error continuation regressions.",
     "-newermt/-newerXY/-anewer/-cnewer, -samefile, -inum and -links (guest compatibility pass 1).",
-    "Guest pass 4 G57: find -newermt shares date's parser, with TZ=\"ZONE\" prefixes and zone-plus-offset items."
+    "Guest pass 4 G57: find -newermt shares date's parser, with TZ=\"ZONE\" prefixes and zone-plus-offset items.",
+    "Guest pass 7 G110/G105: -size unit rounding, -ls/-fls, -xtype and type lists, -ok/-okdir, -used, -fstype, -noleaf, -[no]ignore_readdir_race, -version, and GNU's missing-start-point message."
   ],
   "exclusions": [
     "No host or system paths, mount operations, network activity, devices, credentials, or process-control operations are used.",
@@ -466,6 +467,143 @@
       "script": "export TZ=UTC0\nmkdir t\ntouch -d '2024-01-01 04:00' t/four\ntouch -d '2024-01-01 06:00' t/six\nfind t -type f -newermt 'TZ=\"UTC+5\" 2024-01-01 00:00' | sort\nfind t -type f -newermt '2024-01-01 08:00 UTC+3' | sort\nfind t -type f ! -newermt '2024-01-01 00:00 UTC-0500' | sort",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "g110-size-rounds-up-units",
+      "kind": "parity",
+      "purpose": "G110: -size rounds the file size up to whole units before comparing (c, w, b, k, M, G and the default 512-byte blocks, with exact, + and - forms); -size -1k and -size -1M match only empty files.",
+      "requires": [
+        "find",
+        "head",
+        "sort",
+        "tr"
+      ],
+      "script": "mkdir t\n: > t/e\nfor n in 1 2 10 511 512 513 1024 1025 1500 1048576 1048577; do head -c \"$n\" /dev/zero > \"t/s$n\"; done\nfor a in 0 1 2 3 -1 +1 -2 +2 +0 -0 0c 1c 10c -10c +10c 0w 1w 5w 6w -6w +5w 1b 2b -2b +1b 0k 1k 2k -1k +1k -2k +2k 1M 2M -1M +1M -2M 0G 1G -1G +0G 010c ' 1'; do\n  printf '%-5s' \"$a\"; find t -type f -size \"$a\" | sort | tr '\\n' ' '; echo\ndone",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g110-size-invalid-operands",
+      "kind": "parity",
+      "purpose": "G110: GNU find's -size diagnostics and status 1 for an empty operand, an unknown unit, a bad number, an overflow and a missing operand.",
+      "requires": [
+        "find"
+      ],
+      "script": ": > e\nfor a in x 1x '' + - 1.5k 1kk k -1.5 1K 99999999999999999999999; do rc=0; find e -size \"$a\" || rc=$?; echo \"[$a] rc=$rc\"; done\nrc=0; find e -size || rc=$?; echo rc=$rc",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "g110-ls-and-fls-format",
+      "kind": "parity",
+      "purpose": "G110: -ls and -fls print GNU's `ls -dils` line (blocks, mode, links, owner, group, size or device numbers, a recent HH:MM or an old/future year, backslash-escaped names and the -> target); 512-byte blocks under POSIXLY_CORRECT. The inode column is cut because inode numbers differ between the two sandboxes; the 9-wide column keeps the rest aligned.",
+      "requires": [
+        "find",
+        "touch",
+        "head",
+        "ln",
+        "mkdir",
+        "date",
+        "cut",
+        "cat"
+      ],
+      "script": "mkdir -p t/sub\nhead -c 1500 /dev/zero > t/data\n: > 't/sp ace'; : > \"t/$(printf 'nl\\nx')\"; : > 't/q\"x\\y'; : > \"t/$(printf 'c\\001\\177\\303\\251')\"; : > \"t/$(printf 't\\tb')\"\nln -s data t/link; ln -s 'no such' t/dangling\n: > t/old; : > t/future\nrecent=$(( ($(date +%s) / 86400 - 10) * 86400 + 3600 ))\nfor f in t/*; do [ -L \"$f\" ] || touch -d '2021-02-03 04:05:06' \"$f\"; done\ntouch -d \"@$recent\" t/data t/sub\ntouch -d '2020-01-02 03:04:05' t/old\ntouch -d '2031-06-07 08:09:10' t/future\ntouch -h -d '2022-03-04 05:06:07' t/link t/dangling\ntouch -d '2023-04-05 06:07:08' t\nfind t -mindepth 1 -ls | cut -c11- | LC_ALL=C sort\nfind t/data /dev/null -fls out\ncut -c11- out\nrm out\nPOSIXLY_CORRECT=1 find t/data -ls | cut -c11-\nfind -L t/link t/dangling -ls | cut -c11-",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g110-xtype-and-type-lists",
+      "kind": "parity",
+      "purpose": "G110: -xtype checks the type -type does not (the target under -P/-H, the link itself under -L; a broken link stays l), and both take comma-separated type lists.",
+      "requires": [
+        "find",
+        "ln",
+        "mkdir",
+        "sort",
+        "tr"
+      ],
+      "script": "mkdir -p xt/d\n: > xt/f\nln -s f xt/lf; ln -s d xt/ld; ln -s nosuch xt/ln; ln -s lf xt/llf\nfor m in -P -H -L; do for t in f d l f,d l,f; do\n  printf '%s %s: ' \"$m\" \"$t\"; find $m xt -xtype \"$t\" | sort | tr '\\n' ' '; printf '/ '; find $m xt -type \"$t\" | sort | tr '\\n' ' '; echo\ndone; done\nfind -H xt/lf xt/ln -maxdepth 0 -xtype l\nfind -H xt/lf -xtype f\necho end",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g110-type-list-diagnostics",
+      "kind": "parity",
+      "purpose": "G110: GNU find's -type/-xtype argument diagnostics (unknown letter, empty, trailing comma, missing separator, duplicate, D) and status 1.",
+      "requires": [
+        "find"
+      ],
+      "script": ": > e\nfor o in -type -xtype; do for a in x '' f, ff f,f D ,f 'f d'; do rc=0; find e $o \"$a\" || rc=$?; echo \"$o [$a] rc=$rc\"; done; done",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "g110-symlink-loop-entry-under-L",
+      "kind": "parity",
+      "purpose": "G110 (-xtype under -L): a self-referencing link is a 'Too many levels of symbolic links' error under -L, is not evaluated, and the walk continues with status 1.",
+      "requires": [
+        "find",
+        "ln",
+        "mkdir",
+        "sort"
+      ],
+      "script": "mkdir t\n: > t/f\nln -s self t/self\nrc=0; find -L t -xtype l -o -type f -print | sort || rc=$?\nrc=0; find -L t >/dev/null || rc=$?; echo rc=$rc",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "g110-ok-okdir-answers",
+      "kind": "parity",
+      "purpose": "G110: -ok and -okdir prompt \"< CMD ... FILE > ? \" on stderr and read the answer from standard input (y/Y agrees; n, other text and end of input do not); a seekable input is left just after the last answer; -ok has no + form.",
+      "requires": [
+        "find",
+        "printf",
+        "cat",
+        "mkdir"
+      ],
+      "script": "mkdir -p n1/n2; : > n1/n2/f; : > a; : > b; : > c\nprintf 'y\\nn\\nyes\\n' | find a b c -ok printf 'hit %s\\n' {} \\;\nfind a -ok printf 'hit %s\\n' {} \\; </dev/null; echo eof-rc=$?\nprintf 'y\\n' | find a -ok false \\; -o -print\nprintf ' y\\n' | find a -ok printf no \\; -o -print\nprintf 'y\\n' | find n1 -name f -okdir printf 'dir %s\\n' {} \\;\nprintf 'y\\nY\\nrest\\n' > answers\n{ find a b -ok printf 'got %s\\n' {} \\; ; cat; } < answers\nrc=0; find a -ok printf {} + || rc=$?; echo rc=$rc",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "g110-used-days",
+      "kind": "parity",
+      "purpose": "G110: -used N compares the days from the last status change to the last access (N: N-1 <= days < N, +N: more, -N: fewer); an access older than the change never matches.",
+      "requires": [
+        "find",
+        "touch",
+        "date",
+        "sort",
+        "tr",
+        "mkdir"
+      ],
+      "script": "mkdir u\nnow=$(date +%s)\nfor x in -86400 3600 43200 129600 216000; do : > \"u/a$x\"; touch -a -d \"@$((now + x))\" \"u/a$x\"; done\n: > u/z\nfor n in 0 1 2 3 -1 -2 +0 +1 +2 1.25 -1.25; do printf '%s: ' \"$n\"; find u -type f -used \"$n\" | sort | tr '\\n' ' '; echo; done\nrc=0; find u -used x || rc=$?; echo rc=$rc",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "g110-fstype-noleaf-race-version",
+      "kind": "parity",
+      "purpose": "G110: -fstype matches the type -printf %F reports (from the mount table), -noleaf and -[no]ignore_readdir_race are accepted as true, a missing starting point is still reported under -ignore_readdir_race, and -version/--version answer with status 0 wherever they stand.",
+      "requires": [
+        "find",
+        "head"
+      ],
+      "script": "fs=$(find . -maxdepth 0 -printf '%F')\necho \"fs=$fs\"\nfind . -maxdepth 0 -fstype \"$fs\" -print\nfind . -maxdepth 0 -fstype nosuchfs -print\nfind . -maxdepth 0 -noleaf -ignore_readdir_race -noignore_readdir_race -print\nrc=0; find nosuch -ignore_readdir_race || rc=$?; echo rc=$rc\nfind --version | head -c 5; echo\nfind . -maxdepth 0 -version | head -c 5; echo\nrc=0; find . -fstype || rc=$?; echo rc=$rc\nrc=0; find . -fls || rc=$?; echo rc=$rc",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "g105-missing-start-point-message",
+      "kind": "parity",
+      "purpose": "G105: a missing starting point is reported as GNU find does (\"find: 'nosuch': No such file or directory\", names quoted and escaped), the other starting points are still searched, and the status is 1.",
+      "requires": [
+        "find",
+        "mkdir"
+      ],
+      "script": "mkdir d\nrc=0; find nosuch d -maxdepth 0 || rc=$?; echo rc=$rc\nrc=0; find d 'a b' \"it's\" 'x\\y' -maxdepth 0 || rc=$?; echo rc=$rc\nrc=0; find d/x '' || rc=$?; echo rc=$rc",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

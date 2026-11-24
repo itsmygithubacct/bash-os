@@ -34,6 +34,7 @@
 #include <sys/stat.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 enum { MODE_PLAIN, MODE_F, MODE_E, MODE_M };
 
@@ -328,6 +329,12 @@ readlink_builtin (WORD_LIST *list)
         if (strcmp (w, "--zero") == 0) { zero = 1; continue; }
         if (strcmp (w, "--quiet") == 0 || strcmp (w, "--silent") == 0) { quiet = 1; verbose = 0; continue; }
         if (strcmp (w, "--verbose") == 0) { quiet = 0; verbose = 1; continue; }
+        if (w[0] == '-' && w[1] == '-') {
+            /* glibc getopt's wording, coreutils' hint and status 1. */
+            builtin_error ("unrecognized option '%s'", w);
+            bos_shim_try_help ("readlink"); free (operands);
+            return EXECUTION_FAILURE;
+        }
         if (w[0] == '-' && w[1]) {
             for (int i = 1; w[i]; i++) {
                 switch (w[i]) {
@@ -340,9 +347,9 @@ readlink_builtin (WORD_LIST *list)
                 case 'q': quiet = 1; verbose = 0; break;
                 case 'v': quiet = 0; verbose = 1; break;
                 default:
-                    builtin_error ("unknown flag: -%c", w[i]);
-                    builtin_usage (); free (operands);
-                    return EX_USAGE;
+                    builtin_error ("invalid option -- '%c'", w[i]);
+                    bos_shim_try_help ("readlink"); free (operands);
+                    return EXECUTION_FAILURE;
                 }
             }
         } else {
@@ -352,8 +359,8 @@ readlink_builtin (WORD_LIST *list)
 
     if (nop == 0) {
         builtin_error ("missing operand");
-        builtin_usage (); free (operands);
-        return EX_USAGE;
+        bos_shim_try_help ("readlink"); free (operands);
+        return EXECUTION_FAILURE;
     }
 
     char delim = zero ? '\0' : '\n';

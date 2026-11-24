@@ -3,6 +3,7 @@
 #define BASHOS_PAX_STREAM_H
 #include <stdio.h>
 #include <time.h>
+#include <sys/stat.h>
 /* tar --transform=s/REGEX/REPLACEMENT/[FLAGS][;s/...]: GNU tar's sed-style
    rewrite of member names (flag r), symlink targets (s) and hardlink
    targets (h), applied in order. bashos_pax_xform_add reports a bad
@@ -43,6 +44,17 @@ struct bashos_pax_read_options {
        a symlink points to. */
     int compare, dereference;
     int *differences;
+    /* incremental (tar -G, or -g on list/extract): a directory member's
+       dumpdir (GNU 'D' members, GNU.dumpdir records) is printed by a
+       listing with verbose > 1; extraction applies its renames (R/T/X)
+       and deletes what the directory holds that the dumpdir does not name
+       ("Deleting 'NAME'" when verbose). */
+    int incremental;
+    /* newer_set (tar -N/--newer-mtime on list/extract): only members whose
+       modification time is not older than newer_sec.newer_nsec. */
+    int newer_set;
+    time_t newer_sec;
+    long newer_nsec;
 };
 int bashos_pax_read(FILE *, const struct bashos_pax_read_options *);
 /* tar --delete: copy IN to OUT without the members named in OPTIONS
@@ -86,6 +98,18 @@ struct bashos_pax_write_context {
     /* format: BASHOS_PAX_FMT_* */
     int format;
     struct bashos_pax_archived *archived;
+    /* newer_set (tar -N/--newer/--newer-mtime): a non-directory whose
+       modification time (or, with newer_ctime, status-change time) is
+       older than newer_sec.newer_nsec is left out; directories are kept. */
+    int newer_set, newer_ctime;
+    time_t newer_sec;
+    long newer_nsec;
+    /* verbose_out (tar -v): each member's name, as archived, is printed
+       there; a member -N leaves out is reported "file is unchanged; not
+       dumped" on stderr. */
+    FILE *verbose_out;
+    /* incremental (tar -g/-G): GNU headers also carry atime and ctime. */
+    int incremental;
 };
 /* Position OUT (opened r+) at the end-of-archive marker for appending; with
    ctx->update also remember each member's name and time. Returns 0 or -1. */
@@ -96,4 +120,14 @@ int bashos_pax_format(const char *name);
 void bashos_pax_write_clear(struct bashos_pax_write_context *);
 int bashos_pax_write_member_context(FILE *, const char *, struct bashos_pax_write_context *);
 int bashos_pax_write_member(FILE *, const char *, int no_recurse);
+/* tar -g/-G: directory PATH (ST from lstat) as a dumpdir member, DUMPDIR
+   being LEN bytes of "Cname\0" records and their final NUL: a GNU 'D'
+   member, or with the default (posix) format a directory with a
+   GNU.dumpdir record. Returns 0, or 1 after a diagnostic. */
+int bashos_pax_write_dumpdir(FILE *, const char *path, const struct stat *st,
+                             const char *dumpdir, size_t len, struct bashos_pax_write_context *);
+/* Whether --exclude patterns skip PATH; the member name PATH is stored
+   under (transforms, leading '/' removed), malloc'd. */
+int bashos_pax_excluded(const struct bashos_pax_write_context *, const char *path);
+char *bashos_pax_member_name(const struct bashos_pax_write_context *, const char *path);
 #endif

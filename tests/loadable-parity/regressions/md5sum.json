@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "loadable": "md5sum",
+  "reference": "GNU coreutils md5sum from the runner's read-only /usr tree is the parity oracle; each case runs the same script under reference Bash with GNU md5sum on PATH and under bash-os with PATH empty.",
+  "coverage": [
+    "-c summary lines, --status and --ignore-missing, and usage diagnostics (guest pass 7)."
+  ],
+  "exclusions": [
+    "Digest output itself is covered by suites/sha256sum.json and the cksum suites."
+  ],
+  "cases": [
+    {
+      "id": "g105-check-summary-lines",
+      "kind": "parity",
+      "purpose": "md5sum -c prints GNU's summary lines: \"WARNING: 1 line is improperly formatted\" and its plural, read and mismatch counts, \"no properly formatted checksum lines found\" even under --status, \"no file was verified\" after the warnings, --ignore-missing silencing only missing files; usage errors use GNU's wording and the Try line (guest pass 7, G105).",
+      "requires": [
+        "md5sum",
+        "sed"
+      ],
+      "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\necho 1 > a; echo 2 > b; md5sum a b > s; cp s s2; echo junk >> s; echo junk >> s2; echo junk2 >> s2; echo junk > s7; md5sum a | sed 's/ a$/ a5/' > s5; cp s5 s5j; echo junk >> s5j; md5sum a | sed 's/^./x/' > bad; echo junk >> bad\ns 'md5sum -c s'\ns 'md5sum -c s2'\ns 'md5sum -c -w s'\ns 'md5sum -c s7'\ns 'md5sum -c --status s7'\ns 'md5sum -c -w s7'\ns 'md5sum -c --status nosuch'\ns 'md5sum -c --status s5'\ns 'md5sum -c --ignore-missing s5j'\ns 'md5sum -c --status --ignore-missing s5'\ns 'md5sum -c --quiet s'\ns 'md5sum -c --status --quiet bad'\ns 'md5sum -c --quiet --status bad'\ns 'md5sum -c --status --warn bad'\ns 'md5sum --bogus'\ns 'md5sum -Q'\ns 'md5sum --quiet a'\ns 'md5sum --status --warn a'\ns 'md5sum --ignore-missing --quiet a'\ns 'md5sum -c --tag a'\ns 'md5sum -c --tag -z a'\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

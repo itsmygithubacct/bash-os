@@ -11,16 +11,20 @@
 #include <fcntl.h>
 #include <ctype.h>
 
+#include "shim-prog-name.h"
+
 #define SUM_MAX_HEX 64
 
 struct sum_options { int binary, zero, tag, check, quiet, status, strict, warn, ignore; };
 
-static int sum_digest(const char *name, char hex[SUM_MAX_HEX + 1], int quiet, int *missing)
+/* QUIET_MISSING (--ignore-missing) silences only a file that does not
+   exist; GNU reports every other open error, even under --status. */
+static int sum_digest(const char *name, char hex[SUM_MAX_HEX + 1], int quiet_missing, int *missing)
 {
     int fd = !strcmp(name, "-") ? 0 : open(name, O_RDONLY | O_CLOEXEC);
     *missing = fd < 0 && errno == ENOENT;
     if (fd < 0) {
-        if (!quiet) builtin_error("%s: %s", name, strerror(errno));
+        if (!(quiet_missing && *missing)) builtin_error("%s: %s", name, strerror(errno));
         return 1;
     }
     unsigned char data[32768], hash[SUM_MAX_HEX / 2];
@@ -38,7 +42,7 @@ static int sum_digest(const char *name, char hex[SUM_MAX_HEX + 1], int quiet, in
     SUM_FREE(&ctx);
     if (fd && close(fd) < 0) rc = -1;
     if (rc) {
-        if (!quiet) builtin_error("%s: cannot read or hash input", name);
+        builtin_error("%s: cannot read or hash input", name);
         return 1;
     }
     for (int i = 0; i < SUM_HEX / 2; i++) snprintf(hex + 2 * i, 3, "%02x", hash[i]);
@@ -76,7 +80,7 @@ static int sum_unescape(char *s)
 static int sum_verify(const char *file, const struct sum_options *o)
 {
     FILE *f = !strcmp(file, "-") ? fdopen(dup(0), "r") : fopen(file, "r");
-    if (!f) { if (!o->status) builtin_error("%s: %s", file, strerror(errno)); return 1; }
+    if (!f) { builtin_error("%s: %s", file, strerror(errno)); return 1; }
     char *line = NULL;
     size_t cap = 0, number = 0, valid = 0, checked = 0, bad = 0, mismatched = 0, unreadable = 0;
     int rc = 0;
@@ -105,7 +109,7 @@ static int sum_verify(const char *file, const struct sum_options *o)
         if (!*name || (escape && sum_unescape(name))) goto malformed;
         valid++;
         char actual[SUM_MAX_HEX + 1]; int missing = 0;
-        int failed = sum_digest(name, actual, o->status || o->ignore, &missing);
+        int failed = sum_digest(name, actual, o->ignore, &missing);
         if (failed && missing && o->ignore) continue;
         checked++;
         int matches = !failed && !strcasecmp(actual, digest);
@@ -124,16 +128,23 @@ malformed:
     if (ferror(f)) { if (!o->status) builtin_error("%s: read error", file); rc = 1; }
     free(line);
     if (fclose(f)) rc = 1;
+    /* GNU's summary: with no well-formed line only that error (shown even
+       under --status); otherwise, unless --status, the WARNING counts and
+       then "no file was verified" when --ignore-missing skipped them all. */
     if (!valid) {
-        if (!o->status) builtin_error("%s: no properly formatted checksum lines found", file);
+        builtin_error("%s: no properly formatted checksum lines found", file);
         rc = 1;
-    } else if (!checked) {
-        if (!o->status) builtin_error("%s: no file was verified", file);
-        rc = 1;
+    } else {
+        if (!o->status) {
+            if (bad) builtin_error(bad == 1 ? "WARNING: %zu line is improperly formatted" : "WARNING: %zu lines are improperly formatted", bad);
+            if (unreadable) builtin_error("WARNING: %zu listed file%s could not be read", unreadable, unreadable == 1 ? "" : "s");
+            if (mismatched) builtin_error("WARNING: %zu computed checksum%s did NOT match", mismatched, mismatched == 1 ? "" : "s");
+        }
+        if (!checked) {
+            if (!o->status) builtin_error("%s: no file was verified", file);
+            rc = 1;
+        }
     }
-    if (bad && !o->status && !o->warn) builtin_error("WARNING: %zu improperly formatted checksum line%s", bad, bad == 1 ? "" : "s");
-    if (unreadable && !o->status) builtin_error("WARNING: %zu listed file%s could not be read", unreadable, unreadable == 1 ? "" : "s");
-    if (mismatched && !o->status) builtin_error("WARNING: %zu computed checksum%s did NOT match", mismatched, mismatched == 1 ? "" : "s");
     if (bad && o->strict) rc = 1;
     return rc;
 }
@@ -147,6 +158,9 @@ static int sum_main(WORD_LIST *list)
     if (!files) { builtin_error("out of memory"); return 1; }
     size_t used = 0;
     int end_options = 0, rc = 0;
+    /* --quiet, --status and --warn are one setting in coreutils: the last
+       one given is the one a misuse is reported for. */
+    const char *verbosity = NULL;
     for (; list; list = list->next) {
         const char *w = list->word->word;
         if (!end_options && !strcmp(w, "--")) { end_options = 1; continue; }
@@ -160,23 +174,45 @@ static int sum_main(WORD_LIST *list)
             else if (!strcmp(w, "--check")) o.check = 1;
             else if (!strcmp(w, "--zero")) o.zero = 1;
             else if (!strcmp(w, "--tag")) o.tag = 1;
-            else if (!strcmp(w, "--quiet")) o.quiet = 1;
-            else if (!strcmp(w, "--status")) o.status = 1;
+            else if (!strcmp(w, "--quiet")) o.quiet = 1, verbosity = "quiet";
+            else if (!strcmp(w, "--status")) o.status = 1, verbosity = "status";
             else if (!strcmp(w, "--strict")) o.strict = 1;
-            else if (!strcmp(w, "--warn")) o.warn = 1;
+            else if (!strcmp(w, "--warn")) o.warn = 1, verbosity = "warn";
             else if (!strcmp(w, "--ignore-missing")) o.ignore = 1;
+            else if (w[1] == '-') {
+                builtin_error("unrecognized option '%s'", w);
+                bos_shim_try_help(SUM_NAME); rc = 1; goto done;
+            }
             else for (const char *p = w + 1; *p; p++) switch (*p) {
                 case 'b': o.binary = 1; break;
                 case 't': o.binary = 0; break;
                 case 'c': o.check = 1; break;
-                case 'w': o.warn = 1; break;
+                case 'w': o.warn = 1; verbosity = "warn"; break;
                 case 'z': o.zero = 1; break;
-                default: builtin_error("invalid option: %s", w); rc = 1; goto done;
+                default:
+                    builtin_error("invalid option -- '%c'", *p);
+                    bos_shim_try_help(SUM_NAME); rc = 1; goto done;
             }
         } else files[used++] = w;
     }
-    if ((o.check && (o.zero || o.tag)) || (!o.check && (o.quiet || o.status || o.strict || o.warn || o.ignore))) {
-        builtin_error("incompatible checksum options"); rc = 1; goto done;
+    if (verbosity) {
+        o.quiet = verbosity[0] == 'q';
+        o.status = verbosity[0] == 's';
+        o.warn = verbosity[0] == 'w';
+    }
+    {
+        /* coreutils' wording for options that do not fit the mode. */
+        const char *why = NULL;
+        if (o.check && o.zero) why = "the --zero option is not supported when verifying checksums";
+        else if (o.check && o.tag) why = "the --tag option is meaningless when verifying checksums";
+        else if (!o.check && o.ignore) why = "the --ignore-missing option is meaningful only when verifying checksums";
+        else if (!o.check && verbosity) why = verbosity;
+        else if (!o.check && o.strict) why = "the --strict option is meaningful only when verifying checksums";
+        if (why == verbosity && why) {
+            builtin_error("the --%s option is meaningful only when verifying checksums", verbosity);
+            bos_shim_try_help(SUM_NAME); rc = 1; goto done;
+        }
+        if (why) { builtin_error("%s", why); bos_shim_try_help(SUM_NAME); rc = 1; goto done; }
     }
     if (!used) files[used++] = "-";
     for (size_t i = 0; i < used; i++) {

@@ -220,6 +220,17 @@
       "script": "tail -c nope",
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "g105-invalid-number-diagnostics",
+      "kind": "parity",
+      "purpose": "tail -n x prints \"tail: invalid number of lines: 'x'\" (-c: bytes) with no usage line and status 1; missing and unknown options print GNU's getopt wording and \"Try 'tail --help' for more information.\" (guest pass 7, G105).",
+      "requires": [
+        "tail"
+      ],
+      "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\nprintf '1\\n2\\n' > in2\ns 'tail -n x </dev/null'\ns 'tail -c x </dev/null'\ns 'tail -n +x </dev/null'\ns 'tail -n -x </dev/null'\ns 'tail -n '\"'\"''\"'\"' </dev/null'\ns 'tail -n 5x </dev/null'\ns 'tail --lines=x </dev/null'\ns 'tail --bytes=-y </dev/null'\ns 'tail -n </dev/null'\ns 'tail -c </dev/null'\ns 'tail --lines </dev/null'\ns 'tail --bogus </dev/null'\ns 'tail -Q </dev/null'\ns 'tail -n 1 in2'\ns 'tail -n +2 in2'\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

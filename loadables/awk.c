@@ -190,6 +190,7 @@ typedef struct {
     size_t    slen;       /* STRING: byte length (NUL bytes are data) */
     double    nval;       /* for NUMBER */
     int       builtin_id; /* for BUILTIN */
+    size_t    off;        /* byte offset of the token in the program text */
 } bawk_token;
 
 /* Builtin function ids. */
@@ -377,6 +378,7 @@ bawk_lex_string (bawk_lex *L, const char *src)
             p++; continue;
         }
         if (*p == '#') { while (*p && *p != '\n') p++; continue; }
+        t.off = (size_t) (p - src);
         if (*p == '\n' || *p == ';') {
             t.kind = (*p == ';') ? T_SEMI : T_NEWLINE;
             p++;
@@ -651,6 +653,7 @@ typedef struct bawk_node {
     regex_t  re;
     int      re_ok;
     int      parenthesized;
+    size_t   src_off;     /* N_BINOP / N_ASSIGN: offset of the operator */
 } bawk_node;
 
 #define bawk_n_lhs(n)        ((n)->A)
@@ -713,7 +716,67 @@ typedef struct {
     int         n_all, cap_all;
     int         depth;   /* recursion depth in parse_expr / parse_stmt */
     int         print_arg_stop_depth;
+    int         const_div_errors;  /* x/0, x%0 with a constant zero divisor */
 } bawk_parser;
+
+/* Where each piece of the program text came from, for gawk-style source
+   locations in diagnostics: "cmd. line:N" for the program operand and each
+   -e SCRIPT, "FILE:N" for each -f FILE, N counting lines within that piece.
+   The names point at the builtin's own argument words. */
+typedef struct { size_t off; const char *name; } bawk_srcseg;
+static bawk_srcseg *bawk_segs;
+static int bawk_nsegs, bawk_cap_segs;
+static const char *bawk_src;
+
+static void
+bawk_seg_add (size_t off, const char *name)
+{
+    if (bawk_nsegs == bawk_cap_segs) {
+        int nc = bawk_cap_segs ? bawk_cap_segs * 2 : 8;
+        bawk_segs = xrealloc (bawk_segs, (size_t) nc * sizeof *bawk_segs);
+        bawk_cap_segs = nc;
+    }
+    bawk_segs[bawk_nsegs].off = off;
+    bawk_segs[bawk_nsegs].name = name;
+    bawk_nsegs++;
+}
+
+static void
+bawk_srcloc (size_t off, char *buf, size_t size)
+{
+    const char *name = "cmd. line";
+    size_t start = 0;
+    long line = 1;
+    for (int i = 0; i < bawk_nsegs; i++)
+        if (bawk_segs[i].off <= off) { start = bawk_segs[i].off; name = bawk_segs[i].name; }
+    if (bawk_src)
+        for (size_t k = start; k < off && bawk_src[k]; k++)
+            if (bawk_src[k] == '\n') line++;
+    snprintf (buf, size, "%s:%ld", name, line);
+}
+
+/* The value of a divisor that gawk folds at parse time: a numeric literal,
+   possibly under unary minus or !, or a power of such literals, with no
+   parentheses. Returns 0 when N is not such a constant. */
+static int
+bawk_const_value (const bawk_node *n, double *v)
+{
+    double a, b;
+    if (!n || n->parenthesized) return 0;
+    if (n->kind == N_NUMBER) { *v = n->nval; return 1; }
+    if (n->kind == N_UNARY) {
+        /* gawk folds - and ! but not +: 1/+0 fails only when run. */
+        if ((int) n->nval == T_PLUS || !bawk_const_value (n->A, &a)) return 0;
+        *v = (int) n->nval == T_MINUS ? -a : (a == 0);
+        return 1;
+    }
+    if (n->kind == N_BINOP && n->op == BAWK_BINOP_POW) {
+        if (!bawk_const_value (n->A, &a) || !bawk_const_value (n->B, &b)) return 0;
+        *v = pow (a, b);
+        return 1;
+    }
+    return 0;
+}
 
 /* Hard limit for recursive-descent parser depth — prevents stack
    exhaustion via deeply-nested input like `((((((((((((...))))))))))))`. */
@@ -765,7 +828,7 @@ bawk_tok_starts_primary (bawk_tok t)
     return t == T_NUMBER || t == T_STRING || t == T_REGEX || t == T_IDENT
         || t == T_DOLLAR || t == T_LPAREN || t == T_BUILTIN
         || t == T_KW_GETLINE || t == T_INC || t == T_DEC
-        || t == T_MINUS || t == T_NOT;
+        || t == T_MINUS || t == T_PLUS || t == T_NOT;
 }
 static bawk_node *bawk_parse_stmt (bawk_parser *P);
 static bawk_node *bawk_parse_block (bawk_parser *P);
@@ -1121,13 +1184,13 @@ bawk_parse_power (bawk_parser *P)
     return lhs;
 }
 
-/* unary - / ! : bind looser than ^ (POSIX), so -2^2 == -(2^2). Recurses on
+/* unary - + ! : bind looser than ^ (POSIX), so -2^2 == -(2^2). Recurses on
    itself for stacked prefixes (e.g. !-x). */
 static bawk_node *
 bawk_parse_unary (bawk_parser *P)
 {
     bawk_tok t = bawk_peek(P)->kind;
-    if (t == T_MINUS || t == T_NOT) {
+    if (t == T_MINUS || t == T_PLUS || t == T_NOT) {
         bawk_advance(P);
         bawk_node *operand = bawk_parse_unary (P); if (!operand) return NULL;
         bawk_node *n = bawk_new (P, N_UNARY);
@@ -1146,11 +1209,22 @@ bawk_parse_mul (bawk_parser *P)
     while (1) {
         bawk_tok t = bawk_peek(P)->kind;
         if (t != T_MUL && t != T_DIV && t != T_MOD) break;
+        size_t off = bawk_peek(P)->off;
         bawk_advance(P);
         bawk_node *rhs = bawk_parse_unary (P); if (!rhs) return NULL;
         bawk_node *n = bawk_new (P, N_BINOP);
         bawk_n_op (n) = bawk_binop_from_token (t);
         bawk_n_lhs (n) = lhs; bawk_n_rhs (n) = rhs;
+        n->src_off = off;
+        /* gawk rejects a constant zero divisor while parsing: an "error"
+           (not fatal), parsing goes on, and nothing runs; status 1. */
+        double dv;
+        if (t != T_MUL && bawk_const_value (rhs, &dv) && dv == 0) {
+            char loc[512];
+            bawk_srcloc (off, loc, sizeof loc);
+            builtin_error ("%s: error: division by zero attempted%s", loc, t == T_MOD ? " in `%'" : "");
+            P->const_div_errors++;
+        }
         lhs = n;
     }
     return lhs;
@@ -1330,10 +1404,12 @@ bawk_parse_expr (bawk_parser *P)
     if (t == T_ASSIGN || t == T_PLUSEQ || t == T_MINUSEQ
      || t == T_MULEQ  || t == T_DIVEQ  || t == T_MODEQ
      || t == T_POWEQ) {
+        size_t off = bawk_peek(P)->off;
         bawk_advance(P);
         bawk_node *rhs = bawk_parse_expr (P);
         if (!rhs) { P->depth--; return NULL; }
         bawk_node *n = bawk_new (P, N_ASSIGN);
+        n->src_off = off;
         n->nval = (double) t;
         n->A = lhs; n->B = rhs;
         P->depth--;
@@ -2879,6 +2955,13 @@ bawk_lref_resolve (bawk_ctx *c, bawk_node *lhs)
             ref.special = &c->OFMT;
             return ref;
         }
+        /* FILENAME is assignable; the value read back (and shown in a
+           fatal error's "(FILENAME=F FNR=N)") is the one assigned. */
+        if (!strcmp (lhs->sval, "FILENAME")) {
+            ref.kind = BAWK_LREF_SLOT;
+            ref.special = &c->FILENAME;
+            return ref;
+        }
         /* NF is assignable (POSIX): setting it truncates or zero-pads the
            field list and rebuilds $0 via OFS. */
         if (!strcmp (lhs->sval, "NF")) {
@@ -3086,6 +3169,29 @@ bawk_eval_index (bawk_ctx *c, bawk_node *n)
     return r;
 }
 
+/* gawk's fatal error for a zero divisor at run time: "awk: LOC: fatal:
+   division by zero attempted[ in `OP']", with "(FILENAME=F FNR=N) " before
+   "fatal" once input has been read (FNR > 0). The program stops, END rules
+   are skipped and the status is 2. */
+static void
+bawk_div_zero_fatal (bawk_ctx *c, size_t off, const char *what)
+{
+    char loc[512];
+    double fnr = bawk_val_to_num (&c->FNR);
+    bawk_srcloc (off, loc, sizeof loc);
+    /* Output printed so far comes first, as gawk flushes it. */
+    if (c->out) fflush (c->out);
+    fflush (stdout);
+    if (fnr > 0)
+        builtin_error ("%s: (FILENAME=%s FNR=%ld) fatal: division by zero attempted%s", loc,
+                       c->FILENAME && *c->FILENAME ? c->FILENAME : "-", (long) fnr, what);
+    else
+        builtin_error ("%s: fatal: division by zero attempted%s", loc, what);
+    c->exit_flag = 1;
+    c->exit_code = 2;
+    c->fatal_flag = 1;
+}
+
 static bawk_val
 bawk_eval_assign (bawk_ctx *c, bawk_node *n)
 {
@@ -3109,8 +3215,8 @@ bawk_eval_assign (bawk_ctx *c, bawk_node *n)
         case T_PLUSEQ:  v = a + b; break;
         case T_MINUSEQ: v = a - b; break;
         case T_MULEQ:   v = a * b; break;
-        case T_DIVEQ:   if (b == 0) { builtin_error("div by zero"); v = 0; } else v = a / b; break;
-        case T_MODEQ:   if (b == 0) { builtin_error("div by zero"); v = 0; } else v = fmod (a, b); break;
+        case T_DIVEQ:   if (b == 0) { bawk_div_zero_fatal (c, n->src_off, " in `/='"); v = 0; } else v = a / b; break;
+        case T_MODEQ:   if (b == 0) { bawk_div_zero_fatal (c, n->src_off, " in `%='"); v = 0; } else v = fmod (a, b); break;
         case T_POWEQ:   v = pow (a, b); break;
     }
     bawk_val nv = {0};
@@ -3168,8 +3274,8 @@ bawk_eval_binop (bawk_ctx *c, bawk_node *n)
             case BAWK_BINOP_ADD: v = a + b; break;
             case BAWK_BINOP_SUB: v = a - b; break;
             case BAWK_BINOP_MUL: v = a * b; break;
-            case BAWK_BINOP_DIV: if (b == 0) { builtin_error("div by zero"); v = 0; } else v = a / b; break;
-            case BAWK_BINOP_MOD: if (b == 0) { builtin_error("div by zero"); v = 0; } else v = fmod (a, b); break;
+            case BAWK_BINOP_DIV: if (b == 0) { bawk_div_zero_fatal (c, n->src_off, ""); v = 0; } else v = a / b; break;
+            case BAWK_BINOP_MOD: if (b == 0) { bawk_div_zero_fatal (c, n->src_off, " in `%'"); v = 0; } else v = fmod (a, b); break;
             case BAWK_BINOP_POW: v = pow (a, b); break;
         }
         bawk_val_set_num (&r, v);
@@ -3218,19 +3324,29 @@ bawk_eval_print (bawk_ctx *c, bawk_node *n)
     if (!n->A) {
         if (c->fld[0]) fwrite (c->fld[0], 1, c->fldlen[0], out);
     } else {
-        int first = 1;
-        for (bawk_node *p = n->A; p; p = p->next) {
-            if (!first) fwrite (ofs, 1, ofslen, out);
-            bawk_val v = bawk_eval (c, p->A);
-            char b[64]; size_t sl = 0;
-            const char *s = (!v.s && v.have_n)
-                ? bawk_num_to_str (v.n, bawk_ofmt, b, sizeof b)
-                : bawk_val_to_strl (&v, b, sizeof b, &sl);
-            if (!v.s && v.have_n) sl = strlen (s);
-            fwrite (s, 1, sl, out);
-            bawk_val_free (&v);
-            first = 0;
+        /* Every argument is evaluated before anything is written, so a
+           fatal error in one (division by zero) prints nothing, as gawk. */
+        int nargs = 0, i = 0;
+        for (bawk_node *p = n->A; p; p = p->next) nargs++;
+        bawk_val *vals = bawk_calloc ((size_t) nargs, sizeof *vals);
+        for (bawk_node *p = n->A; p; p = p->next) vals[i++] = bawk_eval (c, p->A);
+        if (c->fatal_flag) {
+            for (i = 0; i < nargs; i++) bawk_val_free (&vals[i]);
+            free (vals);
+            return r;
         }
+        for (i = 0; i < nargs; i++) {
+            bawk_val *v = &vals[i];
+            if (i) fwrite (ofs, 1, ofslen, out);
+            char b[64]; size_t sl = 0;
+            const char *s = (!v->s && v->have_n)
+                ? bawk_num_to_str (v->n, bawk_ofmt, b, sizeof b)
+                : bawk_val_to_strl (v, b, sizeof b, &sl);
+            if (!v->s && v->have_n) sl = strlen (s);
+            fwrite (s, 1, sl, out);
+            bawk_val_free (v);
+        }
+        free (vals);
     }
     fwrite (ors, 1, orslen, out);
     return r;
@@ -3257,7 +3373,7 @@ bawk_eval_printf (bawk_ctx *c, bawk_node *n)
     int ai = 0;
     for (bawk_node *p = n->A->next; p; p = p->next) aargs[ai++] = bawk_eval (c, p->A);
     size_t rl = 0;
-    char *res = bawk_format (fmt, fl, aargs, nargs, &rl);
+    char *res = c->fatal_flag ? NULL : bawk_format (fmt, fl, aargs, nargs, &rl);
     if (res) fwrite (res, 1, rl, out);
     free (res);
     for (int j = 0; j < nargs; j++) bawk_val_free (&aargs[j]);
@@ -3468,6 +3584,7 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
         case N_UNARY: {
             bawk_val v = bawk_eval (c, n->A);
             if ((int) n->nval == T_MINUS) bawk_val_set_num (&r, -bawk_val_to_num (&v));
+            else if ((int) n->nval == T_PLUS) bawk_val_set_num (&r, bawk_val_to_num (&v));
             else                          bawk_val_set_num (&r, !bawk_val_true (&v));
             bawk_val_free (&v);
             return r;
@@ -4333,6 +4450,8 @@ bawk_main (WORD_LIST *list)
 
     int script_seen = 0;
     WORD_LIST *p = list;
+    bawk_nsegs = 0;
+    bawk_src = NULL;
     while (p) {
         const char *w = p->word->word;
         if (w[0] == '-' && w[1] != '\0' && strcmp (w, "--") != 0) {
@@ -4378,6 +4497,7 @@ bawk_main (WORD_LIST *list)
                         size_t need = script_len + l + 2;
                         if (script_cap < need) { while (script_cap < need) script_cap = script_cap ? script_cap * 2 : 256; script = xrealloc (script, script_cap); }
                         if (script_len) script[script_len++] = '\n';
+                        bawk_seg_add (script_len, "cmd. line");
                         memcpy (script + script_len, p->word->word, l);
                         script_len += l;
                         script[script_len] = '\0';
@@ -4396,6 +4516,7 @@ bawk_main (WORD_LIST *list)
                             }
                             script[script_len++] = '\n'; script[script_len] = 0;
                         }
+                        bawk_seg_add (script_len, p->word->word);
                         char buf[4096]; size_t rd;
                         while ((rd = fread (buf, 1, sizeof buf, f)) > 0) {
                             size_t need = script_len + rd + 2;
@@ -4425,6 +4546,7 @@ bawk_main (WORD_LIST *list)
             script[l] = '\0';
             script_len = l;
             script_seen = 1;
+            bawk_seg_add (0, "cmd. line");
         }
         else {
             if (n_files == files_cap) { files_cap *= 2; files = xrealloc (files, (size_t) files_cap * sizeof *files); }
@@ -4459,12 +4581,13 @@ bawk_main (WORD_LIST *list)
     }
 
     /* Lex + parse. */
+    bawk_src = script;
     bawk_lex L = {0};
     if (bawk_lex_string (&L, script) < 0) { bawk_lex_free (&L); goto err; }
 
     bawk_parser P = { .L = &L };
     bawk_node *prog = bawk_parse_program (&P);
-    if (!prog) { bawk_lex_free (&L); bawk_free_all (&P, NULL); goto err; }
+    if (!prog || P.const_div_errors) { bawk_lex_free (&L); bawk_free_all (&P, NULL); goto err; }
     bawk_lower_program (&P, prog);
 
     /* Apply -v presets. */
@@ -4632,6 +4755,9 @@ char *awk_doc[] = {
     "Output that is not a terminal is fully buffered (gawk/mawk): it is",
     "flushed before system(), a command pipe, close(), on fflush() and at",
     "exit. \"/dev/stdout\" and \"/dev/stderr\" are the standard streams.",
+    "Division or modulo by a constant zero is an error before anything runs",
+    "(status 1); a zero divisor found while running is fatal (status 2), as",
+    "in gawk.",
     "Pipe redirections `print|\"cmd\"` and `\"cmd\"|getline` run /bin/sh -c",
     "via explicit fork+execv (V42-11 helper-exec hardening: SIGCHLD",
     "disposition reset + O_CLOEXEC pipe FDs + EINTR-safe wait).",

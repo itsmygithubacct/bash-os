@@ -8,12 +8,15 @@
  * -perm, -user, -group, -uid, -gid, -nouser, -nogroup, -regex, -iregex,
  * -regextype, -maxdepth, -mindepth, -depth, -xdev/-mount, -prune, -empty,
  * -newer, -anewer, -cnewer, -newerXY (X: a/m/c, Y: a/m/c/t), -samefile,
- * -inum, -links, -executable, -readable, -writable, -true, -false.
+ * -inum, -links, -executable, -readable, -writable, -true, -false,
+ * -xtype, -fstype, -used, -noleaf, -ignore_readdir_race,
+ * -noignore_readdir_race.
  * Operators: `-a` (implicit AND between predicates), `-o`, `!`,
  *           `(` `)`.
  * Actions: -print (default), -print0, -printf FORMAT, -fprint FILE,
- *          -fprint0 FILE, -fprintf FILE FORMAT, -delete,
- *          -exec ... \;, -exec ... {} +, -execdir.
+ *          -fprint0 FILE, -fprintf FILE FORMAT, -ls, -fls FILE, -delete,
+ *          -exec ... \;, -exec ... {} +, -execdir, -ok, -okdir.
+ * Also -version/--version and -help/--help.
  *
  * Out of scope: birth times (-newer with X or Y of B).
  *
@@ -47,9 +50,11 @@
 #include <ctype.h>
 #include <limits.h>
 #include <sys/sysmacros.h>
+#include <fcntl.h>
 
 #include "loadables.h"
 #include "date-parse.h"
+#include "gnu-quote.h"
 
 /* Set when the expression parser has already reported its error, so the
    generic "parse error" line is not added (GNU prints one diagnostic and
@@ -70,7 +75,8 @@ typedef enum {
     BF_PERM, BF_USER, BF_GROUP, BF_UID, BF_GID, BF_NOUSER, BF_NOGROUP,
     BF_SAMEFILE, BF_INUM, BF_LINKS,
     BF_TRUE, BF_FALSE,
-    BF_IPATH, BF_ACCESS
+    BF_IPATH, BF_ACCESS,
+    BF_XTYPE, BF_LS, BF_FSTYPE, BF_USED
 } bf_kind;
 
 typedef struct bf_expr {
@@ -79,6 +85,8 @@ typedef struct bf_expr {
     char          *sval;       /* glob pattern, type char, etc. */
     long long      nval;       /* size/mtime/depth */
     int            ncmp;       /* -1: <N, 0: =N, +1: >N (for size/mtime) */
+    long long      unit;       /* -size: bytes per unit (rounded up) */
+    double         dval;       /* -used: days */
     time_t         tval;       /* -newer reference mtime (seconds) */
     long           tnsec;      /* -newer reference mtime (nanoseconds) */
     /* For BF_EXEC / BF_EXECDIR: argv template terminated by NULL.
@@ -86,6 +94,7 @@ typedef struct bf_expr {
     char         **exec_argv;
     int            exec_argc;
     int            exec_batch;
+    int            exec_ok;    /* -ok / -okdir: ask first */
     /* For BF_EXEC `+` form: per-node pending batch. */
     char         **pending_paths;
     size_t         pending_count;
@@ -129,6 +138,16 @@ typedef struct {
     const char *start_path;    /* current command-line starting point (depth 0); for -printf %P */
     int      regex_bre;        /* -regextype posix-basic & co.: BRE, not ERE */
     int      daystart;         /* -daystart: ages count from the end of today */
+    int      ignore_race;      /* -ignore_readdir_race */
+    int      early_exit;       /* -version / -help already answered */
+    time_t   now;              /* start of the search (-ls dates) */
+    int      ls_w[6];          /* -ls column widths: inode, blocks, links,
+                                  user, group, size; they only grow */
+    int      fs_valid;         /* -fstype cache */
+    dev_t    fs_dev;
+    char     fs_type[64];
+    size_t   ok_len, ok_pos;   /* -ok answers: standard input read ahead */
+    char     ok_buf[4096];
 } bf_ctx;
 
 typedef struct {
@@ -136,6 +155,7 @@ typedef struct {
     const char    *base;        /* basename within path */
     const char    *root;        /* command-line starting point (for -printf %P) */
     int            depth;
+    int            followed;    /* st came from stat(), not lstat() */
     struct stat    st;
 } bf_pinfo;
 
@@ -368,6 +388,122 @@ bf_printf_validate (const char *fmt, const char **bad)
     return 0;
 }
 
+/* File-type letters for -type and -xtype, as bits of a mask. */
+#define BF_TYPE_LETTERS "bcdpfls"
+
+static int
+bf_type_bit (char c)
+{
+    const char *at = c ? strchr (BF_TYPE_LETTERS, c) : NULL;
+    return at ? 1 << (int) (at - BF_TYPE_LETTERS) : 0;
+}
+
+/* The TYPE operand of -type/-xtype: one letter or a comma-separated list
+   ("f,d"). GNU's diagnostics; returns 0 and the mask, or -1. */
+static int
+bf_parse_types (const char *opt, const char *arg, long long *mask)
+{
+    *mask = 0;
+    if (!*arg)
+    {
+        builtin_error ("Arguments to %s should contain at least one letter", opt);
+        return -1;
+    }
+    for (const char *s = arg; *s; s += 2)
+    {
+        int bit = bf_type_bit (*s);
+        if (!bit)
+        {
+            if (*s == 'D')
+                builtin_error ("%s D is not supported because Solaris doors are not supported on the platform find was compiled on.", opt);
+            else
+                builtin_error ("Unknown argument to %s: %c", opt, *s);
+            return -1;
+        }
+        if (*mask & bit)
+        {
+            builtin_error ("Duplicate file type '%c' in the argument list to %s.", *s, opt);
+            return -1;
+        }
+        *mask |= bit;
+        if (!s[1]) break;
+        if (s[1] != ',')
+        {
+            builtin_error ("Must separate multiple arguments to %s using: ','", opt);
+            return -1;
+        }
+        if (!s[2])
+        {
+            builtin_error ("Last file type in list argument to %s is missing, i.e., list is ending on: ','", opt);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/* The operand of -size: [+-]N[bcwkMG], N decimal; no suffix means b
+   (512-byte blocks). A file's size is rounded up to whole units before
+   the comparison, so -size -1k matches only empty files. */
+static int
+bf_parse_size (const char *arg, bf_expr *e)
+{
+    size_t l = strlen (arg);
+    if (!l)
+    {
+        builtin_error ("invalid null argument to -size");
+        return -1;
+    }
+    char suf = arg[l - 1];
+    e->unit = 512;
+    if (!isdigit ((unsigned char) suf))
+    {
+        switch (suf)
+        {
+            case 'b': e->unit = 512; break;
+            case 'c': e->unit = 1; break;
+            case 'w': e->unit = 2; break;
+            case 'k': e->unit = 1024; break;
+            case 'M': e->unit = 1024LL * 1024; break;
+            case 'G': e->unit = 1024LL * 1024 * 1024; break;
+            default:
+                builtin_error ("invalid -size type `%c'", suf);
+                return -1;
+        }
+        l--;
+    }
+    const char *s = arg;
+    e->ncmp = 0;
+    if (*s == '+') { e->ncmp = 1; s++; }
+    else if (*s == '-') { e->ncmp = -1; s++; }
+    while (s < arg + l && isspace ((unsigned char) *s)) s++;
+    const char *digits = s;
+    unsigned long long v = 0;
+    int bad = s == arg + l;
+    for (; !bad && s < arg + l; s++)
+    {
+        if (!isdigit ((unsigned char) *s)) { bad = 1; break; }
+        unsigned d = (unsigned) (*s - '0');
+        if (v > (ULLONG_MAX - d) / 10) { bad = 1; break; }
+        v = v * 10 + d;
+    }
+    if (bad || s == digits || v > (unsigned long long) LLONG_MAX)
+    {
+        builtin_error ("Invalid argument `%s' to -size", arg);
+        return -1;
+    }
+    e->nval = (long long) v;
+    return 0;
+}
+
+static void
+bf_print_version (void)
+{
+    printf ("find (bash-os) 4.10.0-compatible\n"
+            "bashfind loadable builtin; option-compatible with GNU findutils 4.10 find.\n"
+            "License MIT (bash-os); not GNU findutils code.\n");
+    fflush (stdout);
+}
+
 static bf_expr *
 bf_parse_primary (bf_parse *p, bf_ctx *ctx)
 {
@@ -377,6 +513,7 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
     if (!strcmp (t, "(")) {
         bf_advance (p);
         bf_expr *inner = bf_parse_or (p, ctx);
+        if (!inner && ctx->early_exit) return NULL;
         if (!inner || !bf_peek (p) || strcmp (bf_peek (p), ")") != 0)
             { bf_free (inner); builtin_error ("expected )"); return NULL; }
         bf_advance (p);
@@ -410,6 +547,28 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
     else if (!strcmp (t, "-daystart")) { k = BF_TRUE;     ctx->daystart = 1; }
     else if (!strcmp (t, "-regextype")) { k = BF_TRUE;    needs_arg = 1; }
     else if (!strcmp (t, "-type"))     { k = BF_TYPE;     needs_arg = 1; }
+    else if (!strcmp (t, "-xtype"))    { k = BF_XTYPE;    needs_arg = 1; }
+    else if (!strcmp (t, "-fstype"))   { k = BF_FSTYPE;   needs_arg = 1; }
+    else if (!strcmp (t, "-used"))     { k = BF_USED;     needs_arg = 1; }
+    else if (!strcmp (t, "-noleaf"))   { k = BF_TRUE; }
+    else if (!strcmp (t, "-ignore_readdir_race"))   { k = BF_TRUE; ctx->ignore_race = 1; }
+    else if (!strcmp (t, "-noignore_readdir_race")) { k = BF_TRUE; ctx->ignore_race = 0; }
+    else if (!strcmp (t, "-ls"))       { k = BF_LS;       is_action = 1; ctx->had_action = 1; }
+    else if (!strcmp (t, "-version") || !strcmp (t, "--version"))
+    {
+        /* GNU answers these where they stand and exits 0. */
+        bf_print_version ();
+        ctx->early_exit = 1;
+        bf_reported = 1;
+        return NULL;
+    }
+    else if (!strcmp (t, "-help") || !strcmp (t, "--help"))
+    {
+        builtin_help ();
+        ctx->early_exit = 1;
+        bf_reported = 1;
+        return NULL;
+    }
     else if (!strcmp (t, "-size"))     { k = BF_SIZE;     needs_arg = 1; }
     else if (!strcmp (t, "-mtime"))    { k = BF_MTIME;    needs_arg = 1; }
     else if (!strcmp (t, "-maxdepth")) { k = BF_MAXDEPTH; needs_arg = 1; is_action = 1; }
@@ -443,11 +602,12 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
     else if (!strcmp (t, "-print"))    { k = BF_PRINT;    is_action = 1; ctx->had_action = 1; }
     else if (!strcmp (t, "-print0"))   { k = BF_PRINT0;   is_action = 1; ctx->had_action = 1; ctx->print0 = 1; }
     else if (!strcmp (t, "-printf"))   { k = BF_PRINTF;   needs_arg = 1; is_action = 1; ctx->had_action = 1; }
-    else if (!strcmp (t, "-fprint") || !strcmp (t, "-fprint0") || !strcmp (t, "-fprintf"))
+    else if (!strcmp (t, "-fprint") || !strcmp (t, "-fprint0") || !strcmp (t, "-fprintf")
+             || !strcmp (t, "-fls"))
     {
-        /* -fprint FILE, -fprint0 FILE, -fprintf FILE FORMAT: like -print,
-           -print0 and -printf, into FILE (created, or truncated, even when
-           nothing matches). */
+        /* -fprint FILE, -fprint0 FILE, -fprintf FILE FORMAT, -fls FILE:
+           like -print, -print0, -printf and -ls, into FILE (created, or
+           truncated, even when nothing matches). */
         int fmt_arg = !strcmp (t, "-fprintf");
         bf_advance (p);
         const char *file = bf_peek (p);
@@ -460,32 +620,40 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
                 { builtin_error ("error: %% at end of format string"); return NULL; }
             bf_advance (p);
         }
-        bf_expr *e = bf_alloc (fmt_arg ? BF_PRINTF : !strcmp (t, "-fprint0") ? BF_PRINT0 : BF_PRINT);
+        bf_expr *e = bf_alloc (fmt_arg ? BF_PRINTF : !strcmp (t, "-fprint0") ? BF_PRINT0
+                               : !strcmp (t, "-fls") ? BF_LS : BF_PRINT);
         if (!e) return NULL;
         if (fmt_arg && !(e->sval = strdup (fmt))) { bf_free (e); return NULL; }
         e->out = fopen (file, "w");
         if (!e->out) {
-            builtin_error ("%s: %s", file, strerror (errno));
+            int err = errno;
+            char *q = bos_quote (file);
+            builtin_error ("%s: %s", q ? q : file, strerror (err));
+            free (q);
             bf_free (e);
             return NULL;
         }
         ctx->had_action = 1;
         return e;
     }
-    else if (!strcmp (t, "-exec") || !strcmp (t, "-execdir"))
+    else if (!strcmp (t, "-exec") || !strcmp (t, "-execdir")
+             || !strcmp (t, "-ok") || !strcmp (t, "-okdir"))
     {
-        /* Consume tokens until `\;` (per-file) or `+` (batched). */
-        int is_execdir = !strcmp (t, "-execdir");
+        /* Consume tokens until `\;` (per-file) or `+` (batched). -ok and
+           -okdir end only at `;` (GNU: no `+` form). */
+        int is_execdir = !strcmp (t, "-execdir") || !strcmp (t, "-okdir");
+        int is_ok = t[1] == 'o';
         bf_advance (p);
         bf_expr *e = bf_alloc (is_execdir ? BF_EXECDIR : BF_EXEC);
         if (!e) return NULL;
         e->exec_argv = NULL;
         e->exec_argc = 0;
+        e->exec_ok = is_ok;
         int cap = 0;
         const char *tok;
         while ((tok = bf_peek (p)) != NULL) {
             if (!strcmp (tok, ";")) { e->exec_batch = 0; bf_advance (p); break; }
-            if (!strcmp (tok, "+"))  { e->exec_batch = 1; bf_advance (p); break; }
+            if (!is_ok && !strcmp (tok, "+"))  { e->exec_batch = 1; bf_advance (p); break; }
             if (e->exec_argc >= cap) {
                 cap = cap ? cap * 2 : 8;
                 char **n = realloc (e->exec_argv, (size_t) cap * sizeof *n);
@@ -499,7 +667,7 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
         }
         if (e->exec_argc == 0 || (tok == NULL)) {
             bf_free (e);
-            builtin_error ("-exec: missing terminator (`;` or `+`)");
+            builtin_error ("missing argument to `%s'", t);
             return NULL;
         }
         /* For `+` form, POSIX requires `{}` immediately before `+`. */
@@ -547,16 +715,35 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
     if (needs_arg)
     {
         const char *arg = bf_peek (p);
-        if (!arg) { bf_free (e); builtin_error ("predicate %s needs an argument", t); return NULL; }
+        if (!arg) { bf_free (e); builtin_error ("missing argument to `%s'", t); return NULL; }
         bf_advance (p);
-        if (k == BF_SIZE || k == BF_MTIME || k == BF_INUM || k == BF_LINKS ||
+        if (k == BF_SIZE)
+        {
+            if (bf_parse_size (arg, e) != 0) { bf_free (e); return NULL; }
+        }
+        else if (k == BF_TYPE || k == BF_XTYPE)
+        {
+            if (bf_parse_types (t, arg, &e->nval) != 0) { bf_free (e); return NULL; }
+        }
+        else if (k == BF_USED)
+        {
+            /* -used [+-]N: N days, a decimal fraction allowed (GNU). */
+            const char *n = arg;
+            e->ncmp = *n == '+' ? 1 : *n == '-' ? -1 : 0;
+            if (e->ncmp) n++;
+            char *end;
+            errno = 0;
+            double v = (*n == '+' || *n == '-') ? 0 : strtod (n, &end);
+            if (*n == '+' || *n == '-' || end == n || *end || errno || v != v)
+                { bf_free (e); builtin_error ("Invalid argument %s to -used", arg); return NULL; }
+            e->dval = v;
+        }
+        else if (k == BF_MTIME || k == BF_INUM || k == BF_LINKS ||
             k == BF_MMIN || k == BF_AMIN || k == BF_CMIN ||
             k == BF_ATIME || k == BF_CTIME)
         {
             e->nval = bf_parse_signed (arg, &e->ncmp);
-            /* For -size, suffix 'k', 'M', 'c': default is 512-byte blocks
-               (POSIX), but we'll accept just bytes (cN), KiB (kN), MiB (MN).
-               Time predicates keep nval in user units here; evaluation
+            /* Time predicates keep nval in user units here; evaluation
                applies the minute/day bucket once so +N/-N match find-style
                truncated age semantics. */
             if (k == BF_INUM || k == BF_LINKS)
@@ -567,21 +754,6 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
                 (void) strtoull (digits, &end, 10);
                 if (!*digits || *end || errno)
                     { bf_free (e); builtin_error ("invalid argument `%s' to `%s'", arg, t); return NULL; }
-            }
-            else if (k == BF_SIZE)
-            {
-                size_t l = strlen (arg);
-                char suf = (l > 0) ? arg[l - 1] : 'b';
-                if (suf == 'c' || suf == 'k' || suf == 'M')
-                {
-                    long long mult = (suf == 'c') ? 1 : (suf == 'k') ? 1024 : 1024 * 1024;
-                    e->nval *= mult;
-                }
-                else
-                {
-                    /* default: 512-byte blocks */
-                    e->nval *= 512;
-                }
             }
         }
         else if (k == BF_REGEX || k == BF_IREGEX)
@@ -783,6 +955,15 @@ static int bf_eval (bf_expr *e, bf_pinfo *p, bf_ctx *ctx);
 
 /* Run a single-shot exec for the `\;` form: substitute every `{}` in the
    template with `path`, fork+execvp+waitpid. Return WEXITSTATUS == 0. */
+/* -ok/-okdir children read /dev/null (findutils manual). */
+static void
+bf_child_null_stdin (void)
+{
+    int fd = open ("/dev/null", O_RDONLY);
+    if (fd < 0) { close (0); return; }
+    if (fd != 0) { dup2 (fd, 0); close (fd); }
+}
+
 static int
 bf_exec_once (bf_expr *e, const char *path)
 {
@@ -844,6 +1025,7 @@ bf_exec_once (bf_expr *e, const char *path)
     if (pid == 0) {
         bos_prepare_child ();
         sigprocmask (SIG_SETMASK, &prev_mask, NULL);
+        if (e->exec_ok) bf_child_null_stdin ();
         bos_run_builtin (argv[0], argv, NULL);
         execvp (argv[0], argv);
         _exit (127);
@@ -926,6 +1108,7 @@ bf_exec_once_in_dir (bf_expr *e, const char *dir, const char *arg_path)
         sigprocmask (SIG_SETMASK, &prev_mask, NULL);
         if (chdir (dir) < 0)
             _exit (126);
+        if (e->exec_ok) bf_child_null_stdin ();
         bos_run_builtin (argv[0], argv, NULL);
         execvp (argv[0], argv);
         _exit (127);
@@ -1350,6 +1533,153 @@ bf_printf_emit (bf_pinfo *p, const char *fmt, FILE *out)
     return 1;
 }
 
+/* -ok/-okdir: ask "< CMD ... FILE > ? " on stderr and read one line from
+   standard input (GNU reads its standard input, tty or not). An answer
+   starting with y or Y agrees; end of input does not. Input is read in
+   4096-byte blocks, as GNU's buffered standard input is: what a pipe
+   delivered beyond the answers is consumed, and a seekable input is put
+   back after the last answer when the search ends (bf_ok_release). */
+static int
+bf_ok_prompt (bf_expr *e, const char *path, bf_ctx *ctx)
+{
+    fflush (stdout);
+    fprintf (stderr, "< %s ... %s > ? ", e->exec_argv[0], path);
+    fflush (stderr);
+    char first = 0;
+    int got = 0;
+    for (;;)
+    {
+        if (ctx->ok_pos == ctx->ok_len)
+        {
+            ssize_t n = read (0, ctx->ok_buf, sizeof ctx->ok_buf);
+            if (n < 0 && errno == EINTR) continue;
+            if (n <= 0) break;
+            ctx->ok_len = (size_t) n;
+            ctx->ok_pos = 0;
+        }
+        char c = ctx->ok_buf[ctx->ok_pos++];
+        if (!got) { first = c; got = 1; }
+        if (c == '\n') break;
+    }
+    return got && (first == 'y' || first == 'Y');
+}
+
+static void
+bf_ok_release (bf_ctx *ctx)
+{
+    if (ctx->ok_pos < ctx->ok_len)
+        (void) lseek (0, -(off_t) (ctx->ok_len - ctx->ok_pos), SEEK_CUR);
+    ctx->ok_pos = ctx->ok_len = 0;
+}
+
+/* The file system type of DEV, cached for the last device seen. */
+static const char *
+bf_fstype_cached (bf_ctx *ctx, dev_t dev)
+{
+    if (!ctx->fs_valid || ctx->fs_dev != dev)
+    {
+        bf_fstype (dev, ctx->fs_type, sizeof ctx->fs_type);
+        ctx->fs_dev = dev;
+        ctx->fs_valid = 1;
+    }
+    return ctx->fs_type;
+}
+
+/* A name as GNU -ls prints it: backslash escapes for space, '"' and
+   '\\', \b \f \n \r \t, and \OOO for every other control or non-ASCII
+   byte. */
+static void
+bf_ls_name (FILE *out, const char *s)
+{
+    for (; *s; s++)
+    {
+        unsigned char c = (unsigned char) *s;
+        switch (c)
+        {
+            case ' ':  fputs ("\\ ", out); continue;
+            case '"':  fputs ("\\\"", out); continue;
+            case '\\': fputs ("\\\\", out); continue;
+            case '\b': fputs ("\\b", out); continue;
+            case '\f': fputs ("\\f", out); continue;
+            case '\n': fputs ("\\n", out); continue;
+            case '\r': fputs ("\\r", out); continue;
+            case '\t': fputs ("\\t", out); continue;
+        }
+        if (c < 0x20 || c >= 0x7f)
+            fprintf (out, "\\%03o", c);
+        else
+            putc (c, out);
+    }
+}
+
+/* Print FIELD right- (or with LEFT, left-) aligned in a column whose
+   width only grows, as GNU -ls lines up later lines with the widest
+   value seen so far. */
+static void
+bf_ls_col (FILE *out, int *width, const char *field, int left)
+{
+    int n = (int) strlen (field);
+    if (n > *width) *width = n;
+    fprintf (out, left ? "%-*s " : "%*s ", *width, field);
+}
+
+/* -ls / -fls: `ls -dils` style. 1 KiB blocks (512-byte ones when
+   POSIXLY_CORRECT is set); a date with the time when the mtime is at most
+   180 days old and at most an hour ahead, else with the year. */
+static void
+bf_ls_emit (bf_pinfo *p, bf_ctx *ctx, FILE *out)
+{
+    char f[64], mode[12], when[64];
+    struct stat *st = &p->st;
+    int *w = ctx->ls_w;
+
+    snprintf (f, sizeof f, "%llu", (unsigned long long) st->st_ino);
+    bf_ls_col (out, &w[0], f, 0);
+    long long blocks = (long long) st->st_blocks;
+    if (!getenv ("POSIXLY_CORRECT")) blocks = (blocks + 1) / 2;
+    snprintf (f, sizeof f, "%lld", blocks);
+    bf_ls_col (out, &w[1], f, 0);
+    bf_mode_string (st->st_mode, mode);
+    fprintf (out, "%s ", mode);
+    snprintf (f, sizeof f, "%llu", (unsigned long long) st->st_nlink);
+    bf_ls_col (out, &w[2], f, 0);
+    struct passwd *pw = getpwuid (st->st_uid);
+    if (pw) snprintf (f, sizeof f, "%s", pw->pw_name);
+    else snprintf (f, sizeof f, "%lu", (unsigned long) st->st_uid);
+    bf_ls_col (out, &w[3], f, 1);
+    struct group *gr = getgrgid (st->st_gid);
+    if (gr) snprintf (f, sizeof f, "%s", gr->gr_name);
+    else snprintf (f, sizeof f, "%lu", (unsigned long) st->st_gid);
+    bf_ls_col (out, &w[4], f, 1);
+    if (S_ISCHR (st->st_mode) || S_ISBLK (st->st_mode))
+        snprintf (f, sizeof f, "%3u, %3u", (unsigned) major (st->st_rdev), (unsigned) minor (st->st_rdev));
+    else
+        snprintf (f, sizeof f, "%lld", (long long) st->st_size);
+    bf_ls_col (out, &w[5], f, 0);
+    struct tm tm;
+    time_t t = st->st_mtime;
+    int recent = t >= ctx->now - 180L * 86400 && t <= ctx->now + 3600;
+    if (localtime_r (&t, &tm)
+        && strftime (when, sizeof when, recent ? "%b %e %H:%M" : "%b %e  %Y", &tm) > 0)
+        fputs (when, out);
+    else
+        fprintf (out, "%lld", (long long) t);
+    putc (' ', out);
+    bf_ls_name (out, p->path);
+    if (S_ISLNK (st->st_mode))
+    {
+        char target[PATH_MAX + 1];
+        ssize_t n = readlink (p->path, target, sizeof target - 1);
+        if (n >= 0)
+        {
+            target[n] = '\0';
+            fputs (" -> ", out);
+            bf_ls_name (out, target);
+        }
+    }
+    putc ('\n', out);
+}
+
 static int
 bf_eval (bf_expr *e, bf_pinfo *p, bf_ctx *ctx)
 {
@@ -1374,29 +1704,57 @@ bf_eval (bf_expr *e, bf_pinfo *p, bf_ctx *ctx)
         case BF_ACCESS:
             return access (p->path, (int) e->nval) == 0;
         case BF_TYPE:
+            return (bf_type_bit (bf_type_char (p->st.st_mode)) & e->nval) != 0;
+        case BF_XTYPE:
         {
-            char want = e->sval[0];
+            /* The type -type does not look at: the link itself when the
+               walk followed it, else what a symlink points to (a broken
+               link stays a link). */
+            struct stat t;
             mode_t m = p->st.st_mode;
-            switch (want)
+            if (p->followed) {
+                if (lstat (p->path, &t) == 0) m = t.st_mode;
+            } else if (S_ISLNK (m) && stat (p->path, &t) == 0)
+                m = t.st_mode;
+            return (bf_type_bit (bf_type_char (m)) & e->nval) != 0;
+        }
+        case BF_SIZE:
+        {
+            /* Units used, rounded up (GNU find): 1..1024 bytes is 1k. */
+            unsigned long long size = p->st.st_size > 0 ? (unsigned long long) p->st.st_size : 0;
+            unsigned long long unit = (unsigned long long) e->unit;
+            unsigned long long used = size / unit + (size % unit != 0);
+            unsigned long long n = (unsigned long long) e->nval;
+            switch (e->ncmp)
             {
-                case 'f': return S_ISREG (m);
-                case 'd': return S_ISDIR (m);
-                case 'l': return S_ISLNK (m);
-                case 'c': return S_ISCHR (m);
-                case 'b': return S_ISBLK (m);
-                case 'p': return S_ISFIFO (m);
-                case 's': return S_ISSOCK (m);
+                case  0: return used == n;
+                case  1: return used >  n;
+                case -1: return used <  n;
             }
             return 0;
         }
-        case BF_SIZE:
+        case BF_USED:
+        {
+            /* Days from the last status change to the last access, as GNU
+               find compares them: never true when the access is older;
+               N matches N-1 <= days < N, +N days > N, -N days < N. */
+            double d = (double) (p->st.st_atim.tv_sec - p->st.st_ctim.tv_sec)
+                     + (double) (p->st.st_atim.tv_nsec - p->st.st_ctim.tv_nsec) / 1e9;
+            if (d < 0) return 0;
+            d /= 86400.0;
             switch (e->ncmp)
             {
-                case  0: return (long long) p->st.st_size == e->nval;
-                case  1: return (long long) p->st.st_size >  e->nval;
-                case -1: return (long long) p->st.st_size <  e->nval;
+                case  0: return d >= e->dval - 1 && d < e->dval;
+                case  1: return d > e->dval;
+                case -1: return d < e->dval;
             }
             return 0;
+        }
+        case BF_FSTYPE:
+            return strcmp (bf_fstype_cached (ctx, p->st.st_dev), e->sval) == 0;
+        case BF_LS:
+            bf_ls_emit (p, ctx, e->out ? e->out : stdout);
+            return 1;
         case BF_MTIME:
         {
             /* GNU find: `-mtime N` divides age by 86400 and compares
@@ -1503,6 +1861,8 @@ bf_eval (bf_expr *e, bf_pinfo *p, bf_ctx *ctx)
                 return 0;
             }
             rc = S_ISDIR (p->st.st_mode) ? rmdir (p->path) : unlink (p->path);
+            if (rc < 0 && errno == ENOENT && ctx->ignore_race)
+                return 1;
             if (rc < 0) {
                 builtin_warning ("%s %s: %s",
                                  S_ISDIR (p->st.st_mode) ? "rmdir" : "unlink",
@@ -1530,6 +1890,8 @@ bf_eval (bf_expr *e, bf_pinfo *p, bf_ctx *ctx)
                 snprintf (dirbuf, sizeof dirbuf, ".");
             }
             if (snprintf (relbuf, sizeof relbuf, "./%s", base) >= (int) sizeof relbuf)
+                return 0;
+            if (e->exec_ok && !bf_ok_prompt (e, p->path, ctx))
                 return 0;
             return bf_exec_once_in_dir (e, dirbuf, relbuf);
         }
@@ -1569,6 +1931,8 @@ bf_eval (bf_expr *e, bf_pinfo *p, bf_ctx *ctx)
         case BF_EXEC:
             if (e->exec_batch)
                 return bf_exec_batch_append (e, p->path, ctx);
+            if (e->exec_ok && !bf_ok_prompt (e, p->path, ctx))
+                return 0;
             return bf_exec_once (e, p->path);
         case BF_MAXDEPTH:
         case BF_MINDEPTH:
@@ -1629,6 +1993,15 @@ bf_chain_pop (bf_seen *s)
     if (s->used > 0) s->used--;
 }
 
+/* GNU's "find: 'PATH': REASON" for a file it cannot search. */
+static void
+bf_path_error (const char *path, int err)
+{
+    char *q = bos_quote (path);
+    builtin_error ("%s: %s", q ? q : path, strerror (err));
+    free (q);
+}
+
 /* Recursive walker. */
 static void
 bf_walk (const char *path, int depth, bf_ctx *ctx, bf_seen *seen)
@@ -1644,20 +2017,26 @@ bf_walk (const char *path, int depth, bf_ctx *ctx, bf_seen *seen)
     int do_stat = (ctx->follow == BF_FOLLOW_ALL)
                 || (ctx->follow == BF_FOLLOW_ARGS && depth == 0);
     int sr = do_stat ? stat (path, &st) : lstat (path, &st);
+    int followed = do_stat && sr == 0;
     if (sr != 0)
     {
         /* Symlink-follow miss (-L on a dangling link) falls back to lstat
-           so the symlink itself is still reported, mirroring GNU find. */
-        if (do_stat && (errno == ENOENT || errno == ELOOP) &&
-            lstat (path, &st) == 0)
+           so the symlink itself is still reported, mirroring GNU find. A
+           link loop (ELOOP) is an error, as in GNU find. */
+        if (do_stat && errno == ENOENT && lstat (path, &st) == 0)
         {
             /* keep going with the symlink-itself stat */
         }
         else
         {
             /* Missing paths are search errors too. A dangling symlink
-               successfully handled by lstat above is still searchable. */
-            builtin_warning ("%s: %s", path, strerror (errno));
+               successfully handled by lstat above is still searchable.
+               -ignore_readdir_race silences a vanished file; a missing
+               starting point is still reported (as GNU find does). */
+            int err = errno;
+            if (ctx->ignore_race && err == ENOENT && depth > 0)
+                return;
+            bf_path_error (path, err);
             ctx->exit_status = 1;
             return;
         }
@@ -1699,7 +2078,8 @@ bf_walk (const char *path, int depth, bf_ctx *ctx, bf_seen *seen)
     const char *base = strrchr (path, '/');
     base = base ? base + 1 : path;
 
-    bf_pinfo info = { .path = path, .base = base, .root = ctx->start_path, .depth = depth, .st = st };
+    bf_pinfo info = { .path = path, .base = base, .root = ctx->start_path, .depth = depth,
+                      .followed = followed, .st = st };
     int saved_pruned = ctx->pruned;
     ctx->pruned = 0;
 
@@ -1746,7 +2126,7 @@ bf_walk (const char *path, int depth, bf_ctx *ctx, bf_seen *seen)
                (exit 1). ENOENT means the directory vanished between
                stat() and opendir() — silence, mirroring GNU find. */
             if (errno != ENOENT) {
-                builtin_warning ("%s: %s", path, strerror (errno));
+                bf_path_error (path, errno);
                 ctx->exit_status = 1;
             }
         }
@@ -1829,11 +2209,20 @@ find_builtin (WORD_LIST *list)
     ctx.maxdepth = -1;
     ctx.mindepth = 0;
     ctx.follow   = follow;
+    ctx.now      = time (NULL);
+    static const int ls_widths[6] = { 9, 6, 3, 8, 8, 8 };
+    memcpy (ctx.ls_w, ls_widths, sizeof ctx.ls_w);
 
     bf_parse pp = { .argc = eff_argc - n_paths, .argv = eff_argv + n_paths, .pos = 0 };
     if (pp.argc > 0)
     {
         ctx.root = bf_parse_or (&pp, &ctx);
+        if (ctx.early_exit)
+        {
+            bf_free (ctx.root);
+            free (argv);
+            return EXECUTION_SUCCESS;
+        }
         if (!ctx.root || pp.pos != pp.argc)
 	        {
 	            bf_free (ctx.root);
@@ -1855,6 +2244,7 @@ find_builtin (WORD_LIST *list)
 
     /* Flush any pending `-exec ... +` batches. */
     bf_flush_all (ctx.root, &ctx);
+    bf_ok_release (&ctx);
 
     bf_free (ctx.root);
     free (seen.dev);
@@ -1879,8 +2269,10 @@ char *find_doc[] = {
     "    -iname PAT       case-insensitive -name",
     "    -path PAT        glob match against full path (also -wholename)",
     "    -ipath PAT       case-insensitive -path (also -iwholename)",
-    "    -type X          X is one of f d l c b p s",
-    "    -size N[ckM]     size compare; +N larger / -N smaller",
+    "    -type X          X is one of f d l c b p s, or a list such as f,d",
+    "    -xtype X         like -type, for a symlink the type -type does not check",
+    "    -size N[bcwkMG]  size in units rounded up: +N more / -N fewer than N;",
+    "                     b 512 bytes (default), c 1, w 2, k KiB, M MiB, G GiB",
     "    -mtime N         modified N days ago; +N older / -N newer",
     "    -mmin N          modified N minutes ago; +N older / -N newer",
     "    -amin/-cmin N    access/change time in minutes",
@@ -1907,6 +2299,11 @@ char *find_doc[] = {
     "    -anewer/-cnewer FILE, -newerXY REF   X (a, m, c) of the file is newer",
     "                     than Y (a, m, c of REF, or t: REF is a date)",
     "    -samefile FILE   same inode as FILE;  -inum [+-]N;  -links [+-]N",
+    "    -used N          accessed N days after the last status change",
+    "    -fstype TYPE     on a file system of TYPE (from /proc/self/mountinfo)",
+    "    -noleaf          accepted for GNU compatibility (always true)",
+    "    -ignore_readdir_race, -noignore_readdir_race",
+    "                     do (not) ignore files that vanish while searching",
     "    -executable, -readable, -writable   access(2) allows it",
     "    -true, -false    always true / always false",
     "Operators: -a (implicit), -o, ! / -not, ( )",
@@ -1919,10 +2316,16 @@ char *find_doc[] = {
     "                     escapes \\a \\b \\c \\f \\n \\r \\t \\v \\\\ \\NNN",
     "    -fprint FILE, -fprint0 FILE, -fprintf FILE FORMAT",
     "                     -print, -print0, -printf into FILE",
+    "    -ls, -fls FILE   `ls -dils` style line (1 KiB blocks; 512-byte blocks",
+    "                     when POSIXLY_CORRECT is set), to stdout or FILE",
     "    -delete          depth-first unlink/rmdir matched paths",
     "    -exec CMD {} \\;  per-file fork+exec (`{}` substituted)",
     "    -exec CMD {} +   batched: queue paths up to ARG_MAX, then exec",
     "    -execdir CMD ... like -exec but cwd is the file's parent dir",
+    "    -ok CMD ... \\;    like -exec ;, after asking `< CMD ... FILE > ?' on",
+    "                     stderr; a line from stdin starting with y or Y agrees",
+    "    -okdir CMD ... \\; like -execdir ;, asking first as -ok does",
+    "Also: -version, --version, -help, --help.",
     "",
     "Out of scope: birth times (-newerB*), SELinux %Z, emacs regex syntax.",
     (char *)NULL

@@ -98,6 +98,8 @@
 # include <sys/syscall.h>
 #endif
 
+#include <stdarg.h>
+
 #include "loadables.h"
 #include "quit.h"
 #include "trap.h"
@@ -111,6 +113,89 @@ typedef enum { BS_ADDR_NONE, BS_ADDR_LINE, BS_ADDR_LAST, BS_ADDR_REGEX,
 
 typedef struct bs_prog bs_prog;
 static int bs_debug, bs_posix;
+
+/* Parse-error locations as GNU sed 4.9 prints them: "-e expression #N,
+   char M: MESSAGE" for the program operand and each -e (N counts them, M
+   is the number of characters of that expression read when the error was
+   found), "file F line L: MESSAGE" for a -f FILE. The pieces are joined
+   with newlines into one script; bs_segs records where each one starts.
+   The file names point at the builtin's argument words. */
+typedef struct { size_t off; const char *file; int expr; } bs_seg;
+static bs_seg *bs_segs;
+static int bs_nsegs, bs_cap_segs;
+static const char *bs_script_base;
+static size_t bs_script_len;
+static const char *bs_re_error;     /* last regex compiler message */
+
+static int
+bs_seg_add (size_t off, const char *file, int expr)
+{
+    if (bs_nsegs == bs_cap_segs) {
+        int nc = bs_cap_segs ? bs_cap_segs * 2 : 8;
+        bs_seg *ns = realloc (bs_segs, (size_t) nc * sizeof *ns);
+        if (!ns) return -1;
+        bs_segs = ns; bs_cap_segs = nc;
+    }
+    bs_segs[bs_nsegs].off = off;
+    bs_segs[bs_nsegs].file = file;
+    bs_segs[bs_nsegs].expr = expr;
+    bs_nsegs++;
+    return 0;
+}
+
+/* The piece holding script offset OFF. */
+static const bs_seg *
+bs_seg_at (size_t off)
+{
+    const bs_seg *found = bs_nsegs ? &bs_segs[0] : NULL;
+    for (int i = 0; i < bs_nsegs; i++)
+        if (bs_segs[i].off <= off) found = &bs_segs[i];
+    return found;
+}
+
+/* Report MESSAGE with the location of AT, the script position just past
+   the last character read. BLOCK_START: the location of an unmatched '{'
+   (GNU: "char 0" for an expression, the brace's line for a file). */
+static void
+bs_perr_loc (const char *at, int block_start, const char *msg)
+{
+    if (!bs_script_base || at < bs_script_base || at > bs_script_base + bs_script_len) {
+        builtin_error ("%s", msg);
+        return;
+    }
+    size_t off = (size_t) (at - bs_script_base);
+    const bs_seg *g = bs_seg_at (block_start ? off : off ? off - 1 : 0);
+    if (!g) { builtin_error ("%s", msg); return; }
+    if (g->file) {
+        long line = 1;
+        for (size_t k = g->off; k < off; k++)
+            if (bs_script_base[k] == '\n') line++;
+        builtin_error ("file %s line %ld: %s", g->file, line, msg);
+    } else
+        builtin_error ("-e expression #%d, char %zu: %s", g->expr,
+                       block_start ? (size_t) 0 : off - g->off, msg);
+}
+
+static void bs_perr (const char *at, const char *fmt, ...) __attribute__ ((format (printf, 2, 3)));
+static void
+bs_perr (const char *at, const char *fmt, ...)
+{
+    char msg[512];
+    va_list ap;
+    va_start (ap, fmt);
+    vsnprintf (msg, sizeof msg, fmt, ap);
+    va_end (ap);
+    bs_perr_loc (at, 0, msg);
+}
+
+/* The end of an unterminated regex or text: the newline or the end of the
+   script that stopped it (GNU does not count that newline as read). */
+static const char *
+bs_line_end (const char *p)
+{
+    while (*p && *p != '\n') p++;
+    return p;
+}
 
 typedef struct {
     char *bytes;
@@ -840,6 +925,7 @@ bs_compile_re (regex_t *re, const char *pat, size_t len, int flags, bs_prog **pr
 {
     bs_prog *prog = NULL;
     *prog_out = NULL;
+    bs_re_error = NULL;
     int guard = bs_regex_guard (pat, len, flags, &prog);
     if (guard < 0) {
         free (prog);
@@ -869,7 +955,7 @@ bs_compile_re (regex_t *re, const char *pat, size_t len, int flags, bs_prog **pr
     /* With -z, bs_search emulates M by searching each NUL-terminated
        record; newline is then ordinary for the anchors (GNU sed). */
     re->newline_anchor = (flags & REG_NEWLINE) && bs_delim == '\n';
-    if (error) { free (prog); regfree (re); memset (re, 0, sizeof *re); return -1; }
+    if (error) { bs_re_error = error; free (prog); regfree (re); memset (re, 0, sizeof *re); return -1; }
     if (prog) bs_prog_made++;
     if (guard == 2) {
         if (bs_unsafe_n >= BS_PROG_MAX) {
@@ -1252,7 +1338,7 @@ bs_y_decode (const char **pp, char delim, unsigned char *out, size_t cap, size_t
 {
     const char *p = *pp;
     size_t n = 0;
-    while (*p && *p != delim) {
+    while (*p && *p != delim && *p != '\n') {
         unsigned char ch;
         if (*p == '\\' && p[1] == delim) {
             ch = (unsigned char) delim; p += 2;
@@ -1291,7 +1377,7 @@ bs_number (const char **pp, long *out)
     while (isdigit ((unsigned char) *p)) {
         int digit = *p++ - '0';
         if (n > (LONG_MAX - digit) / 10) {
-            builtin_error ("number too large"); return -1;
+            bs_perr (p, "number too large"); return -1;
         }
         n = n * 10 + digit;
     }
@@ -1393,7 +1479,7 @@ bs_finish_cmd (const char **pp)
         while (*p && *p != '\n') p++;
     }
     if (*p && *p != '\n' && *p != ';' && *p != '}') {
-        builtin_error ("extra characters after command");
+        bs_perr (p + 1, "extra characters after command");
         return -1;
     }
     *pp = p;
@@ -1412,7 +1498,8 @@ bs_parse_addr (const char **psp, bs_addr *a, int extended)
         int mult = (*p == '~');
         p++;
         long n = 0;
-        if (bs_number (&p, &n) < 0) return -1;
+        /* GNU reads a missing N as 0. */
+        if (isdigit ((unsigned char) *p) && bs_number (&p, &n) < 0) return -1;
         a->kind = mult ? BS_ADDR_MULT : BS_ADDR_PLUS;
         a->step = n;
         *psp = p;
@@ -1428,7 +1515,8 @@ bs_parse_addr (const char **psp, bs_addr *a, int extended)
         if (!bs_posix && *p == '~') {
             p++;
             long st = 0;
-            if (bs_number (&p, &st) < 0) return -1;
+            /* GNU reads a missing STEP as 0. */
+            if (isdigit ((unsigned char) *p) && bs_number (&p, &st) < 0) return -1;
             a->kind = BS_ADDR_STEP;
             a->step = st;
         }
@@ -1439,11 +1527,11 @@ bs_parse_addr (const char **psp, bs_addr *a, int extended)
     if (*p == '/' || *p == '\\')
     {
         char delim = *p == '/' ? '/' : p[1];
-        if (!delim || delim == '\n') { builtin_error ("unterminated address regex"); return -1; }
+        if (!delim || delim == '\n') { bs_perr (p + 1, "unterminated address regex"); return -1; }
         p += *p == '/' ? 1 : 2;
         const char *start = p;
         if (bs_scan_regex_delim (&p, delim, &start) < 0) {
-            builtin_error ("unterminated regex address"); return -1;
+            bs_perr (bs_line_end (start), "unterminated address regex"); return -1;
         }
         size_t rlen = (size_t) (p - start);
         char *pat_raw = strndup (start, rlen);
@@ -1453,16 +1541,17 @@ bs_parse_addr (const char **psp, bs_addr *a, int extended)
         if (!pat) return -1;
         int flags = extended ? REG_EXTENDED : 0;
         p++;
+        const char *after_delim = p;
         while (!bs_posix && (*p == 'I' || *p == 'M')) {
             if (*p++ == 'I') flags |= REG_ICASE;
             else flags |= REG_NEWLINE;
         }
         if (!rlen && (flags & (REG_ICASE | REG_NEWLINE))) {
-            builtin_error ("cannot specify modifiers on empty regexp"); free (pat); return -1;
+            bs_perr (after_delim + 1, "cannot specify modifiers on empty regexp"); free (pat); return -1;
         }
         int cre = rlen ? bs_compile_re (&a->re, pat, rlen, flags, &a->prog) : 0;
         if (cre != 0) {
-            if (cre != -2) builtin_error ("bad regex in address: %s", pat);
+            if (cre != -2) bs_perr (p, "%s", bs_re_error ? bs_re_error : "invalid regular expression");
             free (pat); return -1;
         }
         if (bs_debug) a->display = (bs_debug_regex){ pat, rlen, flags };
@@ -1699,6 +1788,10 @@ static int
 bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended)
 {
     int cap = 16, n = 0, status = -1;
+    /* Open '{' positions, innermost last, for GNU's "unexpected `}'" and
+       "unmatched `{'" reports. */
+    const char *blocks[256];
+    int depth = 0;
     bs_prog_made = 0;
     bs_unsafe_n = 0;
     bs_cmd *cmds = calloc ((size_t) cap + 1, sizeof *cmds);
@@ -1733,45 +1826,59 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
         {
             p++;
             int got2 = bs_parse_addr (&p, &c->addr2, extended);
-            if (got2 <= 0) { builtin_error ("missing range end"); goto err; }
+            if (got2 < 0) goto err;
+            if (got2 == 0) {
+                /* GNU reads the next character, then reports the comma. */
+                const char *q = p;
+                while (*q == ' ' || *q == '\t') q++;
+                bs_perr (*q ? q + 1 : q, "unexpected `,'"); goto err;
+            }
             c->has_a2 = got2;
         }
         while (*p == ' ' || *p == '\t') p++;
 
-        /* ! ? */
-        if (*p == '!') { c->negate = 1; p++; while (*p == ' ' || *p == '\t') p++; }
+        /* GNU checks address 0 once it has read the character after the
+           addresses: 0 is valid only in 0,/REGEX/ (and as 0~STEP). */
+        if (*p && c->addr1.kind == BS_ADDR_LINE && c->addr1.line == 0
+            && (bs_posix || !c->has_a2 || c->addr2.kind != BS_ADDR_REGEX)) {
+            bs_perr (p + 1, "invalid usage of line address 0"); goto err;
+        }
 
-        if (!*p) { builtin_error ("missing command"); goto err; }
+        /* ! ? */
+        if (*p == '!') {
+            c->negate = 1; p++;
+            while (*p == ' ' || *p == '\t') p++;
+            if (*p == '!') { bs_perr (p + 1, "multiple `!'s"); goto err; }
+        }
+
+        if (!*p) { bs_perr (p, "missing command"); goto err; }
         /* Command character. */
         char op = c->op = *p++;
         if (bs_posix) {
             if (strchr ("eFvzQTRW", op)) {
-                builtin_error ("unknown command: %c", op); goto err;
+                bs_perr (p, "unknown command: `%c'", op); goto err;
             }
             if (c->has_a2 && strchr ("ail=rq", op)) {
-                builtin_error ("command only uses one address"); goto err;
-            }
-            if (c->has_a1 && (op == ':' || op == '}')) {
-                builtin_error ("unexpected address"); goto err;
-            }
-            if (c->addr1.kind == BS_ADDR_LINE && c->addr1.line == 0) {
-                builtin_error ("invalid usage of line address 0"); goto err;
+                bs_perr (p, "command only uses one address"); goto err;
             }
         }
+        if (op == '}' && depth == 0) { bs_perr (p, "unexpected `}'"); goto err; }
+        if (c->has_a1 && op == ':') { bs_perr (p, ": doesn't want any addresses"); goto err; }
+        if (c->has_a1 && op == '}') { bs_perr (p, "`}' doesn't want any addresses"); goto err; }
         if (bs_sandbox && strchr ("erRwW", op)) {
-            builtin_error ("e/r/w commands disabled in sandbox mode"); goto err;
+            bs_perr (p, "e/r/w commands disabled in sandbox mode"); goto err;
         }
         switch (op)
         {
             case 's':
             {
                 c->kind = BS_S;
-                if (!*p || *p == '\n') { builtin_error ("s/// missing delimiter"); goto err; }
+                if (!*p || *p == '\n') { bs_perr (p, "unterminated `s' command"); goto err; }
                 char delim = *p++;
                 /* regex: brackets hide the delimiter; the replacement does not */
                 const char *re_start = p;
                 if (bs_scan_regex_delim (&p, delim, &re_start) < 0) {
-                    builtin_error ("s/// unterminated regex"); goto err;
+                    bs_perr (bs_line_end (re_start), "unterminated `s' command"); goto err;
                 }
                 size_t rlen = (size_t) (p - re_start);
                 char *pat = strndup (re_start, rlen);
@@ -1779,11 +1886,12 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 p++;   /* skip delim */
                 /* replacement */
                 const char *rep_start = p;
-                while (*p && *p != delim) {
+                /* An unescaped newline ends the replacement (GNU). */
+                while (*p && *p != delim && *p != '\n') {
                     if (*p == '\\' && p[1]) p++;
                     p++;
                 }
-                if (*p != delim) { free (pat); builtin_error ("s/// unterminated replace"); goto err; }
+                if (*p != delim) { free (pat); bs_perr (p, "unterminated `s' command"); goto err; }
                 size_t replen = (size_t) (p - rep_start);
                 c->s_repl = strndup (rep_start, replen);
                 if (!c->s_repl) { free (pat); goto err; }
@@ -1798,20 +1906,25 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 c->s_repl_len = replen;
                 c->s_repl_literal = strpbrk (c->s_repl, "&\\") == NULL;
                 p++;   /* skip closing delim */
-                /* flags */
-                while (*p && *p != ';' && *p != '\n')
+                /* flags, up to ';', a newline, '}', '#' or the end; GNU
+                   rejects any other character and repeated g, p or N. */
+                while (*p && *p != ';' && *p != '\n' && *p != '}' && *p != '#')
                 {
-                    if (bs_posix && (strchr ("iImMe", *p) ||
-                        (*p == 'g' && c->s_global) || (*p == 'p' && c->s_print) ||
-                        (isdigit ((unsigned char)*p) && c->s_n))) {
-                        free (pat); builtin_error ("invalid substitution flag: %c", *p); goto err;
+                    if (bs_posix && strchr ("iImMe", *p)) {
+                        free (pat); bs_perr (p + 1, "unknown option to `s'"); goto err;
                     }
-                    if      (*p == 'g') c->s_global = 1;
-                    else if (*p == 'p') c->s_print = 1;
+                    if (*p == 'g') {
+                        if (c->s_global) { free (pat); bs_perr (p + 1, "multiple `g' options to `s' command"); goto err; }
+                        c->s_global = 1;
+                    }
+                    else if (*p == 'p') {
+                        if (c->s_print) { free (pat); bs_perr (p + 1, "multiple `p' options to `s' command"); goto err; }
+                        c->s_print = 1;
+                    }
                     else if (*p == 'i' || *p == 'I') c->s_icase = 1;
                     else if (*p == 'm' || *p == 'M') c->s_multiline = 1;
                     else if ((*p == 'e' || *p == 'w') && bs_sandbox) {
-                        free (pat); builtin_error ("e/r/w commands disabled in sandbox mode"); goto err;
+                        free (pat); bs_perr (p + 1, "e/r/w commands disabled in sandbox mode"); goto err;
                     }
                     else if (*p == 'e') c->s_exec = 1;
                     else if (*p == 'w') {
@@ -1820,24 +1933,29 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                         while (*p == ' ' || *p == '\t') p++;
                         const char *wf = p;
                         while (*p && *p != '\n') p++;
-                        if (bs_posix && wf == p) {
-                            free (pat); builtin_error ("missing filename"); goto err;
+                        if (wf == p) {
+                            free (pat); bs_perr (*p ? p + 1 : p, "missing filename in r/R/w/W commands"); goto err;
                         }
                         c->s_wfile = strndup (wf, (size_t) (p - wf));
                         break;
                     }
                     else if (*p >= '0' && *p <= '9') {
                         long occurrence;
-                        if (bs_number (&p, &occurrence) < 0 || occurrence > INT_MAX || occurrence == 0) {
-                            free (pat); builtin_error ("invalid substitution occurrence"); goto err;
-                        }
+                        int twice = c->s_n != 0;
+                        if (bs_number (&p, &occurrence) < 0) { free (pat); goto err; }
+                        if (twice) { free (pat); bs_perr (p, "multiple number options to `s' command"); goto err; }
+                        if (occurrence == 0) { free (pat); bs_perr (p, "number option to `s' command may not be zero"); goto err; }
+                        if (occurrence > INT_MAX) { free (pat); bs_perr (p, "invalid substitution occurrence"); goto err; }
                         c->s_n = (int) occurrence;
                         continue;
                     }
                     else if (*p == ' ' || *p == '\t') { /* skip — fall through to p++ */ }
-                    else break;
+                    else { free (pat); bs_perr (p + 1, "unknown option to `s'"); goto err; }
                     p++;
                 }
+                /* GNU compiles the regex once it has read the character
+                   that ends the flags (a ';' or newline counts as read). */
+                const char *s_end = (*p == ';' || *p == '\n') ? p + 1 : p;
                 int rflags = extended ? REG_EXTENDED : 0;
                 if (c->s_icase) rflags |= REG_ICASE;
                 /* m/M: ^ and $ match at embedded newlines in the pattern
@@ -1846,7 +1964,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 if (rlen == 0) {
                     free (pat);
                     if (c->s_icase || c->s_multiline) {
-                        builtin_error ("cannot specify modifiers on empty regexp");
+                        bs_perr (p, "cannot specify modifiers on empty regexp");
                         goto err;
                     }
                     c->s_empty_re = 1;
@@ -1857,7 +1975,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 if (!pat_compat) goto err;
                 int cre = bs_compile_re (&c->s_re, pat_compat, rlen, rflags, &c->s_prog);
                 if (cre != 0) {
-                    if (cre != -2) builtin_error ("s/// bad regex: %s", pat_compat);
+                    if (cre != -2) bs_perr (s_end, "%s", bs_re_error ? bs_re_error : "invalid regular expression");
                     free (pat_compat); goto err;
                 }
                 c->s_re_ok = 1;
@@ -1868,7 +1986,8 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                     c->display.len = rlen;
                 }
                 if (!bs_posix && (size_t) c->s_needed_sub > c->s_re.re_nsub) {
-                    builtin_error ("invalid backreference in replacement"); free (pat_compat); goto err;
+                    bs_perr (s_end, "invalid reference \\%d on `s' command's RHS", c->s_needed_sub);
+                    free (pat_compat); goto err;
                 }
                 if (!c->s_icase && *pat_compat && !memchr (pat_compat, 0, rlen)
                     && strpbrk (pat_compat, "\\.^$*+?[](){}|") == NULL) {
@@ -1893,7 +2012,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 if (!bs_posix && *p >= '0' && *p <= '9') {
                     long code;
                     if (bs_number (&p, &code) < 0 || code > INT_MAX) {
-                        builtin_error ("invalid quit code"); goto err;
+                        bs_perr (p, "invalid quit code"); goto err;
                     }
                     c->debug_q_code = code;
                     c->q_code = code & 0xff;
@@ -1977,7 +2096,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 int newer = bs_strverscmp (tok, "4.9") > 0;
                 free (tok);
                 if (newer) {
-                    builtin_error ("expected newer version of sed"); goto err;
+                    bs_perr (p, "expected newer version of sed"); goto err;
                 }
                 break;
             }
@@ -1995,7 +2114,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 c->l_width = -1;
                 while (*p == ' ' || *p == '\t') p++;
                 if (!bs_posix && *p >= '0' && *p <= '9' && bs_number (&p, &c->l_width) < 0) {
-                    builtin_error ("invalid list width"); goto err;
+                    bs_perr (p, "invalid list width"); goto err;
                 }
                 break;
             case ':':
@@ -2004,7 +2123,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 {
                     const char *s = p;
                     while (*p && *p != ' ' && *p != '\t' && *p != ';' && *p != '\n') p++;
-                    if (bs_posix && p == s) { builtin_error ("missing label"); goto err; }
+                    if (p == s) { bs_perr (p, "\":\" lacks a label"); goto err; }
                     c->label = strndup (s, (size_t) (p - s));
                 }
                 break;
@@ -2015,7 +2134,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 while (*p == ' ' || *p == '\t') p++;
                 const char *s = p;
                 while (*p && *p != '\n') p++;
-                if (bs_posix && p == s) { builtin_error ("missing filename"); goto err; }
+                if (p == s) { bs_perr (*p ? p + 1 : p, "missing filename in r/R/w/W commands"); goto err; }
                 c->text = strndup (s, (size_t) (p - s));
                 break;
             }
@@ -2026,7 +2145,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 while (*p == ' ' || *p == '\t') p++;
                 const char *s = p;
                 while (*p && *p != '\n') p++;
-                if (bs_posix && p == s) { builtin_error ("missing filename"); goto err; }
+                if (p == s) { bs_perr (*p ? p + 1 : p, "missing filename in r/R/w/W commands"); goto err; }
                 c->text = strndup (s, (size_t) (p - s));
                 break;
             }
@@ -2043,25 +2162,33 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                     c->target_idx = -1;
                 }
                 break;
-            case '{': c->kind = BS_BLOCK_OPEN;  break;
-            case '}': c->kind = BS_BLOCK_CLOSE; break;
+            case '{':
+                c->kind = BS_BLOCK_OPEN;
+                if (depth < (int) (sizeof blocks / sizeof blocks[0])) blocks[depth] = p - 1;
+                depth++;
+                break;
+            case '}':
+                if (depth == 0) { bs_perr (p, "unexpected `}'"); goto err; }
+                depth--;
+                c->kind = BS_BLOCK_CLOSE;
+                break;
             case 'y':
                 c->kind = BS_Y;
                 {
                     /* y/SET1/SET2/ — sets (with POSIX escapes decoded) must be
                        the same length. */
                     char delim = *p;
-                    if (!delim || delim == '\n') { builtin_error ("y: missing delimiter"); goto err; }
+                    if (!delim || delim == '\n') { bs_perr (p, "unterminated `y' command"); goto err; }
                     p++;
                     unsigned char set1[256], set2[256];
                     size_t l1 = 0, l2 = 0;
                     if (bs_y_decode (&p, delim, set1, sizeof set1, &l1) < 0)
-                        { builtin_error ("y: SET1 too long"); goto err; }
-                    if (*p != delim) { builtin_error ("y: missing 2nd delim"); goto err; }
+                        { bs_perr (p, "y: SET1 too long"); goto err; }
+                    if (*p != delim) { bs_perr (p, "unterminated `y' command"); goto err; }
                     p++;
                     if (bs_y_decode (&p, delim, set2, sizeof set2, &l2) < 0)
-                        { builtin_error ("y: SET2 too long"); goto err; }
-                    if (*p != delim) { builtin_error ("y: missing 3rd delim"); goto err; }
+                        { bs_perr (p, "y: SET2 too long"); goto err; }
+                    if (*p != delim) { bs_perr (p, "unterminated `y' command"); goto err; }
                     p++;
                     /* In a multibyte locale the sets pair characters, not
                        bytes (GNU sed): "y/éà/ea/" maps é to e. */
@@ -2071,7 +2198,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                         n1 = bs_mb_count (set1, l1, &multibyte);
                         n2 = bs_mb_count (set2, l2, &multibyte);
                     }
-                    if (n1 != n2) { builtin_error ("y: SET1 and SET2 must be same length"); goto err; }
+                    if (n1 != n2) { bs_perr (p, "strings for `y' command are different lengths"); goto err; }
                     if (bs_debug && MB_CUR_MAX > 1 && l1) {
                         c->debug_y = malloc (l1 + l2);
                         if (!c->debug_y) goto err;
@@ -2132,7 +2259,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                     if (bs_posix) {
                         while (*p == ' ' || *p == '\t') ++p;
                         if (*p != '\\' || !p[1]) {
-                            builtin_error ("expected text after backslash"); goto err;
+                            bs_perr (p, "expected \\ after `a', `c' or `i'"); goto err;
                         }
                         ++p;
                         if (*p == '\n') ++p;
@@ -2142,7 +2269,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                         while (*p && *p != '\n') {
                             char ch = *p++;
                             if (ch == '\\') {
-                                if (!*p) { builtin_error ("incomplete command"); goto err; }
+                                if (!*p) { bs_perr (p, "incomplete command"); goto err; }
                                 unsigned char value;
                                 static const char escapes[] = "afnrtv";
                                 const char *esc = strchr (escapes, *p);
@@ -2158,7 +2285,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                     }
                     while (*p == ' ' || *p == '\t') p++;
                     if (!*p) {
-                        builtin_error ("expected \\ after `a', `c' or `i'");
+                        bs_perr (p, "expected \\ after `a', `c' or `i'");
                         goto err;
                     }
                     if (*p == '\\') {
@@ -2188,10 +2315,8 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 }
                 break;
             default:
-                if (op >= 0x20 && op < 0x7f)
-                    builtin_error ("unknown command: %c", op);
-                else
-                    builtin_error ("unknown command: 0x%02x", (unsigned) op);
+                /* GNU shows the character as it is, a newline included. */
+                bs_perr (p, "unknown command: `%c'", op);
                 goto err;
         }
         if (op != '{' && op != 'v' && bs_finish_cmd (&p) < 0) goto err;
@@ -2214,12 +2339,18 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 }
             }
             if (found < 0) {
-                builtin_error ("undefined label: %s", cmds[i].label);
+                builtin_error ("can't find label for jump to `%s'", cmds[i].label);
                 status = -4;   /* GNU sed exits 4 when the branch target is missing */
                 goto err;
             }
             cmds[i].target_idx = found;
         }
+    }
+    if (depth > 0) {
+        bs_perr_loc (blocks[depth > (int) (sizeof blocks / sizeof blocks[0])
+                            ? (int) (sizeof blocks / sizeof blocks[0]) - 1 : depth - 1],
+                     1, "unmatched `{'");
+        goto err;
     }
     /* Reject stray closing braces as well as unmatched opening braces. */
     int block_depth = 0;
@@ -2825,7 +2956,7 @@ bs_input_open (bs_input *in)
         int fd = in->use_stdin ? dup (STDIN_FILENO) : open (in->name, O_RDONLY);
         in->fp = fd < 0 ? NULL : fdopen (fd, "r");
         if (!in->fp) {
-            builtin_error ("%s: %s", in->name, strerror (errno));
+            builtin_error ("can't read %s: %s", in->name, strerror (errno));
             if (fd >= 0) close (fd);
             if (in->use_stdin) in->error = 4;
             else if (in->error < 2) in->error = 2;
@@ -3633,7 +3764,7 @@ sed_builtin (WORD_LIST *list)
     #define APP_SCRIPT(text, tlen, separator) do { \
         size_t chunk_len = (tlen); \
         if (chunk_len > SIZE_MAX - 2 || script_len > SIZE_MAX - chunk_len - 2) { \
-            if (script_file) fclose (script_file); \
+            if (script_file && script_file != stdin) fclose (script_file); \
             free (files); free (script); return 4; \
         } \
         size_t need = script_len + chunk_len + 2; \
@@ -3641,7 +3772,7 @@ sed_builtin (WORD_LIST *list)
             size_t nc = script_cap ? script_cap : 256; \
             while (nc < need) { if (nc > SIZE_MAX / 2) { nc = need; break; } nc *= 2; } \
             char *ns = realloc (script, nc); \
-            if (!ns) { if (script_file) fclose (script_file); free (files); free (script); return 4; } \
+            if (!ns) { if (script_file && script_file != stdin) fclose (script_file); free (files); free (script); return 4; } \
             script = ns; script_cap = nc; \
         } \
         if ((separator) && script_len > 0) { script[script_len++] = '\n'; } \
@@ -3650,7 +3781,26 @@ sed_builtin (WORD_LIST *list)
         script[script_len] = '\0'; \
     } while (0)
 
-    int script_seen = 0, options = 1;
+    int script_seen = 0, options = 1, n_exprs = 0;
+    bs_nsegs = 0;
+    bs_script_base = NULL;
+    /* GNU permutes options: when -e or -f appears anywhere before "--",
+       every operand is an input file, even one that comes first. */
+    for (WORD_LIST *q = list; q && !script_seen; q = q->next) {
+        const char *w = q->word->word;
+        if (!strcmp (w, "--")) break;
+        if (w[0] != '-' || !w[1]) continue;
+        if (w[1] == '-') {
+            if (!strncmp (w, "--expression", 12) || !strncmp (w, "--file", 6)) script_seen = 1;
+            else if (!strcmp (w, "--line-length") && q->next) q = q->next;
+            continue;
+        }
+        for (const char *c = w + 1; *c; c++) {
+            if (*c == 'e' || *c == 'f') { script_seen = 1; break; }
+            if (*c == 'i') break;
+            if (*c == 'l') { if (!c[1] && q->next) q = q->next; break; }
+        }
+    }
     WORD_LIST *p = list;
     while (p)
     {
@@ -3737,23 +3887,32 @@ sed_builtin (WORD_LIST *list)
                                 free (files); free (script); return 1;
                             }
                         } else if (opt == 'e') {
+                            size_t seg_off = script_len ? script_len + 1 : 0;
                             APP_SCRIPT (value, strlen (value), 1);
+                            if (bs_seg_add (seg_off, NULL, ++n_exprs) < 0) { free (files); free (script); return 4; }
                             script_seen = 1;
                         } else {
-                            FILE *sf = script_file = fopen (value, "r");
+                            /* "-f -" reads the script from standard input (GNU). */
+                            int from_stdin = !strcmp (value, "-");
+                            FILE *sf = script_file = from_stdin ? stdin : fopen (value, "r");
                             if (!sf) {
-                                builtin_error ("-f %s: %s", value, strerror (errno));
+                                builtin_error ("couldn't open file %s: %s", value, strerror (errno));
                                 free (files); free (script); return 4;
                             }
                             char buf[4096];
                             size_t rd;
                             int first = 1;
+                            if (bs_seg_add (script_len ? script_len + 1 : 0, value, 0) < 0) {
+                                if (!from_stdin) fclose (sf);
+                                free (files); free (script); return 4;
+                            }
                             while ((rd = fread (buf, 1, sizeof buf, sf)) > 0) {
                                 APP_SCRIPT (buf, rd, first);
                                 first = 0;
                             }
                             int failed = ferror (sf);
-                            if (fclose (sf) != 0) failed = 1;
+                            if (from_stdin) clearerr (sf);
+                            else if (fclose (sf) != 0) failed = 1;
                             script_file = NULL;
                             if (failed) {
                                 builtin_error ("-f %s: read error", value);
@@ -3776,6 +3935,7 @@ sed_builtin (WORD_LIST *list)
             if (!script_seen)
             {
                 APP_SCRIPT (w, strlen (w), 1);
+                if (bs_seg_add (0, NULL, ++n_exprs) < 0) { free (files); free (script); return 4; }
                 script_seen = 1;
             }
             else
@@ -3804,7 +3964,10 @@ sed_builtin (WORD_LIST *list)
         builtin_error ("no input files"); free (files); free (script); return 4;
     }
     bs_cmd *cmds = NULL; int n_cmds = 0;
+    bs_script_base = script;
+    bs_script_len = strlen (script);
     int parsed = bs_parse_script (script, &cmds, &n_cmds, extended);
+    bs_script_base = NULL;
     if (parsed < 0) {
         free (files); free (script);
         return -parsed;
@@ -3919,13 +4082,15 @@ char *sed_doc[] = {
     "    -l WIDTH      l-command width (zero disables wrapping)",
     "    -i [SUFFIX]   in-place edit; SUFFIX saves backup",
     "    -e SCRIPT     append SCRIPT (multiple OK)",
-    "    -f FILE       read commands from FILE",
+    "    -f FILE       read commands from FILE (- = standard input)",
     "    -E / -r       extended regex (default BRE)",
     "    -s            separate input files (implied by -i)",
     "    -z            NUL-separated records (--null-data)",
     "    --sandbox     reject e, r, R, w and W commands",
     "    --follow-symlinks  edit and name symlink targets",
     "",
+    "Parse errors name \"-e expression #N, char M\" or \"file F line N\" as",
+    "GNU sed does.",
     "Security: e and s///e shell execution require BASHSED_ALLOW_EXEC=1.",
     (char *)NULL
 };

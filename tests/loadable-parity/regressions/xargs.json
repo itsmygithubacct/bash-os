@@ -16,7 +16,8 @@
     "Logical line boundaries, trailing-blank continuations, quoting and NUL interactions",
     "Grouping option precedence and bounded command-size failures",
     "Ordinary child error folding and parallel fatal-child cleanup",
-    "G65: -a/--arg-file, -E/-e/--eof, -o/--open-tty and --process-slot-var."
+    "G65: -a/--arg-file, -E/-e/--eof, -o/--open-tty and --process-slot-var.",
+    "Guest pass 7 G112/G113: --show-limits and exit status 1 for usage errors."
   ],
   "exclusions": [
     "Interactive -p prompting is deferred because the runner does not provide a controlling PTY.",
@@ -774,6 +775,40 @@
       "script": "rc=0; xargs ./no-such-command </dev/null || rc=$?; echo rc=$rc\nrc=0; echo x | xargs /bin/sh -c 'kill -9 $$' || rc=$?; echo rc=$rc",
       "expected_status": 0,
       "stderr": "exact"
+    },
+    {
+      "id": "g112-show-limits-report",
+      "kind": "parity",
+      "purpose": "G112: --show-limits reports on stderr, then xargs runs as usual. The environment byte count differs between a builtin and an exec'd xargs (the shell's `_`), so the check is on the fixed lines and on the arithmetic: limit + environment = ARG_MAX - 2048 is the same in both arms, and the usable length is the limit less the environment again.",
+      "requires": [
+        "xargs",
+        "sed"
+      ],
+      "script": "echo a | xargs --show-limits echo 2>err\nsed -n '3p;6p' err\nenv=$(sed -n 's/^Your environment variables take up \\([0-9]*\\) bytes$/\\1/p' err)\nup=$(sed -n 's/^POSIX upper limit on argument length (this system): //p' err)\nuse=$(sed -n 's/^Maximum length of command we could actually use: //p' err)\nbuf=$(sed -n 's/^Size of command buffer we are actually using: //p' err)\necho \"lines=$(sed -n '$=' err) base=$((up + env + 2048)) usable-gap=$((up - use - env)) buffer=$buf\"\nxargs --show-limits -s 1000 </dev/null 2>&1 >/dev/null | sed -n '5p'\nxargs --show-limits -s 99999999 </dev/null 2>err >/dev/null\nup=$(sed -n 's/^POSIX upper limit on argument length (this system): //p' err)\nbuf=$(sed -n 's/^Size of command buffer we are actually using: //p' err)\n[ \"$up\" = \"$buf\" ] && echo clamped\nsed -n '1s/[0-9]*$//p' err\nrm err",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g113-usage-errors-exit-1",
+      "kind": "parity",
+      "purpose": "G113: xargs exits 1 for every usage error (unknown long or short option, a missing or invalid option argument), as GNU findutils does; the unknown-option wording is getopt's.",
+      "requires": [
+        "xargs"
+      ],
+      "script": "rc=0; xargs --bogus </dev/null || rc=$?; echo rc=$rc\nrc=0; xargs -Q </dev/null || rc=$?; echo rc=$rc",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "g113-option-argument-errors-exit-1",
+      "kind": "parity",
+      "purpose": "G113: a missing or invalid -n/-L/-P/-s argument exits 1 before running anything (the wording differs from GNU's and is not compared).",
+      "requires": [
+        "xargs"
+      ],
+      "script": "for o in '-n x' '-n 0' '-L 0' '-s 0x' '-P x' -n; do rc=0; xargs $o echo hit </dev/null 2>/dev/null || rc=$?; echo \"$o rc=$rc\"; done\nrc=0; echo a | xargs -s 5 echo 2>/dev/null || rc=$?; echo too-long rc=$rc",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

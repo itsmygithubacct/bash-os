@@ -40,6 +40,7 @@
 #include <sys/sysmacros.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 
 /* Runtime diagnostics use GNU df's "df: MESSAGE" form; usage errors keep the
@@ -963,48 +964,48 @@ df_builtin (WORD_LIST *list)
         if (strncmp (w, "--type=", 7) == 0) {
             if (w[7] == '\0') {
                 builtin_error ("--type: missing filesystem type");
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_try_help ("df");
+                return EXECUTION_FAILURE;
             }
             o.type_filter[o.ntype++] = w + 7;
             continue;
         }
         if (strcmp (w, "--type") == 0) {
             if (p->next == NULL) {
-                builtin_error ("--type: missing filesystem type");
-                builtin_usage ();
-                return EX_USAGE;
+                builtin_error ("option '--type' requires an argument");
+                bos_shim_try_help ("df");
+                return EXECUTION_FAILURE;
             }
             p = p->next;
             o.type_filter[o.ntype++] = p->word->word;
             if (o.type_filter[o.ntype - 1][0] == '\0') {
                 builtin_error ("--type: missing filesystem type");
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_try_help ("df");
+                return EXECUTION_FAILURE;
             }
             continue;
         }
         if (strncmp (w, "--exclude-type=", 15) == 0) {
             if (w[15] == '\0') {
                 builtin_error ("--exclude-type: missing filesystem type");
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_try_help ("df");
+                return EXECUTION_FAILURE;
             }
             o.exclude_type[o.nexclude++] = w + 15;
             continue;
         }
         if (strcmp (w, "--exclude-type") == 0) {
             if (p->next == NULL) {
-                builtin_error ("--exclude-type: missing filesystem type");
-                builtin_usage ();
-                return EX_USAGE;
+                builtin_error ("option '--exclude-type' requires an argument");
+                bos_shim_try_help ("df");
+                return EXECUTION_FAILURE;
             }
             p = p->next;
             o.exclude_type[o.nexclude++] = p->word->word;
             if (o.exclude_type[o.nexclude - 1][0] == '\0') {
                 builtin_error ("--exclude-type: missing filesystem type");
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_try_help ("df");
+                return EXECUTION_FAILURE;
             }
             continue;
         }
@@ -1016,6 +1017,11 @@ df_builtin (WORD_LIST *list)
                 }
             }
             break;
+        }
+        if (w[0] == '-' && w[1] == '-') {
+            builtin_error ("unrecognized option '%s'", w);
+            bos_shim_try_help ("df");
+            return EXECUTION_FAILURE;
         }
         if (w[0] == '-' && w[1] && strcmp (w, "-") != 0) {
             for (int i = 1; w[i]; i++) {
@@ -1060,16 +1066,16 @@ df_builtin (WORD_LIST *list)
                         i = (int) strlen (w) - 1;
                     } else {
                         if (p->next == NULL) {
-                            builtin_error ("-t: missing filesystem type");
-                            builtin_usage ();
-                            return EX_USAGE;
+                            builtin_error ("option requires an argument -- 't'");
+                            bos_shim_try_help ("df");
+                            return EXECUTION_FAILURE;
                         }
                         p = p->next;
                         o.type_filter[o.ntype++] = p->word->word;
                         if (o.type_filter[o.ntype - 1][0] == '\0') {
                             builtin_error ("-t: missing filesystem type");
-                            builtin_usage ();
-                            return EX_USAGE;
+                            bos_shim_try_help ("df");
+                            return EXECUTION_FAILURE;
                         }
                     }
                     break;
@@ -1080,23 +1086,23 @@ df_builtin (WORD_LIST *list)
                         i = (int) strlen (w) - 1;
                     } else {
                         if (p->next == NULL) {
-                            builtin_error ("-x: missing filesystem type");
-                            builtin_usage ();
-                            return EX_USAGE;
+                            builtin_error ("option requires an argument -- 'x'");
+                            bos_shim_try_help ("df");
+                            return EXECUTION_FAILURE;
                         }
                         p = p->next;
                         o.exclude_type[o.nexclude++] = p->word->word;
                         if (o.exclude_type[o.nexclude - 1][0] == '\0') {
                             builtin_error ("-x: missing filesystem type");
-                            builtin_usage ();
-                            return EX_USAGE;
+                            bos_shim_try_help ("df");
+                            return EXECUTION_FAILURE;
                         }
                     }
                     break;
                 default:
-                    builtin_error ("unknown flag: -%c", w[i]);
-                    builtin_usage ();
-                    return EX_USAGE;
+                    builtin_error ("invalid option -- '%c'", w[i]);
+                    bos_shim_try_help ("df");
+                    return EXECUTION_FAILURE;
                 }
             }
         } else {

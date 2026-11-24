@@ -173,6 +173,18 @@
       "script": "export TERM=xterm\nfor v in 77 ' 77' +77 077 0x10 77x 0 -5 abc '' 512 513 99999; do\n  printf '[%s] ' \"$v\"; COLUMNS=$v tput cols; LINES=$v tput lines\ndone\nCOLUMNS=77 LINES=33 tput -Txterm cols\nCOLUMNS=77 LINES=33 tput -T xterm lines\nfor t in linux dumb vt100 xterm-256color; do tput -T$t cols; tput -T$t lines; TERM=$t tput cols; TERM=$t tput lines; done\ntput -Txterm colors\n",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "g106-read-capabilities-from-stdin",
+      "kind": "parity",
+      "purpose": "tput -S reads one capability (with its parameters) per line from standard input, skips blank lines, takes -S and -T in either order, ignores operands, stops at an unknown capability with status 4 and returns 4 plus the number of false booleans (guest pass 7, G106).",
+      "requires": [
+        "tput",
+        "od"
+      ],
+      "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\ns 'printf '\"'\"'bold\\nsetaf 1\\n'\"'\"' | TERM=xterm tput -S | od -An -tx1'\ns 'printf '\"'\"'colors\\n'\"'\"' | tput -S -Txterm'\ns 'printf '\"'\"'colors\\ncols\\n'\"'\"' | tput -Txterm -S'\ns 'printf '\"'\"'bold\\nnosuch\\nsgr0\\n'\"'\"' | TERM=xterm tput -S | od -An -tx1'\ns 'printf '\"'\"'\\n\\nbold\\n  \\n'\"'\"' | TERM=xterm tput -S | od -An -tx1'\ns 'printf '\"'\"'am\\n'\"'\"' | TERM=xterm tput -S'\ns 'printf '\"'\"'hc\\n'\"'\"' | TERM=xterm tput -S'\ns 'printf '\"'\"'hc\\nhc\\n'\"'\"' | TERM=xterm tput -S'\ns 'printf '\"'\"'cup 1 2\\n'\"'\"' | TERM=xterm tput -S | od -An -c'\ns 'printf '\"'\"''\"'\"' | TERM=xterm tput -S'\ns 'TERM=xterm tput -S bold </dev/null'\ns 'printf '\"'\"'bold'\"'\"' | TERM=xterm tput -S | od -An -c'\ns 'printf '\"'\"'colors\\nam\\nbold\\n'\"'\"' | TERM=xterm tput -S | od -An -c'\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

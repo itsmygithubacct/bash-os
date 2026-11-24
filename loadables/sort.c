@@ -253,15 +253,22 @@ bs_random_seed (const char *random_source)
 static int
 bs_parse_count (const char **sp, unsigned long *out)
 {
-    const char *s = *sp;
+    const char *s = *sp, *d = s;
     char *end = NULL;
 
-    if (!isdigit ((unsigned char) *s))
+    /* As strtoumax reads it for GNU sort: leading blanks and a plus sign
+       are accepted, a minus sign is not, and a count too large for the
+       type stands for "beyond every field". */
+    while (*d == ' ' || *d == '\t' || *d == '\n' || *d == '\v' || *d == '\f' || *d == '\r')
+        d++;
+    if (*d == '+')
+        d++;
+    if (!isdigit ((unsigned char) *d))
         return -1;
     errno = 0;
-    *out = strtoul (s, &end, 10);
-    if (errno || *out > 2147483647UL)
-        return -1;
+    *out = strtoul (d, &end, 10);
+    if (errno == ERANGE || *out > 2147483647UL)
+        *out = 2147483647UL;
     *sp = end;
     return 0;
 }
@@ -291,38 +298,55 @@ bs_parse_letters (const char **sp, bs_keydef *key, int at_end)
     return 0;
 }
 
+/* Parse a -k spec. On failure *why names GNU's diagnostic: the
+   reason, and at (non-NULL) the rest of the spec for an "invalid count"
+   message, otherwise the whole spec is quoted. */
 static int
-bs_parse_keydef (const char *s, bs_keydef *key)
+bs_parse_keydef (const char *s, bs_keydef *key, const char **why, const char **at)
 {
     unsigned long v;
+    const char *rest;
 
     memset (key, 0, sizeof *key);
-    if (!s || bs_parse_count (&s, &v) < 0 || v == 0)
-        return -1;
+    *at = NULL;
+    if (!s) s = "";
+    rest = s;
+    if (bs_parse_count (&s, &v) < 0) {
+        *why = "invalid number at field start"; *at = rest; return -1;
+    }
+    if (v == 0) { *why = "field number is zero"; return -1; }
     key->field = (int) v;
     if (*s == '.') {
-        s++;
-        if (bs_parse_count (&s, &v) < 0 || v == 0)
-            return -1;
+        rest = ++s;
+        if (bs_parse_count (&s, &v) < 0) {
+            *why = "invalid number after '.'"; *at = rest; return -1;
+        }
+        if (v == 0) { *why = "character offset is zero"; return -1; }
         key->start_char = (int) v;
     }
-    if (bs_parse_letters (&s, key, 0) < 0)
-        return -1;
+    if (bs_parse_letters (&s, key, 0) < 0) {
+        *why = "stray character in field spec"; return -1;
+    }
     if (*s == ',') {
-        s++;
-        if (bs_parse_count (&s, &v) < 0 || v == 0)
-            return -1;
+        rest = ++s;
+        if (bs_parse_count (&s, &v) < 0) {
+            *why = "invalid number after ','"; *at = rest; return -1;
+        }
+        if (v == 0) { *why = "field number is zero"; return -1; }
         key->end_field = (int) v;
         if (*s == '.') {
-            s++;
-            if (bs_parse_count (&s, &v) < 0)
-                return -1;
+            rest = ++s;
+            if (bs_parse_count (&s, &v) < 0) {
+                *why = "invalid number after '.'"; *at = rest; return -1;
+            }
             key->end_char = (int) v;
         }
-        if (bs_parse_letters (&s, key, 1) < 0)
-            return -1;
+        if (bs_parse_letters (&s, key, 1) < 0) {
+            *why = "stray character in field spec"; return -1;
+        }
     }
-    return *s ? -1 : 0;
+    if (*s) { *why = "stray character in field spec"; return -1; }
+    return 0;
 }
 
 
@@ -513,8 +537,15 @@ bs_add_keydef (bs_opts *o, const char *s)
         builtin_error ("too many -k keys");
         return -1;
     }
-    if (bs_parse_keydef (s, &o->keys[o->nkeys]) < 0) {
-        builtin_error ("invalid key: %s", s);
+    const char *why = NULL, *at = NULL;
+    if (bs_parse_keydef (s, &o->keys[o->nkeys], &why, &at) < 0) {
+        /* GNU: "REASON: invalid count at start of 'REST'" when a number
+           is missing, else "REASON: invalid field specification 'SPEC'". */
+        char *q = bos_quote (at ? at : s ? s : "");
+        const char *shown = q ? q : at ? at : s ? s : "";
+        if (at) builtin_error ("%s: invalid count at start of %s", why, shown);
+        else    builtin_error ("%s: invalid field specification %s", why, shown);
+        free (q);
         return -1;
     }
     o->nkeys++;

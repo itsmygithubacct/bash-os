@@ -423,11 +423,16 @@ struct pax_meta {
     char *sparse_name, *sparse_map, *acl_access, *acl_default;
     unsigned long long sparse_realsize;
     int sparse_major, sparse_minor, has_sparse_realsize, has_sparse_major;
+    /* GNU.dumpdir (an incremental directory's contents, NULs included), or
+       the body of a GNU 'D' member. */
+    char *dumpdir;
+    size_t dumpdir_len;
 };
 
 static void pax_meta_free(struct pax_meta *m){
     free(m->path); free(m->linkpath); free(m->uname); free(m->gname);
     free(m->sparse_name); free(m->sparse_map); free(m->acl_access); free(m->acl_default);
+    free(m->dumpdir);
     memset(m, 0, sizeof *m);
 }
 
@@ -454,6 +459,11 @@ static int pax_meta_copy(struct pax_meta *dst, const struct pax_meta *src){
     dst->sparse_realsize = src->sparse_realsize; dst->has_sparse_realsize = src->has_sparse_realsize;
     dst->sparse_major = src->sparse_major; dst->sparse_minor = src->sparse_minor;
     dst->has_sparse_major = src->has_sparse_major;
+    if(src->dumpdir){
+        if(!(dst->dumpdir = malloc(src->dumpdir_len + 1))) return -1;
+        memcpy(dst->dumpdir, src->dumpdir, src->dumpdir_len + 1);
+        dst->dumpdir_len = src->dumpdir_len;
+    }
     return 0;
 }
 
@@ -462,6 +472,8 @@ static void pax_meta_merge(struct pax_meta *eff, struct pax_meta *local){
 #define MOVE(f) if(local->f){ free(eff->f); eff->f = local->f; local->f = NULL; }
     MOVE(path) MOVE(linkpath) MOVE(uname) MOVE(gname)
     MOVE(sparse_name) MOVE(sparse_map) MOVE(acl_access) MOVE(acl_default)
+    if(local->dumpdir) eff->dumpdir_len = local->dumpdir_len;
+    MOVE(dumpdir)
 #undef MOVE
     if(local->has_size){ eff->size = local->size; eff->has_size = 1; }
     if(local->has_mtime){ eff->mtime = local->mtime; eff->has_mtime = 1; }
@@ -565,6 +577,9 @@ static int pax_parse_records(const char *body, size_t len, struct pax_meta *m){
                 if(pax_set_string(&m->acl_access, val, vlen) < 0) return -1;
             } else if(klen == 18 && !memcmp(kv, "SCHILY.acl.default", 18)){
                 if(pax_set_string(&m->acl_default, val, vlen) < 0) return -1;
+            } else if(klen == 11 && !memcmp(kv, "GNU.dumpdir", 11)){
+                if(pax_set_string(&m->dumpdir, val, vlen) < 0) return -1;
+                m->dumpdir_len = vlen;
             }
         }
         pos += reclen;
@@ -1085,6 +1100,117 @@ static int pax_compare_member(FILE *f, const struct bashos_pax_read_options *opt
     return 0;
 }
 
+/* ---- tar -G / -g on extract: dumpdirs ---------------------------------- */
+/* Remove PATH and, for a directory, everything below it. */
+static int pax_remove_tree(const char *path){
+    struct stat st;
+    if(lstat(path, &st) < 0) return errno == ENOENT ? 0 : -1;
+    if(!S_ISDIR(st.st_mode)) return unlink(path);
+    DIR *d = opendir(path);
+    if(!d) return -1;
+    int rc = 0; struct dirent *de;
+    while((de = readdir(d)) != NULL){
+        if(!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) continue;
+        size_t n = strlen(path) + strlen(de->d_name) + 2;
+        char *child = malloc(n);
+        if(!child){ rc = -1; break; }
+        snprintf(child, n, "%s/%s", path, de->d_name);
+        if(pax_remove_tree(child) < 0) rc = -1;
+        free(child);
+    }
+    closedir(d);
+    if(rmdir(path) < 0) rc = -1;
+    return rc;
+}
+
+/* A rename record's archive name as extraction sees it: without leading
+   '/' (unless -P) and the components --strip-components removes. NULL when
+   nothing is left or the name leaves the extraction tree. */
+static const char *pax_dumpdir_name(const char *name, const struct bashos_pax_read_options *options){
+    if(!options->absolute_names) while(*name == '/') name++;
+    for(unsigned i = 0; i < options->strip && *name; i++){
+        const char *slash = strchr(name, '/');
+        name = slash ? slash + 1 : "";
+    }
+    if(!*name || (!options->absolute_names && unsafe_path(name))) return NULL;
+    return name;
+}
+
+/* Bring directory DIR (just extracted) to the state its dumpdir records:
+   first the renames, R SOURCE / T TARGET pairs where an empty name is the
+   temporary name made in the directory an X record names; then every entry
+   of DIR the dumpdir does not list (Y, N or D) is deleted. */
+static int pax_apply_dumpdir(const char *dir, const char *dd, size_t len,
+                             const struct bashos_pax_read_options *options){
+    int rc = 0;
+    const char *end = dd + len, *source = NULL, *prefix = NULL;
+    char temp[4096] = "";
+    for(const char *p = dd; p < end && *p; p += strlen(p) + 1){
+        if(*p == 'X') prefix = p + 1;
+        else if(*p == 'R') source = p + 1;
+        else if(*p == 'T' && source){
+            const char *target = p + 1, *from, *to;
+            char made[4096];
+            if(*source) from = pax_dumpdir_name(source, options);
+            else from = *temp ? temp : NULL;
+            if(*target) to = pax_dumpdir_name(target, options);
+            else {
+                /* An empty target: a temporary directory to rename onto. */
+                const char *at = prefix ? pax_dumpdir_name(prefix, options) : NULL;
+                snprintf(made, sizeof made, "%s/tar.XXXXXX", at ? at : ".");
+                to = mkdtemp(made) ? made : NULL;
+            }
+            int moved = 0;
+            if(from && to){
+                if(*target) mkpath_parents(to, 0755);
+                if(rename(from, to) == 0) moved = 1;
+                else {
+                    builtin_error("Cannot rename '%s' to '%s': %s", from, to, strerror(errno));
+                    if(options->member_errors) ++*options->member_errors;
+                    rc = -1;
+                }
+            }
+            if(!*source) *temp = 0;
+            if(!*target && to){
+                if(moved) snprintf(temp, sizeof temp, "%s", to);
+                else rmdir(to);
+            }
+            source = NULL;
+        }
+    }
+    DIR *d = opendir(dir);
+    if(!d){ builtin_error("%s: Cannot open: %s", dir, strerror(errno)); return -1; }
+    struct dirent *de;
+    while((de = readdir(d)) != NULL){
+        if(!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) continue;
+        int listed = 0;
+        for(const char *p = dd; p < end && *p && !listed; p += strlen(p) + 1)
+            listed = (*p == 'Y' || *p == 'N' || *p == 'D') && !strcmp(p + 1, de->d_name);
+        if(listed) continue;
+        size_t n = strlen(dir) + strlen(de->d_name) + 2;
+        char *path = malloc(n);
+        if(!path){ rc = -1; break; }
+        snprintf(path, n, "%s/%s", dir, de->d_name);
+        /* GNU tar reports this with the verbose listing, on stdout. */
+        if(options->verbose) printf("tar: Deleting '%s'\n", path);
+        if(pax_remove_tree(path) < 0){
+            builtin_error("%s: Cannot remove: %s", path, strerror(errno));
+            if(options->member_errors) ++*options->member_errors;
+            rc = -1;
+        }
+        free(path);
+    }
+    closedir(d);
+    return rc;
+}
+
+/* tar -tvv -G: a dumpdir's records, one "C NAME" line each, then a blank line. */
+static void pax_list_dumpdir(const char *dd, size_t len){
+    const char *end = dd + len;
+    for(const char *p = dd; p < end && *p; p += strlen(p) + 1) printf("%c %s\n", *p, p + 1);
+    putchar('\n');
+}
+
 int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
     int ugswidth = 19;
     int extract = options->extract, verbose = options->verbose;
@@ -1179,11 +1305,23 @@ int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
             sz = eff.size; body_padded = ((long)sz+511L)/512L*512L; has_body = (typeflag=='0' || typeflag=='\0' || typeflag=='7'); }
         if(eff.has_mtime) mtime = eff.mtime;
         if(eff.typeflag){ typeflag = eff.typeflag; has_body = (typeflag=='0' || typeflag=='\0' || typeflag=='7'); }
+        /* GNU incremental archives: a 'D' member is a directory whose body is
+           its dumpdir; a directory with a GNU.dumpdir record is the same. */
+        unsigned long dumpdir_size = 0;
+        if(typeflag == 'D'){
+            char *body = NULL;
+            if(read_padded_body(f, sz, &body) < 0){
+                builtin_error("%s: archive truncated in dumpdir", name);
+                pax_meta_free(&eff); rc = EXECUTION_FAILURE; break;
+            }
+            free(eff.dumpdir); eff.dumpdir = body; eff.dumpdir_len = sz;
+            dumpdir_size = sz; typeflag = '5'; sz = 0; body_padded = 0; has_body = 0;
+        }
 
         /* Sparse members: 1 = map known (old GNU 'S' header or format 0.1),
            2 = map at the start of the body (format 1.0). */
         int sparse = 0;
-        unsigned long long realsize = sz;
+        unsigned long long realsize = dumpdir_size ? dumpdir_size : sz;
         struct sparse_map smap = {0};
         if(typeflag == 'S'){
             if(sparse_map_from_gnu_header(f, h, &smap, &realsize) < 0){
@@ -1221,6 +1359,9 @@ int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
             }
         }
         if(selected && name_excluded(options->excludes, options->nexcludes, name)) selected = 0;
+        /* -N/--newer-mtime: members older than the date are passed over. */
+        if(selected && options->newer_set &&
+           (mtime < options->newer_sec || (mtime == options->newer_sec && options->newer_nsec > 0))) selected = 0;
         if(!selected){
             if(skip_bytes(f, body_padded) < 0) rc = 1;
             free(smap.v); pax_meta_free(&eff); continue;
@@ -1246,6 +1387,8 @@ int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
                        octal((char *)h+329, 8), octal((char *)h+337, 8), name);
             else if(verbose) printf("%c %06o %lu %s\n", typeflag, mode, (unsigned long)realsize, name);
             else printf("%s%s\n", name, options->tar_mode && typeflag == '5' && name[strlen(name)-1] != '/' ? "/" : "");
+            if(options->incremental && verbose > 1 && typeflag == '5' && eff.dumpdir)
+                pax_list_dumpdir(eff.dumpdir, eff.dumpdir_len);
             if(skip_bytes(f, body_padded) < 0) rc = 1;
             free(smap.v); pax_meta_free(&eff); continue;
         }
@@ -1328,6 +1471,13 @@ int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
             }
             if(pax_delay_dir(&dirs, name, mtime, mode, h, &eff, options) < 0){
                 builtin_error("out of memory"); rc = EXECUTION_FAILURE;
+            }
+            if(options->incremental && eff.dumpdir){
+                char dir[4096];
+                snprintf(dir, sizeof dir, "%s", name);
+                size_t dl = strlen(dir);
+                while(dl > 1 && dir[dl-1] == '/') dir[--dl] = 0;
+                if(pax_apply_dumpdir(dir, eff.dumpdir, eff.dumpdir_len, options) < 0) rc = EXECUTION_FAILURE;
             }
             break;
         }
@@ -1495,6 +1645,8 @@ int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
 static const char *hdr_uname, *hdr_gname;
 /* The format of the header being written (BASHOS_PAX_FMT_*). */
 static int hdr_format;
+/* tar -g/-G: GNU headers carry the atime and ctime too, as GNU tar's do. */
+static int hdr_incremental;
 
 static int write_header(FILE *out, const char *path, const struct stat *st, char typeflag, const char *linktarget){
     unsigned char h[512]; memset(h, 0, sizeof h);
@@ -1519,7 +1671,7 @@ static int write_header(FILE *out, const char *path, const struct stat *st, char
     memcpy(h, base, blen > 100 ? 100 : blen);
     int v7 = hdr_format == BASHOS_PAX_FMT_V7, gnu = hdr_format == BASHOS_PAX_FMT_GNU || hdr_format == BASHOS_PAX_FMT_OLDGNU;
 
-    unsigned long body_size = (typeflag=='0' || typeflag=='x' || typeflag=='g' || typeflag=='L' || typeflag=='K') ? (unsigned long)st->st_size : 0UL;
+    unsigned long body_size = (typeflag=='0' || typeflag=='x' || typeflag=='g' || typeflag=='L' || typeflag=='K' || typeflag=='D') ? (unsigned long)st->st_size : 0UL;
     put_octal((char*)h+100, 8, (unsigned long)(st->st_mode & 07777));
     put_octal((char*)h+108, 8, (unsigned long)st->st_uid);
     put_octal((char*)h+116, 8, (unsigned long)st->st_gid);
@@ -1542,6 +1694,10 @@ static int write_header(FILE *out, const char *path, const struct stat *st, char
     }
     if(gnu) memcpy(h+257, "ustar  ", 8);        /* GNU magic and version */
     else if(!v7){ memcpy(h+257, "ustar", 6); memcpy(h+263, "00", 2); }
+    if(gnu && hdr_incremental && typeflag != 'L' && typeflag != 'K'){
+        put_octal((char *)h+345, 12, (unsigned long)st->st_atime);
+        put_octal((char *)h+357, 12, (unsigned long)st->st_ctime);
+    }
     if(typeflag != 'x' && typeflag != 'g' && !v7){
         if(hdr_uname) memcpy(h+265, hdr_uname, strnlen(hdr_uname, 31));
         if(hdr_gname) memcpy(h+297, hdr_gname, strnlen(hdr_gname, 31));
@@ -1564,8 +1720,8 @@ static int append_bytes(char **buf, size_t *len, size_t *cap, const char *s, siz
     return 0;
 }
 
-static int append_pax_record(char **buf, size_t *len, size_t *cap, const char *key, const char *val){
-    size_t kvlen = strlen(key) + 1 + strlen(val) + 1;
+static int append_pax_record_n(char **buf, size_t *len, size_t *cap, const char *key, const char *val, size_t vlen){
+    size_t kvlen = strlen(key) + 1 + vlen + 1;
     char tmp[64];
     int digits = 1, reclen;
     do {
@@ -1577,8 +1733,12 @@ static int append_pax_record(char **buf, size_t *len, size_t *cap, const char *k
     if(append_bytes(buf, len, cap, " ", 1) < 0) return -1;
     if(append_bytes(buf, len, cap, key, strlen(key)) < 0) return -1;
     if(append_bytes(buf, len, cap, "=", 1) < 0) return -1;
-    if(append_bytes(buf, len, cap, val, strlen(val)) < 0) return -1;
+    if(append_bytes(buf, len, cap, val, vlen) < 0) return -1;
     return append_bytes(buf, len, cap, "\n", 1);
+}
+
+static int append_pax_record(char **buf, size_t *len, size_t *cap, const char *key, const char *val){
+    return append_pax_record_n(buf, len, cap, key, val, strlen(val));
 }
 
 static const char *pax_fallback_name(const char *path){
@@ -1598,8 +1758,16 @@ static int ustar_name_ok(const char *path){
    hold: the path when want_path, the link target when given, each numeric
    field flagged in numext, and EXTRA (records already formatted: sparse and
    ACL keys). name is the member's path, used to name the header. */
+static int write_pax_ext_n(FILE *out, const char *name, int want_path, const char *linktarget, const struct stat *st, int numext,
+                           const char *extra, size_t extra_len);
 static int write_pax_ext(FILE *out, const char *name, int want_path, const char *linktarget, const struct stat *st, int numext,
                          const char *extra){
+    return write_pax_ext_n(out, name, want_path, linktarget, st, numext, extra, extra ? strlen(extra) : 0);
+}
+
+/* write_pax_ext with EXTRA_LEN bytes of EXTRA, which may hold NULs (GNU.dumpdir). */
+static int write_pax_ext_n(FILE *out, const char *name, int want_path, const char *linktarget, const struct stat *st, int numext,
+                           const char *extra, size_t extra_len){
     char *body = NULL; size_t len = 0, cap = 0; char num[32];
     if(want_path && append_pax_record(&body, &len, &cap, "path", name) < 0){ free(body); return -1; }
     if(linktarget && append_pax_record(&body, &len, &cap, "linkpath", linktarget) < 0){ free(body); return -1; }
@@ -1607,7 +1775,7 @@ static int write_pax_ext(FILE *out, const char *name, int want_path, const char 
     if(numext & PAX_EXT_UID){ snprintf(num, sizeof num, "%lu", (unsigned long)st->st_uid); if(append_pax_record(&body, &len, &cap, "uid", num) < 0){ free(body); return -1; } }
     if(numext & PAX_EXT_GID){ snprintf(num, sizeof num, "%lu", (unsigned long)st->st_gid); if(append_pax_record(&body, &len, &cap, "gid", num) < 0){ free(body); return -1; } }
     if(numext & PAX_EXT_MTIME){ snprintf(num, sizeof num, "%lld", (long long)st->st_mtime); if(append_pax_record(&body, &len, &cap, "mtime", num) < 0){ free(body); return -1; } }
-    if(extra && *extra && append_bytes(&body, &len, &cap, extra, strlen(extra)) < 0){ free(body); return -1; }
+    if(extra && extra_len && append_bytes(&body, &len, &cap, extra, extra_len) < 0){ free(body); return -1; }
     if(!body) return 0;
     struct stat xst = *st;
     xst.st_mode = 0644;
@@ -1809,8 +1977,20 @@ static int write_member(FILE *out, const char *path, struct bashos_pax_write_con
     return write_member_follow(out, path, ctx, ctx->dereference);
 }
 
+/* tar -N: whether ST is not older than the date (mtime, or ctime too). */
+static int pax_newer(const struct stat *st, const struct bashos_pax_write_context *ctx){
+    if(st->st_mtim.tv_sec > ctx->newer_sec ||
+       (st->st_mtim.tv_sec == ctx->newer_sec && st->st_mtim.tv_nsec >= ctx->newer_nsec)) return 1;
+    return ctx->newer_ctime && (st->st_ctim.tv_sec > ctx->newer_sec ||
+           (st->st_ctim.tv_sec == ctx->newer_sec && st->st_ctim.tv_nsec >= ctx->newer_nsec));
+}
+
 static int write_member_named(FILE *out, const char *path, const char *arc, struct stat *stp,
                               struct bashos_pax_write_context *ctx){
+    if(ctx->newer_set && !S_ISDIR(stp->st_mode) && !pax_newer(stp, ctx)){
+        if(ctx->verbose_out) builtin_error("%s: file is unchanged; not dumped", path);
+        return 0;
+    }
     struct stat st = *stp;
     if(ctx->override_mtime) st.st_mtime = ctx->mtime;
     if(ctx->override_uid) st.st_uid = (uid_t)ctx->uid;
@@ -1853,6 +2033,9 @@ static int write_member_named(FILE *out, const char *path, const char *arc, stru
     if(numext && fmt == BASHOS_PAX_FMT_V7 && !skip_header){
         builtin_error("%s: value out of range for the v7 format; not dumped", path); free(extra); return 1;
     }
+    hdr_incremental = ctx->incremental;
+    if(ctx->verbose_out && !skip_header)
+        fprintf(ctx->verbose_out, "%s%s\n", arc, S_ISDIR(st.st_mode) && arc[strlen(arc)-1] != '/' ? "/" : "");
 
     if(S_ISDIR(st.st_mode)){
         if(!skip_header){
@@ -2013,8 +2196,55 @@ static int write_member_named(FILE *out, const char *path, const char *arc, stru
 
 int bashos_pax_write_member_context(FILE *out, const char *path, struct bashos_pax_write_context *ctx){
     int rc = write_member_follow(out, path, ctx, ctx->dereference || ctx->dereference_operands) || ferror(out);
-    hdr_format = BASHOS_PAX_FMT_DEFAULT;
+    hdr_format = BASHOS_PAX_FMT_DEFAULT; hdr_incremental = 0;
     return rc;
+}
+
+int bashos_pax_excluded(const struct bashos_pax_write_context *ctx, const char *path){
+    return member_excluded(ctx, path);
+}
+
+char *bashos_pax_member_name(const struct bashos_pax_write_context *ctx, const char *path){
+    return archive_name(ctx, path, XF_REG);
+}
+
+int bashos_pax_write_dumpdir(FILE *out, const char *path, const struct stat *stp,
+                             const char *dumpdir, size_t len, struct bashos_pax_write_context *ctx){
+    struct stat st = *stp;
+    if(ctx->override_mtime) st.st_mtime = ctx->mtime;
+    if(ctx->override_uid) st.st_uid = (uid_t)ctx->uid;
+    if(ctx->override_gid) st.st_gid = (gid_t)ctx->gid;
+    hdr_uname = ctx->set_uname ? ctx->uname : owner_name(st.st_uid);
+    hdr_gname = ctx->set_gname ? ctx->gname : group_name(st.st_gid);
+    char *arc = archive_name(ctx, path, XF_REG);
+    if(!arc){ builtin_error("out of memory"); return 1; }
+    if(!*arc){ free(arc); return 0; }
+    size_t alen = strlen(arc);
+    char *named = malloc(alen + 2);
+    if(!named){ free(arc); builtin_error("out of memory"); return 1; }
+    snprintf(named, alen + 2, "%s%s", arc, arc[alen-1] == '/' ? "" : "/");
+    int fmt = ctx->format, bad = 0;
+    hdr_format = fmt; hdr_incremental = 1;
+    if(ctx->verbose_out) fprintf(ctx->verbose_out, "%s\n", named);
+    int numext = pax_numeric_ext(&st, 0);
+    if(fmt == BASHOS_PAX_FMT_GNU || fmt == BASHOS_PAX_FMT_OLDGNU){
+        int long_name = strlen(named) > (fmt == BASHOS_PAX_FMT_OLDGNU ? 99U : 100U);
+        st.st_size = (off_t)len;
+        bad = emit_ext(out, fmt, named, long_name, NULL, 0, &st, numext, NULL) < 0 ||
+              (hdr_format = fmt, write_header(out, named, &st, 'D', NULL) < 0) ||
+              fwrite(dumpdir, 1, len, out) != len;
+        for(size_t i = len; !bad && i % 512; i++) fputc(0, out);
+    } else {
+        char *recs = NULL; size_t rl = 0, rcap = 0;
+        int need_path = !ustar_name_ok(arc);
+        bad = append_pax_record_n(&recs, &rl, &rcap, "GNU.dumpdir", dumpdir, len) < 0 ||
+              write_pax_ext_n(out, arc, need_path, NULL, &st, numext, recs, rl) < 0 ||
+              (hdr_format = fmt, write_header(out, need_path ? pax_fallback_name(arc) : arc, &st, '5', NULL) < 0);
+        free(recs);
+    }
+    free(named); free(arc);
+    hdr_format = BASHOS_PAX_FMT_DEFAULT; hdr_incremental = 0;
+    return bad || ferror(out) ? 1 : 0;
 }
 
 int bashos_pax_write_member(FILE *out, const char *path, int no_recurse){

@@ -36,6 +36,7 @@
 
 #include "loadables.h"
 #include "command-run.h"
+#include "shim-prog-name.h"
 #include "trap.h"   /* signal_is_trapped / signal_is_hard_ignored */
 
 /* GNU env (coreutils) exits 125 (EXIT_CANCELED) for EVERY usage/option error
@@ -48,6 +49,19 @@
 #ifndef BASHENV_USAGE_ERR
 #  define BASHENV_USAGE_ERR 125
 #endif
+
+/* glibc getopt's "option requires an argument" for short option C (or the
+   long option NAME), then coreutils' hint; env's usage status. */
+static int
+bashenv_missing_arg (char c, const char *name)
+{
+    if (name)
+        builtin_error ("option '%s' requires an argument", name);
+    else
+        builtin_error ("option requires an argument -- '%c'", c);
+    bos_shim_try_help ("env");
+    return BASHENV_USAGE_ERR;
+}
 
 extern char **environ;
 extern char *env_doc[];
@@ -553,7 +567,7 @@ env_builtin (WORD_LIST *list)
             continue;
         }
         if (!options_done && !operands_started && (!strcmp (w, "-u") || !strcmp (w, "--unset"))) {
-            if (!list->next) { builtin_error ("-u needs NAME"); return BASHENV_USAGE_ERR; }
+            if (!list->next) return bashenv_missing_arg ('u', w[1] == '-' ? w : NULL);
             list = list->next;
             if (n_unset >= (int) (sizeof unsetv / sizeof unsetv[0])) {
                 builtin_error ("too many -u entries");
@@ -573,7 +587,7 @@ env_builtin (WORD_LIST *list)
             continue;
         }
         if (!options_done && !operands_started && (!strcmp (w, "-C") || !strcmp (w, "--chdir"))) {
-            if (!list->next) { builtin_error ("-C needs DIR"); return BASHENV_USAGE_ERR; }
+            if (!list->next) return bashenv_missing_arg ('C', w[1] == '-' ? w : NULL);
             list = list->next;
             newdir = list->word->word;
             list = list->next;
@@ -585,7 +599,7 @@ env_builtin (WORD_LIST *list)
             continue;
         }
         if (!options_done && !operands_started && (!strcmp (w, "-a") || !strcmp (w, "--argv0"))) {
-            if (!list->next) { builtin_error ("-a needs ARG"); return BASHENV_USAGE_ERR; }
+            if (!list->next) return bashenv_missing_arg ('a', w[1] == '-' ? w : NULL);
             list = list->next;
             argv0_override = list->word->word;
             list = list->next;
@@ -597,7 +611,7 @@ env_builtin (WORD_LIST *list)
             continue;
         }
         if (!options_done && !operands_started && (!strcmp (w, "-S") || !strcmp (w, "--split-string"))) {
-            if (!list->next) { builtin_error ("-S needs STRING"); return BASHENV_USAGE_ERR; }
+            if (!list->next) return bashenv_missing_arg ('S', w[1] == '-' ? w : NULL);
             list = list->next;
             int sr = bashenv_split_string (list->word->word, &split_argv, &split_argc);
             if (sr < 0) {
@@ -642,10 +656,55 @@ env_builtin (WORD_LIST *list)
                 builtin_error ("use -[v]S to pass options in shebang lines");
                 return BASHENV_USAGE_ERR;
             }
-            /* Unknown flag — could be CMD starting with -; POSIX uses
-               first non-flag, non-NAME=VAL token as CMD, so leave it
-               alone. */
-            break;
+            /* Any other word starting with '-' before the command is an
+               option to GNU env (getopt; a command whose name starts with
+               '-' follows "--"): an unknown one is a usage error (125). A
+               cluster of short options is read as getopt reads it. */
+            if (w[1] == '-') {
+                builtin_error ("unrecognized option '%s'", w);
+                bos_shim_try_help ("env");
+                return BASHENV_USAGE_ERR;
+            }
+            int split_now = 0;
+            for (const char *c = w + 1; *c; c++) {
+                if (*c == 'i') { clean = 1; continue; }
+                if (*c == 'v') { debug = 1; continue; }
+                if (*c == '0') { null_delim = 1; continue; }
+                if (!strchr ("uCaS", *c)) {
+                    builtin_error ("invalid option -- '%c'", *c);
+                    bos_shim_try_help ("env");
+                    return BASHENV_USAGE_ERR;
+                }
+                const char *arg = c[1] ? c + 1 : NULL;
+                if (!arg) {
+                    if (!list->next) return bashenv_missing_arg (*c, NULL);
+                    list = list->next;
+                    arg = list->word->word;
+                }
+                if (*c == 'u') {
+                    if (n_unset >= (int) (sizeof unsetv / sizeof unsetv[0])) {
+                        builtin_error ("too many -u entries");
+                        return BASHENV_USAGE_ERR;
+                    }
+                    unsetv[n_unset++] = arg;
+                } else if (*c == 'C') {
+                    newdir = arg;
+                } else if (*c == 'a') {
+                    argv0_override = arg;
+                } else {
+                    int sr = bashenv_split_string (arg, &split_argv, &split_argc);
+                    if (sr < 0) {
+                        if (sr == -1)
+                            builtin_error ("malloc: %s", strerror (errno));
+                        return sr == -2 ? BASHENV_USAGE_ERR : EXECUTION_FAILURE;
+                    }
+                    split_now = 1;
+                }
+                break;
+            }
+            list = list->next;
+            if (split_now) break;
+            continue;
         }
         /* NAME=VALUE? */
         const char *eq = strchr (w, '=');
