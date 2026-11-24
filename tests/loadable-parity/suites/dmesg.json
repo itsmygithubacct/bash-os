@@ -95,9 +95,9 @@
     {
       "id": "invalid-level-usage",
       "kind": "contract",
-      "purpose": "Check that an invalid level is rejected as a Bash builtin usage error before attempting to open even the relative fixture path.",
+      "purpose": "Check that an invalid level is rejected before attempting to open even the relative fixture path, with util-linux dmesg's status 1 (pass 8, G120: dmesg -l unknown prints \"unknown level 'unknown'\" and exits 1).",
       "script": "BASHDMESG_DEV_KMSG_FILE=missing-fixture dmesg -l unknown",
-      "expected_status": 2,
+      "expected_status": 1,
       "stdout": "",
       "stderr": "nonempty"
     },

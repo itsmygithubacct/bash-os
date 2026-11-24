@@ -29,6 +29,7 @@
 #include <fcntl.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 struct bc_line {
     char *buf;
@@ -333,8 +334,7 @@ comm_builtin (WORD_LIST *list)
         }
         if (!strcmp (w, "--output-delimiter")) {
             if (!list->next) {
-                builtin_error ("--output-delimiter needs an argument");
-                builtin_usage ();
+                bos_shim_missing_arg (w, 0, "comm");
                 return EXECUTION_FAILURE;
             }
             const char *newsep = list->next->word->word;
@@ -348,10 +348,9 @@ comm_builtin (WORD_LIST *list)
             continue;
         }
         if (!strcmp (w, "--")) { list = list->next; break; }
-        /* Reject long-option-style --foo as unknown flag. */
+        /* An unknown long option, in GNU's words. */
         if (w[1] == '-' && w[2] != '\0') {
-            builtin_error ("unknown flag: %s", w);
-            builtin_usage ();
+            bos_shim_bad_option (w, 0, "comm");
             return EXECUTION_FAILURE;
         }
         for (const char *c = w + 1; *c; c++) {
@@ -361,8 +360,7 @@ comm_builtin (WORD_LIST *list)
                 case '3': suppress[2] = 1; break;
                 case 'z': delim = '\0'; break;
                 default:
-                    builtin_error ("unknown flag: -%c", *c);
-                    builtin_usage ();
+                    bos_shim_bad_option (w, *c, "comm");
                     return EXECUTION_FAILURE;
             }
         }
@@ -371,17 +369,17 @@ comm_builtin (WORD_LIST *list)
     /* Operand-count diagnostics mirror GNU comm's wording. */
     if (!list) {
         builtin_error ("missing operand");
-        builtin_usage ();
+        bos_shim_try_help ("comm");
         return EXECUTION_FAILURE;
     }
     if (!list->next) {
         builtin_error ("missing operand after '%s'", list->word->word);
-        builtin_usage ();
+        bos_shim_try_help ("comm");
         return EXECUTION_FAILURE;
     }
     if (list->next->next) {
         builtin_error ("extra operand '%s'", list->next->next->word->word);
-        builtin_usage ();
+        bos_shim_try_help ("comm");
         return EXECUTION_FAILURE;
     }
     const char *p1 = list->word->word;

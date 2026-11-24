@@ -22,6 +22,7 @@
 #include <ctype.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 static int
 bhid_read_machine_id (const char *path, unsigned long *out)
@@ -87,9 +88,18 @@ hostid_builtin (WORD_LIST *list)
         }
     }
 
+    /* GNU: options are errors; "--" ends them; any operand is extra. */
+    if (list && list->word->word[0] == '-' && list->word->word[1]
+        && strcmp (list->word->word, "--")) {
+        const char *w = list->word->word;
+        bos_shim_bad_option (w, w[1], "hostid");
+        return EXECUTION_FAILURE;
+    }
+    if (list && !strcmp (list->word->word, "--"))
+        list = list->next;
     if (list) {
-        builtin_error ("hostid takes no arguments");
-        builtin_usage ();
+        builtin_error ("extra operand '%s'", list->word->word);
+        bos_shim_try_help ("hostid");
         return EXECUTION_FAILURE;
     }
     const char *machine_id_path = getenv ("BASHHOSTID_MACHINE_ID_PATH");

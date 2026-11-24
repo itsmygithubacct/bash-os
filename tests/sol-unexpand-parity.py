@@ -131,10 +131,12 @@ with tempfile.TemporaryDirectory(prefix='sol-unexpand-') as d:
                               input=b'', env={'LC_ALL': 'C'}, timeout=20)
         assert got.returncode == want.returncode == 1 and got.stderr and not got.stdout, (opt, got, want)
         checks += 1
-    # Current builtin bounds: 64 stops and INT_MAX tab widths.
+    # Widths above INT_MAX and more than 64 stops are accepted, as GNU does.
     for spec in ['2147483648', '3,/2147483648', ','.join(map(str, range(1, 66)))]:
         got = shell('unexpand -t "$1"', [spec])
-        assert got.returncode == 1 and got.stderr, (spec, got)
+        want = subprocess.run(['/usr/bin/unexpand', '-t', spec], capture_output=True,
+                              input=b'', env={'LC_ALL': 'C'}, timeout=20)
+        assert got.returncode == want.returncode == 0 and not got.stderr, (spec, got, want)
         checks += 1
     first.write_bytes(b'alpha   beta    gamma\n' * 5000 + b'\0        end')
     wanted = subprocess.check_output(['/usr/bin/unexpand', '-a', str(first)])

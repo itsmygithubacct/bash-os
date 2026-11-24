@@ -7,7 +7,8 @@
     "--help usage and --version/-v aliases",
     "missing -p and -u arguments and rejection of a nonnumeric operand",
     "GNU lsof comparison of missing -p argument status",
-    "deferred controlled PID, user-filter, and process-table queries"
+    "deferred controlled PID, user-filter, and process-table queries",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "No lsof case enumerates or reads /proc during validation.",
@@ -96,6 +97,18 @@
       "kind": "deferred",
       "purpose": "Qualify default whole-table enumeration and filtering over a deterministic process set.",
       "reason": "Requires a disposable Linux VM with an isolated, bounded PID namespace and only controlled processes, or a reviewed procfs mock. Compare no-argument and filtered output with GNU lsof there; the current fixture runner must not walk /proc."
+    },
+    {
+      "id": "pass8-unknown-option",
+      "kind": "parity",
+      "purpose": "G120: lsof names the rejected option character on its first line; the status is 1.",
+      "requires": [
+        "lsof",
+        "sed"
+      ],
+      "script": "rc=0\nout=$(lsof -Y 2>&1) || rc=$?\nprintf '%s\\n' \"$out\" | sed -n '1,1p'\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

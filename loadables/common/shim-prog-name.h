@@ -36,4 +36,55 @@ bos_shim_try_help (const char *fallback)
     fprintf (stderr, "Try '%s --help' for more information.\n", bos_shim_prog_name (fallback));
 }
 
+/* glibc getopt's diagnostic for an unknown option in WORD, then the Try
+   line: "unrecognized option '--name'" for a long option (WORD starts with
+   "--"), else "invalid option -- 'C'" for the offending character C of a
+   short-option cluster. The caller returns its command's usage status
+   (1 for most coreutils, 2 for sort, cmp, diff, grep, ...). */
+static inline void
+bos_shim_bad_option (const char *word, int c, const char *fallback)
+{
+    fflush (stdout);
+    if (word[0] == '-' && word[1] == '-')
+        builtin_error ("unrecognized option '%s'", word);
+    else
+        builtin_error ("invalid option -- '%c'", c);
+    bos_shim_try_help (fallback);
+}
+
+/* glibc getopt's diagnostic for an option missing its argument: "option
+   '--name' requires an argument" for a long option WORD (any "=VALUE"
+   part is not shown), else "option requires an argument -- 'C'"; then the
+   Try line. */
+static inline void
+bos_shim_missing_arg (const char *word, int c, const char *fallback)
+{
+    fflush (stdout);
+    if (word[0] == '-' && word[1] == '-')
+        builtin_error ("option '%.*s' requires an argument", (int) strcspn (word, "="), word);
+    else
+        builtin_error ("option requires an argument -- '%c'", c);
+    bos_shim_try_help (fallback);
+}
+
+/* A procps tool's usage error (free, vmstat, pgrep, sysctl, ...): the
+   getopt diagnostic for WORD as above (none when WORD is NULL), then a
+   blank line, "Usage:", " NAME ARGS" and the manual pointer, all on
+   stderr; SECTION is the manual section. The caller returns the tool's
+   usage status. */
+static inline void
+bos_shim_procps_usage (const char *word, int c, const char *args,
+                       const char *section, const char *fallback)
+{
+    const char *name = bos_shim_prog_name (fallback);
+
+    fflush (stdout);
+    if (word && word[0] == '-' && word[1] == '-')
+        builtin_error ("unrecognized option '%s'", word);
+    else if (word)
+        builtin_error ("invalid option -- '%c'", c);
+    fprintf (stderr, "\nUsage:\n %s %s\n\nFor more details see %s(%s).\n",
+             name, args, name, section);
+}
+
 #endif

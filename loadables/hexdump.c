@@ -50,6 +50,7 @@
 #include <limits.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 #define HD_LINE 16   /* 16 bytes per output line — fixed for both formats */
 
@@ -691,75 +692,106 @@ hd_open (const char *path, FILE **input)
     return f;
 }
 
+/* One option, short or long: 0 to go on, 1 when --help was printed,
+   -1 on a bad value. */
+static int
+hd_option (hd_opts *o, int c, const char *arg)
+{
+    switch (c) {
+    case 'h':
+        for (char **dp = hexdump_doc; *dp; dp++) puts (*dp);
+        return 1;
+    case 'C': o->canonical = 1; return 0;
+    case 'v': o->verbose = 1; return 0;   /* disable the '*' folding of duplicate rows */
+    case 'n': return hd_parse_count (arg, &o->limit, "-n LIMIT") < 0 ? -1 : 0;
+    case 's': return hd_parse_count (arg, &o->skip, "-s OFFSET") < 0 ? -1 : 0;
+    case 'e': o->format = (char *) arg; return 0;
+    /* util-linux one-letter format shortcuts. Each sets o->format to the
+       canonical string; the trailing offset line at end-of-builtin
+       already matches the %07.7_Ax format these expect. */
+    case 'b': o->format = "\"%07.7_ax \" 16/1 \"%03o \" \"\\n\"";   o->shortcut = 1; return 0;
+    case 'c': o->format = "\"%07.7_ax \" 16/1 \"%3_c \" \"\\n\"";   o->shortcut = 1; return 0;
+    case 'd': o->format = "\"%07.7_ax \" 8/2 \"  %05u \" \"\\n\"";  o->shortcut = 1; return 0;
+    case 'o': o->format = "\"%07.7_ax \" 8/2 \" %06o \" \"\\n\"";   o->shortcut = 1; return 0;
+    case 'x': o->format = "\"%07.7_ax \" 8/2 \"   %04x \" \"\\n\"";  o->shortcut = 1; return 0;
+    }
+    return -1;
+}
+
 int
 hexdump_builtin (WORD_LIST *list)
 {
     hd_opts o = { .canonical = 0, .format = NULL, .limit = -1, .skip = 0, .verbose = 0 };
 
-    /* Manual argv scan for separate short options and attached -n/-s/-e
-       arguments. Stop on the first non-flag word or `--`. */
+    /* Options as getopt takes them: clusters of one-letter flags
+       ("-Cv", "-vC"), an option's argument attached ("-n4", "-ve FMT"'s
+       "-eFMT") or in the next word, and the long names of the util-linux
+       manual, by any unambiguous prefix, with "=VALUE" or the next word.
+       Stop on the first operand or "--". Errors exit 1. */
+    static const struct { const char *name; char c; int arg; } hd_long[] = {
+        { "one-byte-octal", 'b', 0 }, { "one-byte-char", 'c', 0 },
+        { "canonical", 'C', 0 }, { "two-bytes-decimal", 'd', 0 },
+        { "two-bytes-octal", 'o', 0 }, { "two-bytes-hex", 'x', 0 },
+        { "format", 'e', 1 }, { "length", 'n', 1 }, { "skip", 's', 1 },
+        { "no-squeezing", 'v', 0 }, { "help", 'h', 0 },
+    };
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
         if (!strcmp (w, "--")) { list = list->next; break; }
-        if (!strcmp (w, "-h") || !strcmp (w, "--help")) {
-            for (char **dp = hexdump_doc; *dp; dp++) puts (*dp);
-            return EXECUTION_SUCCESS;
-        }
-        if (!strcmp (w, "-C")) { o.canonical = 1; list = list->next; continue; }
-        if (!strcmp (w, "-n") || (!strncmp (w, "-n", 2) && w[2] != '\0')) {
-            const char *nv;
-            if (w[2] != '\0') {
-                nv = w + 2;
-            } else {
-                if (!list->next) { builtin_error ("-n needs LIMIT"); return EXECUTION_FAILURE; }
-                list = list->next;
-                nv = list->word->word;
+        if (w[1] == '-') {
+            const char *name = w + 2, *eq = strchr (name, '=');
+            size_t len = eq ? (size_t) (eq - name) : strlen (name);
+            int found = -1, matches = 0;
+            for (size_t k = 0; k < sizeof hd_long / sizeof hd_long[0]; k++) {
+                if (strncmp (hd_long[k].name, name, len)) continue;
+                if (!hd_long[k].name[len]) { found = (int) k; matches = 1; break; }
+                found = (int) k;
+                matches++;
             }
-            if (hd_parse_count (nv, &o.limit, "-n LIMIT") < 0) return EXECUTION_FAILURE;
-            list = list->next;
-            continue;
-        }
-        if (!strcmp (w, "-s") || (!strncmp (w, "-s", 2) && w[2] != '\0')) {
-            const char *sv;
-            if (w[2] != '\0') {
-                sv = w + 2;
-            } else {
-                if (!list->next) { builtin_error ("-s needs OFFSET"); return EXECUTION_FAILURE; }
-                list = list->next;
-                sv = list->word->word;
+            if (matches != 1) {
+                if (matches)
+                    builtin_error ("option '%.*s' is ambiguous", (int) (len + 2), w);
+                else
+                    builtin_error ("unrecognized option '%s'", w);
+                bos_shim_try_help ("hexdump");
+                return EXECUTION_FAILURE;
             }
-            if (hd_parse_count (sv, &o.skip, "-s OFFSET") < 0) return EXECUTION_FAILURE;
-            list = list->next;
-            continue;
-        }
-        if (!strcmp (w, "-e") || (!strncmp (w, "-e", 2) && w[2] != '\0')) {
-            if (w[2] != '\0') {
-                o.format = (char *)w + 2;
-            } else {
-                if (!list->next) { builtin_error ("-e needs FORMAT"); return EXECUTION_FAILURE; }
-                list = list->next;
-                o.format = list->word->word;
+            const char *arg = eq ? eq + 1 : NULL;
+            if (!hd_long[found].arg && arg) {
+                builtin_error ("option '--%s' doesn't allow an argument", hd_long[found].name);
+                bos_shim_try_help ("hexdump");
+                return EXECUTION_FAILURE;
             }
+            if (hd_long[found].arg && !arg) {
+                if (!list->next) {
+                    builtin_error ("option '--%s' requires an argument", hd_long[found].name);
+                    bos_shim_try_help ("hexdump");
+                    return EXECUTION_FAILURE;
+                }
+                list = list->next;
+                arg = list->word->word;
+            }
+            int r = hd_option (&o, hd_long[found].c, arg);
+            if (r != 0) return r < 0 ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
             list = list->next;
             continue;
         }
-        if (!strcmp (w, "-v")) {
-            o.verbose = 1;   /* disable the '*' folding of duplicate rows */
-            list = list->next;
-            continue;
+        for (const char *cp = w + 1; *cp; cp++) {
+            const char *arg = NULL;
+            if (!strchr ("bcCdoxvhens", *cp)) {
+                bos_shim_bad_option (w, (unsigned char) *cp, "hexdump");
+                return EXECUTION_FAILURE;
+            }
+            if (strchr ("ens", *cp)) {
+                if (cp[1]) arg = cp + 1;
+                else if (list->next) { list = list->next; arg = list->word->word; }
+                else { bos_shim_missing_arg ("-", *cp, "hexdump"); return EXECUTION_FAILURE; }
+            }
+            int r = hd_option (&o, *cp, arg);
+            if (r != 0) return r < 0 ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+            if (arg) break;
         }
-        /* util-linux one-letter format shortcuts. Each sets o.format to
-           the canonical string (the same strings util-linux uses); the
-           trailing offset line at end-of-builtin already matches the
-           %07.7_Ax format these expect. */
-        if (!strcmp (w, "-b")) { o.format = "\"%07.7_ax \" 16/1 \"%03o \" \"\\n\"";   o.shortcut = 1; list = list->next; continue; }
-        if (!strcmp (w, "-c")) { o.format = "\"%07.7_ax \" 16/1 \"%3_c \" \"\\n\"";   o.shortcut = 1; list = list->next; continue; }
-        if (!strcmp (w, "-d")) { o.format = "\"%07.7_ax \" 8/2 \"  %05u \" \"\\n\"";  o.shortcut = 1; list = list->next; continue; }
-        if (!strcmp (w, "-o")) { o.format = "\"%07.7_ax \" 8/2 \" %06o \" \"\\n\"";   o.shortcut = 1; list = list->next; continue; }
-        if (!strcmp (w, "-x")) { o.format = "\"%07.7_ax \" 8/2 \"   %04x \" \"\\n\"";  o.shortcut = 1; list = list->next; continue; }
-        builtin_error ("unknown flag: %s (try -C, -n, -s, --help)", w);
-        builtin_usage ();
-        return EXECUTION_FAILURE;
+        list = list->next;
     }
 
     if (o.format) {

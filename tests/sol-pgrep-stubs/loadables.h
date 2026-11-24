@@ -16,6 +16,15 @@ static void builtin_error(const char *format, ...) {
 /* Bash's $$. The harness is not a shell, so no ancestor is the invoking
    shell and only the harness process itself counts as a shell copy. */
 pid_t dollar_dollar_pid;
+/* The shell variables shim-prog-name.h reads. The harness has none, so
+   diagnostics use the command's own name, as outside the /bin shim. */
+typedef struct variable { char *value; int attributes; } SHELL_VAR;
+char *this_command_name;
+static SHELL_VAR *find_variable(const char *name) { (void) name; return 0; }
+#define exported_p(var) ((var)->attributes & 1)
+#define array_p(var) ((var)->attributes & 4)
+#define assoc_p(var) ((var)->attributes & 64)
+#define value_cell(var) ((var)->value)
 static int sh_chkwrite(int status) {
     if (fflush(stdout) == EOF || ferror(stdout)) {
         builtin_error("write error");

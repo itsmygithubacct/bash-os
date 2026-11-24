@@ -10,7 +10,8 @@
     "Explicit sorted-order failure and --nocheck-order behavior on unsorted fixture data.",
     "Missing operand and missing relative input-file errors.",
     "Bash metadata: comm is available as a builtin with an empty candidate PATH.",
-    "Repeated stdin redirections in one shell, with stdin in either operand position."
+    "Repeated stdin redirections in one shell, with stdin in either operand position.",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "Write-failure behavior against device-backed sinks is omitted; all fixture paths remain relative and regular-file based.",
@@ -168,6 +169,50 @@
       ],
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option is reported as comm reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "comm"
+      ],
+      "script": "rc=0\ncomm --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option is reported as comm reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "comm"
+      ],
+      "script": "rc=0\ncomm -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-operands",
+      "kind": "parity",
+      "purpose": "G120: operand errors in GNU form.",
+      "requires": [
+        "comm"
+      ],
+      "script": "rc=0\n: > a || rc=$?\necho \"rc=$rc\"\nrc=0\ncomm || rc=$?\necho \"rc=$rc\"\nrc=0\ncomm a || rc=$?\necho \"rc=$rc\"\nrc=0\ncomm a a a || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-argument",
+      "kind": "parity",
+      "purpose": "G120: --output-delimiter without its argument.",
+      "requires": [
+        "comm"
+      ],
+      "script": "rc=0\ncomm --output-delimiter || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

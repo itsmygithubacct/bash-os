@@ -39,6 +39,8 @@
 #include <sys/stat.h>
 
 #include "loadables.h"
+#include "gnu-quote.h"
+#include "shim-prog-name.h"
 
 typedef struct {
     int   field1;       /* 1-based; 0 = an index beyond INT_MAX (missing) */
@@ -390,6 +392,16 @@ bj_open_input (const char *name)
     return input;
 }
 
+/* GNU join's diagnostic for a bad option argument: WHAT (with any colon)
+   then the quoted value; usage errors exit 1. */
+static void
+bj_bad_value (const char *what, const char *value)
+{
+    char *q = bos_quote (value);
+    builtin_error ("%s %s", what, q ? q : value);
+    free (q);
+}
+
 static int
 bj_join (WORD_LIST *list, bj_opts *o)
 {
@@ -436,19 +448,22 @@ bj_join (WORD_LIST *list, bj_opts *o)
         const char *arg;
         switch (flag) {
             case 'i':
-                if (attached) { builtin_error ("unknown flag: %s", w); builtin_usage (); return EX_USAGE; }
+                if (attached && attached[strspn (attached, "i")]) {
+                    bos_shim_bad_option (w, attached[strspn (attached, "i")], "join");
+                    return EXECUTION_FAILURE;
+                }
                 o->ignore_case = 1;
                 list = list->next;
                 continue;
             case '1': case '2': case 'j': {
                 arg = bj_optarg (&list, attached);
-                if (!arg) { builtin_error ("-%c needs N", flag); builtin_usage (); return EX_USAGE; }
+                if (!arg) { bos_shim_missing_arg ("-", flag, "join"); return EXECUTION_FAILURE; }
                 char *end;
                 errno = 0;
                 const char *digits = arg;
                 while (isspace ((unsigned char) *digits)) digits++;
                 uintmax_t fld = strtoumax (arg, &end, 10);
-                if (*digits == '-' || end == arg || *end || fld == 0) { builtin_error ("invalid field number: %s", arg); builtin_usage (); return EX_USAGE; }
+                if (*digits == '-' || end == arg || *end || fld == 0) { bj_bad_value ("invalid field number:", arg); return EXECUTION_FAILURE; }
                 int field = fld > INT_MAX ? 0 : (int) fld;
                 if (flag == '1' || flag == 'j') o->field1 = field;
                 if (flag == '2' || flag == 'j') o->field2 = field;
@@ -457,10 +472,14 @@ bj_join (WORD_LIST *list, bj_opts *o)
             }
             case 't': {
                 arg = bj_optarg (&list, attached);
-                if (!arg || arg[0] == '\0' || arg[1] != '\0') {
+                if (!arg) { bos_shim_missing_arg ("-", 't', "join"); return EXECUTION_FAILURE; }
+                if (arg[0] != '\0' && arg[1] != '\0') {
+                    bj_bad_value ("multi-character tab", arg);
+                    return EXECUTION_FAILURE;
+                }
+                if (arg[0] == '\0') {
                     builtin_error ("-t: SEP must be a single byte");
-                    builtin_usage ();
-                    return EX_USAGE;
+                    return EXECUTION_FAILURE;
                 }
                 o->sep = (unsigned char) arg[0];
                 list = list->next;
@@ -468,10 +487,10 @@ bj_join (WORD_LIST *list, bj_opts *o)
             }
             case 'a': case 'v': {
                 arg = bj_optarg (&list, attached);
-                if (!arg || (strcmp (arg, "1") && strcmp (arg, "2"))) {
-                    builtin_error ("-%c: must be 1 or 2", flag);
-                    builtin_usage ();
-                    return EX_USAGE;
+                if (!arg) { bos_shim_missing_arg ("-", flag, "join"); return EXECUTION_FAILURE; }
+                if (strcmp (arg, "1") && strcmp (arg, "2")) {
+                    bj_bad_value ("invalid file number:", arg);
+                    return EXECUTION_FAILURE;
                 }
                 if (arg[0] == '1') o->show_unmatched_1 = 1;
                 else               o->show_unmatched_2 = 1;
@@ -481,14 +500,14 @@ bj_join (WORD_LIST *list, bj_opts *o)
             }
             case 'e': {
                 arg = bj_optarg (&list, attached);
-                if (!arg) { builtin_error ("-e needs STR"); builtin_usage (); return EX_USAGE; }
+                if (!arg) { bos_shim_missing_arg ("-", 'e', "join"); return EXECUTION_FAILURE; }
                 o->empty = arg;
                 list = list->next;
                 continue;
             }
             case 'o': {
                 arg = bj_optarg (&list, attached);
-                if (!arg) { builtin_error ("-o needs FORMAT"); builtin_usage (); return EX_USAGE; }
+                if (!arg) { bos_shim_missing_arg ("-", 'o', "join"); return EXECUTION_FAILURE; }
                 if (!strcmp (arg, "auto")) {
                     o->auto_fmt = 1;
                     list = list->next;
@@ -496,22 +515,29 @@ bj_join (WORD_LIST *list, bj_opts *o)
                 }
                 if (bj_parse_ofmt (o, arg) < 0) {
                     builtin_error ("-o: bad format: %s", arg);
-                    builtin_usage ();
-                    return EX_USAGE;
+                    return EXECUTION_FAILURE;
                 }
                 list = list->next;
                 continue;
             }
             default:
-                builtin_error ("unknown flag: %s", w);
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_bad_option (w, flag, "join");
+                return EXECUTION_FAILURE;
         }
     }
 
+    /* GNU join's operand diagnostics, status 1. */
     if (!list || !list->next || list->next->next) {
-        builtin_usage ();
-        return EX_USAGE;
+        char *q = list ? bos_quote (list->next ? list->next->next->word->word : list->word->word) : NULL;
+        if (!list)
+            builtin_error ("missing operand");
+        else if (!list->next)
+            builtin_error ("missing operand after %s", q ? q : list->word->word);
+        else
+            builtin_error ("extra operand %s", q ? q : list->next->next->word->word);
+        free (q);
+        bos_shim_try_help ("join");
+        return EXECUTION_FAILURE;
     }
     const char *p1 = list->word->word;
     const char *p2 = list->next->word->word;

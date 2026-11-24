@@ -9,7 +9,8 @@
     "Existence checking through the loadable's -c option.",
     "GNU's default handling of a missing final component and multiple operands with a missing parent.",
     "No-operand usage behavior compared with GNU coreutils.",
-    "Bash builtin type/help metadata and the loadable-only -a, -q, and -v contracts."
+    "Bash builtin type/help metadata and the loadable-only -a, -q, and -v contracts.",
+    "Pass 8 (G114): coreutils realpath options -e, -m, -L, -P, -s, -q, -z, --relative-to, --relative-base, long-option prefixes and ambiguity, and GNU diagnostics; -a and -v stay bash extensions."
   ],
   "exclusions": [
     "GNU-only realpath options such as --relative-to and -z are outside the Bash loadable's documented interface.",
@@ -228,6 +229,116 @@
       "expected_status": 0,
       "stdout": "rc=0\nstdout-only\n",
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-quiet",
+      "kind": "parity",
+      "purpose": "G114: -q suppresses diagnostics but still prints the resolved names.",
+      "requires": [
+        "realpath"
+      ],
+      "script": "mkdir -p d/e; ln -s d/e lnk; ln -s nosuch dang; : > f\nrc=0\nrealpath -q nosuch f nosuch/x || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-relative-to",
+      "kind": "parity",
+      "purpose": "G114: --relative-to prints names relative to a directory.",
+      "requires": [
+        "realpath"
+      ],
+      "script": "mkdir -p d/e; ln -s d/e lnk; ln -s nosuch dang; : > f\nrc=0\nrealpath --relative-to=d f && realpath --relative-t d/e f || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-ambiguous",
+      "kind": "parity",
+      "purpose": "G114: an ambiguous long-option prefix lists the candidates.",
+      "requires": [
+        "realpath"
+      ],
+      "script": "mkdir -p d/e; ln -s d/e lnk; ln -s nosuch dang; : > f\nrc=0\nrealpath --rel=d f || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-canonicalize-ambiguous",
+      "kind": "parity",
+      "purpose": "G114: --canonicalize is a prefix of two options.",
+      "requires": [
+        "realpath"
+      ],
+      "script": "mkdir -p d/e; ln -s d/e lnk; ln -s nosuch dang; : > f\nrc=0\nrealpath --canonicalize nosuch || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-requires-argument",
+      "kind": "parity",
+      "purpose": "G114: --relative-to needs an argument.",
+      "requires": [
+        "realpath"
+      ],
+      "script": "mkdir -p d/e; ln -s d/e lnk; ln -s nosuch dang; : > f\nrc=0\nrealpath --relative-to || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-no-argument",
+      "kind": "parity",
+      "purpose": "G114: a flag option given =VALUE is rejected.",
+      "requires": [
+        "realpath"
+      ],
+      "script": "mkdir -p d/e; ln -s d/e lnk; ln -s nosuch dang; : > f\nrc=0\nrealpath --quiet=x f || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-operand",
+      "kind": "parity",
+      "purpose": "G114: no operand is a usage error.",
+      "requires": [
+        "realpath"
+      ],
+      "script": "mkdir -p d/e; ln -s d/e lnk; ln -s nosuch dang; : > f\nrc=0\nrealpath || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-options-anywhere",
+      "kind": "parity",
+      "purpose": "G114: options may follow operands; -- ends them.",
+      "requires": [
+        "realpath"
+      ],
+      "script": "mkdir -p d/e; ln -s d/e lnk; ln -s nosuch dang; : > f\nrc=0\nrealpath f -s -- -x || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-empty",
+      "kind": "parity",
+      "purpose": "G114: an empty operand is reported quoted.",
+      "requires": [
+        "realpath"
+      ],
+      "script": "mkdir -p d/e; ln -s d/e lnk; ln -s nosuch dang; : > f\nrc=0\nrealpath '' || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-option",
+      "kind": "parity",
+      "purpose": "G114: unknown options in GNU form.",
+      "requires": [
+        "realpath"
+      ],
+      "script": "mkdir -p d/e; ln -s d/e lnk; ln -s nosuch dang; : > f\nrc=0\nrealpath --bogus || rc=$?\necho \"rc=$rc\"\nrc=0\nrealpath -Y || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

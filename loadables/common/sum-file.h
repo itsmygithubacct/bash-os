@@ -11,9 +11,32 @@
 #include <fcntl.h>
 #include <ctype.h>
 
+#include "gnu-quote.h"
 #include "shim-prog-name.h"
 
 #define SUM_MAX_HEX 64
+
+/* GNU's name for a checksum list or a listed file in a diagnostic: quoted
+   only when needed, and standard input (a list read from "-") called
+   'standard input'. Each returns its own static buffer, replaced on the
+   next call. */
+static const char *
+sum_list_label (const char *file)
+{
+    static char *shown;
+    free (shown);
+    shown = bos_quotef (strcmp (file, "-") ? file : "standard input");
+    return shown ? shown : file;
+}
+
+static const char *
+sum_file_label (const char *file)
+{
+    static char *shown;
+    free (shown);
+    shown = bos_quotef (file);
+    return shown ? shown : file;
+}
 
 struct sum_options { int binary, zero, tag, check, quiet, status, strict, warn, ignore; };
 
@@ -24,7 +47,7 @@ static int sum_digest(const char *name, char hex[SUM_MAX_HEX + 1], int quiet_mis
     int fd = !strcmp(name, "-") ? 0 : open(name, O_RDONLY | O_CLOEXEC);
     *missing = fd < 0 && errno == ENOENT;
     if (fd < 0) {
-        if (!(quiet_missing && *missing)) builtin_error("%s: %s", name, strerror(errno));
+        if (!(quiet_missing && *missing)) builtin_error("%s: %s", sum_file_label(name), strerror(errno));
         return 1;
     }
     unsigned char data[32768], hash[SUM_MAX_HEX / 2];
@@ -42,7 +65,7 @@ static int sum_digest(const char *name, char hex[SUM_MAX_HEX + 1], int quiet_mis
     SUM_FREE(&ctx);
     if (fd && close(fd) < 0) rc = -1;
     if (rc) {
-        builtin_error("%s: cannot read or hash input", name);
+        builtin_error("%s: cannot read or hash input", sum_file_label(name));
         return 1;
     }
     for (int i = 0; i < SUM_HEX / 2; i++) snprintf(hex + 2 * i, 3, "%02x", hash[i]);
@@ -80,7 +103,7 @@ static int sum_unescape(char *s)
 static int sum_verify(const char *file, const struct sum_options *o)
 {
     FILE *f = !strcmp(file, "-") ? fdopen(dup(0), "r") : fopen(file, "r");
-    if (!f) { builtin_error("%s: %s", file, strerror(errno)); return 1; }
+    if (!f) { builtin_error("%s: %s", sum_file_label(file), strerror(errno)); return 1; }
     char *line = NULL;
     size_t cap = 0, number = 0, valid = 0, checked = 0, bad = 0, mismatched = 0, unreadable = 0;
     int rc = 0;
@@ -123,16 +146,16 @@ static int sum_verify(const char *file, const struct sum_options *o)
         continue;
 malformed:
         bad++;
-        if (o->warn && !o->status) builtin_error("%s: %zu: improperly formatted %s checksum line", file, number, SUM_TAG);
+        if (o->warn && !o->status) builtin_error("%s: %zu: improperly formatted %s checksum line", sum_list_label(file), number, SUM_TAG);
     }
-    if (ferror(f)) { if (!o->status) builtin_error("%s: read error", file); rc = 1; }
+    if (ferror(f)) { if (!o->status) builtin_error("%s: read error", sum_list_label(file)); rc = 1; }
     free(line);
     if (fclose(f)) rc = 1;
     /* GNU's summary: with no well-formed line only that error (shown even
        under --status); otherwise, unless --status, the WARNING counts and
        then "no file was verified" when --ignore-missing skipped them all. */
     if (!valid) {
-        builtin_error("%s: no properly formatted checksum lines found", file);
+        builtin_error("%s: no properly formatted checksum lines found", sum_list_label(file));
         rc = 1;
     } else {
         if (!o->status) {
@@ -141,7 +164,7 @@ malformed:
             if (mismatched) builtin_error("WARNING: %zu computed checksum%s did NOT match", mismatched, mismatched == 1 ? "" : "s");
         }
         if (!checked) {
-            if (!o->status) builtin_error("%s: no file was verified", file);
+            if (!o->status) builtin_error("%s: no file was verified", sum_list_label(file));
             rc = 1;
         }
     }

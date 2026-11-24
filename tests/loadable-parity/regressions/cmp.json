@@ -12,7 +12,8 @@
     "Unequal lengths and EOF diagnostic behavior",
     "Missing input and invalid skip count errors",
     "Bash builtin type and help metadata contract",
-    "GNU diffutils >= 3.4 'differ: byte N, line M' wording (guest pass 2 G35)"
+    "GNU diffutils >= 3.4 'differ: byte N, line M' wording (guest pass 2 G35)",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "No deferred cases: all selected operations use small private fixture files or bounded shell pipelines and require no privilege, hardware, network, terminal driver, or external mock.",
@@ -203,6 +204,39 @@
       "script": "printf abc > a; printf axc > b; printf 'l1\\nl2x\\n' > c; printf 'l1\\nl2y\\n' > d\nfor l in C.UTF-8 C POSIX; do export LC_ALL=$l; rc=0; cmp a b || rc=$?; echo rc=$rc; rc=0; cmp c d || rc=$?; echo rc=$rc; done\nunset LC_ALL; LC_MESSAGES=C.UTF-8 cmp a b || echo rc=$?; LANG=C.UTF-8 cmp c d || echo rc=$?",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option is reported as cmp reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "cmp"
+      ],
+      "script": "rc=0\ncmp --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option is reported as cmp reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "cmp"
+      ],
+      "script": "rc=0\ncmp -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-argument",
+      "kind": "parity",
+      "purpose": "G120: -n without its argument, status 2.",
+      "requires": [
+        "cmp"
+      ],
+      "script": "rc=0\ncmp -n || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

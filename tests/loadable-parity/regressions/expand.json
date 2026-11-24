@@ -12,7 +12,8 @@
     "Long-option aliases, options after operands, and -- for a dash-leading filename",
     "Missing-file failure while processing a valid file",
     "Fresh options and column state on repeated calls in one shell",
-    "Bash type/help metadata and documented invalid-option usage status"
+    "Bash type/help metadata and documented invalid-option usage status",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status. Pass 8 follow-up: -t TAB-LIST diagnostics (zero, invalid characters, ascending, too large, the \"/\" and \"+\" rules) and the accepted forms, with GNU status 1."
   ],
   "exclusions": [
     "Terminal newline flush while input remains open is deferred because this runner has no PTY driver or synchronized producer/consumer fixture.",
@@ -152,6 +153,138 @@
       "requires": [
         "expand"
       ]
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option is reported as expand reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "expand"
+      ],
+      "script": "rc=0\nexpand --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option is reported as expand reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "expand"
+      ],
+      "script": "rc=0\nexpand -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-argument",
+      "kind": "parity",
+      "purpose": "G120: -t and --tabs without an argument.",
+      "requires": [
+        "expand"
+      ],
+      "script": "rc=0\nexpand -t || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand --tabs || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-no-argument",
+      "kind": "parity",
+      "purpose": "G120: --initial takes no argument.",
+      "requires": [
+        "expand"
+      ],
+      "script": "rc=0\nexpand --initial=x || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-tablist-zero",
+      "kind": "parity",
+      "purpose": "A zero tab stop is \"tab size cannot be 0\", checked after all options.",
+      "requires": [
+        "expand"
+      ],
+      "script": "rc=0\nexpand -t '0' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '1,0' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '2,0,1' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '0,2,1' </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-tablist-invalid-character",
+      "kind": "parity",
+      "purpose": "A character outside the TAB-LIST grammar is quoted with the rest of the argument.",
+      "requires": [
+        "expand"
+      ],
+      "script": "rc=0\nexpand -t '-1' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t 'x' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '3x' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t 'x,0' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '1:2' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '/-3' </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-tablist-ascending",
+      "kind": "parity",
+      "purpose": "Stops that do not ascend, also across -t options.",
+      "requires": [
+        "expand"
+      ],
+      "script": "rc=0\nexpand -t '2,1' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '2,2' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '3,1,0' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '4' -t '2' </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-tablist-too-large",
+      "kind": "parity",
+      "purpose": "A stop above the signed maximum is too large; the rest of that argument is still checked.",
+      "requires": [
+        "expand"
+      ],
+      "script": "rc=0\nexpand -t '99999999999999999999' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '9223372036854775808' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '99999999999999999999,x' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '99999999999999999999,99999999999999999998' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '99999999999999999999' -t 'x' </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-tablist-only-last",
+      "kind": "parity",
+      "purpose": "Each extension once, and no explicit stop after it in the same argument.",
+      "requires": [
+        "expand"
+      ],
+      "script": "rc=0\nexpand -t '/2,/3' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '/2,4' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '+2,4' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '+2,+3' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '/2' -t '/0' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '4' -t '/2' -t '/3' </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-tablist-mutually-exclusive",
+      "kind": "parity",
+      "purpose": "'/' and '+' extensions together, reported after all options.",
+      "requires": [
+        "expand"
+      ],
+      "script": "rc=0\nexpand -t '+2,/3' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '/3' -t '+2' </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-tablist-not-at-start",
+      "kind": "parity",
+      "purpose": "A specifier directly after digits.",
+      "requires": [
+        "expand"
+      ],
+      "script": "rc=0\nexpand -t '2/3' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '2+3' </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-tablist-check-order",
+      "kind": "parity",
+      "purpose": "Which diagnostic wins when several apply.",
+      "requires": [
+        "expand"
+      ],
+      "script": "rc=0\nexpand -t '0,x' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '2,1x' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '0' -t 'x' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '0,+2,/3' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '+2,/3,x' </dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nexpand -t '0,/2,/3' </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

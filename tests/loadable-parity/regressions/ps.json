@@ -9,7 +9,8 @@
     "Full-format row layout, explicit PID-list order, and the documented [comm] fallback for empty cmdline.",
     "Procps-shaped lstart with a fixed boot time, local timezone, repeated -o options and empty headings.",
     "Exact synthetic PID selection and empty headers for -p and --pid; invalid attached, combined and repeated column options, missing column list, invalid PID list and unknown option.",
-    "G31: --no-headers, --sort, -C, --ppid, -L and the etimes/etime/%mem/ni/lwp/nlwp columns over a synthetic BASHOS_PROC_ROOT; invalid --sort/-C/--ppid arguments against procps."
+    "G31: --no-headers, --sort, -C, --ppid, -L and the etimes/etime/%mem/ni/lwp/nlwp columns over a synthetic BASHOS_PROC_ROOT; invalid --sort/-C/--ppid arguments against procps.",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "Full process-table enumeration and aux percentages/START values are deferred because a stable VM process set and procps comparison are required.",
@@ -238,6 +239,39 @@
       "script": "for a in -C --ppid '--ppid=x'; do rc=0; ps $a >/dev/null 2>&1 || rc=$?; echo \"$a $rc\"; done",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option is reported as ps reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "ps"
+      ],
+      "script": "rc=0\nps --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option is reported as ps reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "ps"
+      ],
+      "script": "rc=0\nps -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-exclusive-version",
+      "kind": "parity",
+      "purpose": "G120: -V combined with another option.",
+      "requires": [
+        "ps"
+      ],
+      "script": "rc=0\nps -VY || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

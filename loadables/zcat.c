@@ -23,6 +23,7 @@
 #include <zlib.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 /* BZ_WARNING: every member decoded, then trailing garbage was ignored
  * (gzip -cd exits 2 for it). */
@@ -220,9 +221,9 @@ zcat_builtin (WORD_LIST *list)
         else if (strcmp (w, "--stdout") && strcmp (w, "--to-stdout") && strcmp (w, "--decompress") &&
                  strcmp (w, "--no-name") && strcmp (w, "--name")) {
             if (w[1] == '-' || w[strspn (w + 1, "fcdnNq") + 1]) {
-                builtin_error ("%s: unsupported option", w);
-                builtin_usage ();
-                return EX_USAGE;
+                /* gzip's option error (status 1), naming zcat. */
+                bos_shim_bad_option (w, w[1] == '-' ? 0 : w[strspn (w + 1, "fcdnNq") + 1], "zcat");
+                return EXECUTION_FAILURE;
             }
             if (strchr (w, 'f')) force = 1;
             if (strchr (w, 'q')) quiet = 1;

@@ -569,6 +569,16 @@ class ShimCommandTests(BuiltinTest):
         self.assertEqual(result.stderr,
                          "kut: you must specify a list of bytes, characters, or fields\n"
                          "Try 'kut --help' for more information.\n")
+        # Pass 8 (G120): a usage line whose synopsis starts with the
+        # builtin's own name names the command as invoked, as the bashy-box
+        # alias builtins (bashsort, bashjoin, ...) need.
+        result = self.shell('BASHOS_SHIM_COMMAND=lsof=klsof; lsof -Y')
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr,
+                         "klsof: illegal option character: Y\nklsof: usage: klsof\n")
+        # Without the shim the synopsis is printed unchanged.
+        self.assertEqual(self.shell('lsof -Y').stderr,
+                         "lsof: illegal option character: Y\nlsof: usage: lsof\n")
 
     def test_ordinary_scripts_keep_bash_messages(self):
         # cat stands in for /usr/bin/cat, so it says "cat:" (G88); the shim

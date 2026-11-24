@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "loadable": "dmesg",
+  "reference": "util-linux dmesg, run by the harness with Bash as the reference shell and LC_ALL=C; only option errors are compared (status recorded on stdout, stderr bytes), which do not read the kernel log.",
+  "coverage": [
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
+  ],
+  "exclusions": [],
+  "cases": [
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option is reported as dmesg reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "dmesg"
+      ],
+      "script": "rc=0\ndmesg --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option is reported as dmesg reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "dmesg"
+      ],
+      "script": "rc=0\ndmesg -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-argument",
+      "kind": "parity",
+      "purpose": "G120: -f and --since without an argument.",
+      "requires": [
+        "dmesg"
+      ],
+      "script": "rc=0\ndmesg -f || rc=$?\necho \"rc=$rc\"\nrc=0\ndmesg --since || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-operand",
+      "kind": "parity",
+      "purpose": "G120: an operand is \"bad usage\".",
+      "requires": [
+        "dmesg"
+      ],
+      "script": "rc=0\ndmesg x || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    }
+  ]
+}

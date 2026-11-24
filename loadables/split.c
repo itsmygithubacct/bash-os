@@ -124,7 +124,8 @@ bs_make_name (char *out, size_t cap, const char *prefix, int suflen, long index,
     memcpy (out, prefix, plen);
     long max = 1;
     int base = numeric ? numeric : 26;
-    for (int i = 0; i < suflen; i++) max *= base;
+    /* base^suflen, saturating: a long suffix never runs out. */
+    for (int i = 0; i < suflen && max <= LONG_MAX / base; i++) max *= base;
     if (index >= max) return -1;
     for (int i = suflen - 1; i >= 0; i--) {
         out[plen + i] = numeric ? digits[index % base] : 'a' + (char) (index % base);
@@ -421,7 +422,7 @@ bs_put_piece (const unsigned char *data, size_t n, int to_stdout,
         if (bs_elide && n == 0)
             return 0;
         if (bs_make_name (namebuf, namecap, prefix, suflen, idx, numeric) < 0) {
-            builtin_error ("split: suffix exhausted (try larger -a)");
+            builtin_error ("output file suffixes exhausted");
             return -1;
         }
         *open_out = bs_open_output (namebuf, input_stat);
@@ -506,7 +507,7 @@ bs_split_chunks (FILE *fin, int mode, uintmax_t k, uintmax_t n, char *namebuf,
                 names[c] = malloc (namecap);
                 if (!names[c]) { builtin_error ("out of memory"); rc = -1; break; }
                 if (bs_make_name (names[c], namecap, prefix, suflen, start + (long) c, numeric) < 0) {
-                    builtin_error ("split: suffix exhausted (try larger -a)");
+                    builtin_error ("output file suffixes exhausted");
                     rc = -1;
                     break;
                 }
@@ -741,10 +742,17 @@ invalid_start:
             } else if (opt == 'n') {
                 chunks = v;
             } else if (opt == 'a') {
-                long long value = bs_parse_count (v);
+                /* GNU: any length; 0 means the default. */
                 if (!*v || strspn (v, "0123456789") != strlen (v)) { split_bad_value ("suffix length", v); return EXECUTION_FAILURE; }
-                if (value < 1 || value > 6) { builtin_error ("-a: SUFLEN must be in 1..6"); return EXECUTION_FAILURE; }
-                suflen = (int) value;
+                errno = 0;
+                long long value = strtoll (v, NULL, 10);
+                if (errno == ERANGE || value > INT_MAX - 64) {
+                    char *q = bos_quote (v);
+                    builtin_error ("invalid suffix length: %s: %s", q ? q : v, strerror (EOVERFLOW));
+                    free (q);
+                    return EXECUTION_FAILURE;
+                }
+                suflen = value ? (int) value : 2;
             } else {   /* -t SEP */
                 int sep;
                 if (!strcmp (v, "\\0"))
@@ -783,7 +791,7 @@ invalid_start:
 
     if (numeric) {
         long capacity = 1;
-        for (int i = 0; i < suflen; i++) capacity *= numeric;
+        for (int i = 0; i < suflen && capacity <= LONG_MAX / numeric; i++) capacity *= numeric;
         if (start >= capacity) {
             builtin_error ("numerical suffix start value is too large for the suffix length");
             return EXECUTION_FAILURE;
@@ -856,7 +864,7 @@ invalid_start:
             if (r == 0) break;
             if (fout == NULL) {
                 if (bs_make_name (namebuf, namecap, prefix, suflen, idx, numeric) < 0) {
-                    builtin_error ("split: suffix exhausted (try larger -a)");
+                    builtin_error ("output file suffixes exhausted");
                     rc = EXECUTION_FAILURE;
                     break;
                 }
@@ -906,7 +914,7 @@ invalid_start:
                 }
                 if (!fout) {
                     if (bs_make_name (namebuf, namecap, prefix, suflen, idx, numeric) < 0) {
-                        builtin_error ("split: suffix exhausted (try larger -a)");
+                        builtin_error ("output file suffixes exhausted");
                         rc = EXECUTION_FAILURE;
                         break;
                     }
@@ -936,7 +944,7 @@ invalid_start:
         while ((n = getdelim (&line, &cap, bs_sep, fin)) != -1) {
             if (lines_in_chunk == 0) {
                 if (bs_make_name (namebuf, namecap, prefix, suflen, idx, numeric) < 0) {
-                    builtin_error ("split: suffix exhausted (try larger -a)");
+                    builtin_error ("output file suffixes exhausted");
                     rc = EXECUTION_FAILURE;
                     break;
                 }
@@ -1003,7 +1011,7 @@ char *split_doc[] = {
     "                (one byte; '\\0' is NUL)",
     "    -u, --unbuffered  accepted; output is the same",
     "    --verbose   print \"creating file 'NAME'\" before each piece",
-    "    -a SUFLEN, --suffix-length=SUFLEN  suffix length (default 2)",
+    "    -a SUFLEN, --suffix-length=SUFLEN  suffix length (default 2; 0 = default)",
     "    -d, --numeric-suffixes[=FROM]  decimal suffixes (from FROM, default 0)",
     "    -x, --hex-suffixes[=FROM]      hexadecimal suffixes (FROM in hex)",
     "    --additional-suffix=SUFFIX     append SUFFIX (no '/') to every name",

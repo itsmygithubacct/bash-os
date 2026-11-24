@@ -8,7 +8,8 @@
     "Fork count and summary field ordering, memory-unit conversion, CPU and VM counters",
     "Wide active/inactive snapshot layout, since-boot averages, and zero-delay delta sample",
     "Per-device and aggregate diskstats output plus partition filtering",
-    "Slabinfo table parsing and formatting"
+    "Slabinfo table parsing and formatting",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "Live host procfs is never read; operation contracts use only relative synthetic files via BASHOS_PROC_ROOT.",
@@ -110,6 +111,30 @@
       "kind": "deferred",
       "purpose": "Exercise nonzero-delay sampling against changing kernel counters and verify delay-based rates in an actual disposable system fixture.",
       "reason": "Requires a disposable Linux VM or a controlled procfs plus clock/sleep mock that can advance /proc/stat and /proc/vmstat between samples. The live host procfs and timing state are out of scope here; no operation was run or counted as passing."
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option: the vmstat diagnostic and the start of its usage text, and the status.",
+      "requires": [
+        "vmstat",
+        "sed"
+      ],
+      "script": "rc=0\nout=$(vmstat --bogus </dev/null 2>&1) || rc=$?\nprintf '%s\\n' \"$out\" | sed -n '1,4p'\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option: the vmstat diagnostic and the start of its usage text, and the status.",
+      "requires": [
+        "vmstat",
+        "sed"
+      ],
+      "script": "rc=0\nout=$(vmstat -Y </dev/null 2>&1) || rc=$?\nprintf '%s\\n' \"$out\" | sed -n '1,4p'\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

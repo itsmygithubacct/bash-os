@@ -31,6 +31,7 @@
 #include <sys/stat.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 #include "bl-output.h"
 
 typedef struct {
@@ -218,15 +219,14 @@ paste_builtin (WORD_LIST *list)
             return EXECUTION_SUCCESS;
         }
         if (!strcmp (w, "--version")) {
-            puts ("bashpaste 1.0 (bash-loadable)");
+            puts ("paste 1.0 (bash-loadable)");
             return EXECUTION_SUCCESS;
         }
         if (!strcmp (w, "--serial")) { sflag = 1; list = list->next; continue; }
         if (!strcmp (w, "--zero-terminated")) { line_delim = '\0'; list = list->next; continue; }
         if (!strcmp (w, "--delimiters")) {
             if (!list->next) {
-                builtin_error ("--delimiters needs DELIM");
-                builtin_usage ();
+                bos_shim_missing_arg (w, 'd', "paste");
                 return EXECUTION_FAILURE;
             }
             list = list->next;
@@ -247,8 +247,7 @@ paste_builtin (WORD_LIST *list)
                         arg = w + pos + 1;
                     else {
                         if (!list->next) {
-                            builtin_error ("-d needs DELIM");
-                            builtin_usage ();
+                            bos_shim_missing_arg ("-d", 'd', "paste");
                             return EXECUTION_FAILURE;
                         }
                         list = list->next;
@@ -257,16 +256,14 @@ paste_builtin (WORD_LIST *list)
                     delim_arg = arg;
                     break;
                 } else {
-                    builtin_error ("unknown flag: %s", w);
-                    builtin_usage ();
+                    bos_shim_bad_option (w, w[pos], "paste");
                     return EXECUTION_FAILURE;
                 }
             }
             list = list->next;
             continue;
         }
-        builtin_error ("unknown flag: %s", w);
-        builtin_usage ();
+        bos_shim_bad_option (w, 0, "paste");
         return EXECUTION_FAILURE;
     }
 

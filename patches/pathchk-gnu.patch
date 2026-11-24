@@ -1,50 +1,402 @@
 --- builtins/pathchk.c
 +++ builtins/pathchk.c
-@@ -101,7 +101,7 @@
- int
- pathchk_builtin (WORD_LIST *list)
- {
+@@ -66,0 +67,2 @@
++#include "gnu-longopt.h"
++#include "shim-prog-name.h"
+@@ -99 +101,10 @@
+-static int validate_path (char *, int);
++static int validate_path (char *, int, int);
++
++/* coreutils pathchk's long options, matched by unambiguous prefix. */
++enum { PATHCHK_PORTABILITY = BOS_OPT_FIRST };
++static const struct bos_longopt pathchk_longopts[] = {
++  { "portability", BOS_NO_ARG, PATHCHK_PORTABILITY },
++  { "help", BOS_NO_ARG, BOS_OPT_HELP },
++  { "version", BOS_NO_ARG, BOS_OPT_VERSION },
++  { 0, 0, 0 }
++};
+@@ -104,4 +115,11 @@
 -  int retval, pflag, opt;
-+  int retval, pflag = 0, opt;
-
-   reset_internal_getopt ();
-   while ((opt = internal_getopt (list, "p")) != -1)
-@@ -114,7 +114,7 @@
- 	CASE_HELPOPT;
- 	default:
- 	  builtin_usage ();
+-
+-  reset_internal_getopt ();
+-  while ((opt = internal_getopt (list, "p")) != -1)
++  int retval, pflag = 0, leading = 0, opt, i;
++  const char *prog;
++  bos_getopt g;
++
++  /* Options as GNU getopt_long scans them; errors are coreutils' (glibc's
++     wording, the Try line, status 1). */
++  prog = bos_shim_prog_name ("pathchk");
++  bos_getopt_init (&g, prog, "pP", pathchk_longopts, list);
++  /* GNU pathchk takes options only before the first operand. */
++  g.posix = 1;
++  while ((opt = bos_getopt_next (&g)) != -1)
+@@ -114 +132,14 @@
+-	CASE_HELPOPT;
++	case 'P':
++	  leading = 1;
++	  break;
++	case PATHCHK_PORTABILITY:
++	  pflag = leading = 1;
++	  break;
++	case BOS_OPT_HELP:
++	  bos_getopt_free (&g);
++	  builtin_help ();
++	  return (sh_chkwrite (EXECUTION_SUCCESS));
++	case BOS_OPT_VERSION:
++	  bos_getopt_free (&g);
++	  printf ("pathchk (bash-os builtin, Bash %s)\n", dist_version);
++	  return (sh_chkwrite (EXECUTION_SUCCESS));
+@@ -116,2 +147,2 @@
+-	  builtin_usage ();
 -	  return (EX_USAGE);
++	  bos_getopt_free (&g);
 +	  return (EXECUTION_FAILURE);
- 	}
-     }
-   list = loptend;
-@@ -122,7 +122,7 @@
-   if (list == 0)
-     {
-       builtin_usage ();
+@@ -120 +150,0 @@
+-  list = loptend;
+@@ -122 +152 @@
+-  if (list == 0)
++  if (g.noperands == 0)
+@@ -124,2 +154,4 @@
+-      builtin_usage ();
 -      return (EX_USAGE);
++      builtin_error ("missing operand");
++      bos_try_help (prog);
++      bos_getopt_free (&g);
 +      return (EXECUTION_FAILURE);
-     }
-
-   for (retval = 0; list; list = list->next)
-@@ -282,7 +282,10 @@
-     return 1;
-
-   if (*path == '\0')
--    return 0;
+@@ -128,2 +160,2 @@
+-  for (retval = 0; list; list = list->next)
+-    retval |= validate_path (list->word->word, pflag);
++  for (retval = 0, i = 0; i < g.noperands; i++)
++    retval |= validate_path (g.operands[i], pflag, leading);
+@@ -130,0 +163 @@
++  bos_getopt_free (&g);
+@@ -139,2 +172,9 @@
+-	"(i.e., no filename truncation will result).  If the `-p' option is",
+-	"supplied, more extensive portability checks are performed.",
++	"(i.e., no filename truncation will result), as coreutils pathchk does.",
++	"Without options, the file system's limits apply: an existing name is",
++	"valid, and a missing one must be creatable.",
++	"If the `-p' option is supplied, check for most POSIX systems instead:",
++	"the name is not empty, uses only the portable file name characters",
++	"(A-Z a-z 0-9 . _ -), and is within the POSIX minimum lengths.",
++	"The `-P' option checks for empty names and a leading `-' in any",
++	"component. `--portability' is `-p -P'.",
++	"--help displays help; --version displays the Bash builtin version.",
+@@ -151 +191 @@
+-	"pathchk [-p] pathname ...",	/* usage synopsis */
++	"pathchk [-pP] [--portability] pathname ...",	/* usage synopsis */
+@@ -184 +224,12 @@
+-/* If PATH contains only portable characters, return 1, else 0.  */
++/* coreutils' file name diagnostics: the name always quoted (quoteaf). */
++static void
++pathchk_name_error (const char *format, const char *path)
++{
++  char *q = bos_quoteaf (path);
++  builtin_error (format, q ? q : path);
++  free (q);
++}
++
++/* If PATH contains only portable characters, return 1, else 0. The
++   first other character (a whole multibyte character in its locale) is
++   reported in the locale's quotation marks. */
+@@ -189,0 +241,3 @@
++  char ch[MB_LEN_MAX + 1], *qc, *qp;
++  mbstate_t state;
++  size_t n;
+@@ -194 +248,12 @@
+-	builtin_error ("path `%s' contains nonportable character `%c'", path, *p);
++	memset (&state, 0, sizeof state);
++	n = mbrlen (p, strlen (p), &state);
++	if (n == 0 || n == (size_t)-1 || n == (size_t)-2 || n > MB_LEN_MAX)
++	  n = 1;
++	memcpy (ch, p, n);
++	ch[n] = '\0';
++	qc = bos_quote (ch);
++	qp = bos_quoteaf (path);
++	builtin_error ("non-portable character %s in file name %s",
++		       qc ? qc : ch, qp ? qp : path);
++	free (qc);
++	free (qp);
+@@ -200,22 +265,4 @@
+-/* On some systems, stat can return EINTR.  */
+-
+-#ifndef EINTR
+-# define SAFE_STAT(name, buf) stat (name, buf)
+-#else
+-# define SAFE_STAT(name, buf) safe_stat (name, buf)
+-static inline int
+-safe_stat (const char *name, struct stat *buf)
+-{
+-  int ret;
+-
+-  do
+-    ret = stat (name, buf);
+-  while (ret < 0 && errno == EINTR);
+-
+-  return ret;
+-}
+-#endif
+-
+-/* Return 1 if PATH is a usable leading directory, 0 if not,
+-   2 if it doesn't exist.  */
+-
++/* Report the first component of PATH longer than its limit, and a PATH
++   longer than PATH_LIMIT. With PORTABILITY the limits are POSIX's
++   minimums; otherwise those of the last existing directory along PATH.
++   Return 1 if a limit is exceeded, else 0. */
+@@ -223 +270 @@
+-dir_ok (const char *path)
++check_lengths (char *path, int portability)
+@@ -225,6 +272,9 @@
+-  struct stat stats;
+-
+-  if (SAFE_STAT (path, &stats))
+-    return 2;
+-
+-  if (!S_ISDIR (stats.st_mode))
++  long name_max, path_max;
++  size_t length, plen;
++  char *start, *end, *parent, save, *q;
++  struct stat st;
++
++  plen = strlen (path);
++  parent = savestring (*path == '/' ? "/" : ".");
++  /* The deepest existing directory, for the whole-name limit. */
++  for (start = path; ; )
+@@ -232,2 +282,16 @@
+-      builtin_error ("`%s' is not a directory", path);
+-      return 0;
++      while (*start == '/')
++	start++;
++      if (*start == '\0')
++	break;
++      end = start + strcspn (start, "/");
++      if (*end == '\0')
++	break;
++      save = *end;
++      *end = '\0';
++      if (portability == 0 && stat (path, &st) == 0 && S_ISDIR (st.st_mode))
++	{
++	  free (parent);
++	  parent = savestring (path);
++	}
++      *end = save;
++      start = end;
+@@ -235,6 +299,5 @@
+-
+-  /* Use access to test for search permission because
+-     testing permission bits of st_mode can lose with new
+-     access control mechanisms.  Of course, access loses if you're
+-     running setuid. */
+-  if (access (path, X_OK) != 0)
++  path_max = portability ? _POSIX_PATH_MAX : PATH_MAX_FOR (parent);
++  if (path_max <= 0)
++    path_max = _POSIX_PATH_MAX;
++  free (parent);
++  if (plen >= (size_t)path_max)
+@@ -242,5 +305,5 @@
+-      if (errno == EACCES)
+-	builtin_error ("directory `%s' is not searchable", path);
+-      else
+-	builtin_error ("%s: %s", path, strerror (errno));
+-      return 0;
++      q = bos_quoteaf (path);
++      builtin_error ("limit %ld exceeded by length %lu of file name %s",
++		     path_max - 1, (unsigned long)plen, q ? q : path);
++      free (q);
++      return 1;
+@@ -249 +312,38 @@
+-  return 1;
++  parent = savestring (*path == '/' ? "/" : ".");
++  for (start = path; ; )
 +    {
++      while (*start == '/')
++	start++;
++      if (*start == '\0')
++	break;
++      end = start + strcspn (start, "/");
++      length = end - start;
++      name_max = portability ? _POSIX_NAME_MAX : NAME_MAX_FOR (parent);
++      if (name_max < 0)
++	name_max = _POSIX_NAME_MAX;
++      if (length > (size_t)name_max)
++	{
++	  save = *end;
++	  *end = '\0';
++	  q = bos_quote (start);
++	  builtin_error ("limit %ld exceeded by length %lu of file name component %s",
++			 name_max, (unsigned long)length, q ? q : start);
++	  free (q);
++	  *end = save;
++	  free (parent);
++	  return 1;
++	}
++      if (*end == '\0')
++	break;
++      save = *end;
++      *end = '\0';
++      if (portability == 0 && stat (path, &st) == 0 && S_ISDIR (st.st_mode))
++	{
++	  free (parent);
++	  parent = savestring (path);
++	}
++      *end = save;
++      start = end;
++    }
++  free (parent);
++  return 0;
+@@ -252,5 +352 @@
+-static char *
+-xstrdup (char *s)
+-{
+-  return (savestring (s));
+-}
++/* Check PATH as coreutils pathchk does.
+@@ -258,8 +354 @@
+-/* Make sure that
+-   strlen (PATH) <= PATH_MAX
+-   && strlen (each-existing-directory-in-PATH) <= NAME_MAX
+-
+-   If PORTABILITY is nonzero, compare against _POSIX_PATH_MAX and
+-   _POSIX_NAME_MAX instead, and make sure that PATH contains no
+-   characters not in the POSIX portable filename character set, which
+-   consists of A-Z, a-z, 0-9, ., _, -.
++   With LEADING (-P): PATH is not empty, and no component starts with `-'.
+@@ -267,2 +356,10 @@
+-   Make sure that all leading directories along PATH that exist have
+-   `x' permission.
++   With PORTABILITY (-p): PATH is not empty, uses only the POSIX portable
++   file name characters A-Z, a-z, 0-9, ., _ and -, and its length and its
++   components' lengths are within _POSIX_PATH_MAX and _POSIX_NAME_MAX. The
++   file system is not consulted.
++
++   Otherwise: an existing PATH is valid. A missing one must be creatable:
++   its lookup fails only for a missing component, and it is within the
++   limits of the last existing directory along it. Any other lookup error
++   (a non-directory or unsearchable directory, a name too long) is
++   reported with the name.
+@@ -273 +370 @@
+-validate_path (char *path, int portability)
++validate_path (char *path, int portability, int leading)
+@@ -275,19 +372,3 @@
+-  int path_max;
+-  int last_elem;		/* Nonzero if checking last element of path. */
+-  int exists;			/* 2 if the path element exists.  */
+-  char *slash;
+-  char *parent;			/* Last existing leading directory so far.  */
+-
+-  if (portability && !portable_chars_only (path))
+-    return 1;
+-
+-  if (*path == '\0')
+-    return 0;
+-
+-#ifdef lint
+-  /* Suppress `used before initialized' warning.  */
+-  exists = 0;
+-#endif
+-
+-  /* Figure out the parent of the first element in PATH.  */
+-  parent = xstrdup (*path == '/' ? "/" : ".");
++  struct stat st;
++  const char *p;
++  char *q;
+@@ -295,3 +376 @@
+-  slash = path;
+-  last_elem = 0;
+-  while (1)
++  if ((leading || portability) && *path == '\0')
+@@ -299,27 +378,3 @@
+-      int name_max;
+-      int length;		/* Length of partial path being checked. */
+-      char *start;		/* Start of path element being checked. */
+-
+-      /* Find the end of this element of the path.
+-	 Then chop off the rest of the path after this element. */
+-      while (*slash == '/')
+-	slash++;
+-      start = slash;
+-      slash = strchr (slash, '/');
+-      if (slash != NULL)
+-	*slash = '\0';
+-      else
+-	{
+-	  last_elem = 1;
+-	  slash = strchr (start, '\0');
+-	}
+-
+-      if (!last_elem)
+-	{
+-	  exists = dir_ok (path);
+-	  if (exists == 0)
+-	    {
+-	      free (parent);
+-	      return 1;
+-	    }
+-	}
 +      builtin_error ("empty file name");
 +      return 1;
 +    }
-
- #ifdef lint
-   /* Suppress `used before initialized' warning.  */
-@@ -362,7 +365,7 @@
-   if (path_max < 0)
-     path_max = _POSIX_PATH_MAX;
-   free (parent);
+@@ -327,13 +382,3 @@
+-      length = slash - start;
+-      /* Since we know that `parent' is a directory, it's ok to call
+-	 pathconf with it as the argument.  (If `parent' isn't a directory
+-	 or doesn't exist, the behavior of pathconf is undefined.)
+-	 But if `parent' is a directory and is on a remote file system,
+-	 it's likely that pathconf can't give us a reasonable value
+-	 and will return -1.  (NFS and tempfs are not POSIX . . .)
+-	 In that case, we have no choice but to assume the pessimal
+-	 POSIX minimums.  */
+-      name_max = portability ? _POSIX_NAME_MAX : NAME_MAX_FOR (parent);
+-      if (name_max < 0)
+-	name_max = _POSIX_NAME_MAX;
+-      if (length > name_max)
++  if (leading)
++    for (p = path; *p; p++)
++      if (*p == '-' && (p == path || p[-1] == '/'))
+@@ -341,3 +386 @@
+-	  builtin_error ("name `%s' has length %d; exceeds limit of %d",
+-		 start, length, name_max);
+-	  free (parent);
++	  pathchk_name_error ("leading '-' in a component of file name %s", path);
+@@ -347,10 +390,5 @@
+-      if (last_elem)
+-	break;
+-
+-      if (exists == 1)
+-	{
+-	  free (parent);
+-	  parent = xstrdup (path);
+-	}
+-
+-      *slash++ = '/';
++  if (portability)
++    {
++      if (!portable_chars_only (path))
++	return 1;
++      return check_lengths (path, 1);
+@@ -359,7 +397,5 @@
+-  /* `parent' is now the last existing leading directory in the whole path,
+-     so it's ok to call pathconf with it as the argument.  */
+-  path_max = portability ? _POSIX_PATH_MAX : PATH_MAX_FOR (parent);
+-  if (path_max < 0)
+-    path_max = _POSIX_PATH_MAX;
+-  free (parent);
 -  if (strlen (path) > path_max)
-+  if (strlen (path) >= path_max)
-     {
-       builtin_error ("path `%s' has length %lu; exceeds limit of %d",
- 	     path, (unsigned long)strlen (path), path_max);
++  if (*path == '\0')
++    errno = ENOENT;
++  else if (lstat (path, &st) == 0)
++    return 0;
++  if (*path == '\0' || errno != ENOENT)
+@@ -367,2 +403,4 @@
+-      builtin_error ("path `%s' has length %lu; exceeds limit of %d",
+-	     path, (unsigned long)strlen (path), path_max);
++      int e = errno;
++      q = bos_quotef (path);
++      builtin_error ("%s: %s", q ? q : path, strerror (e));
++      free (q);
+@@ -371,2 +409 @@
+-
+-  return 0;
++  return check_lengths (path, 0);

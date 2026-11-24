@@ -22,7 +22,8 @@
     "VAR=VALUE operands, -v escapes and array parameters by reference (G23).",
     "G64: block-buffered stdout and redirected files when not a tty, flushed before system(), command pipes, getline from a command, fflush(), close() and at exit.",
     "G75: NUL bytes in records, fields, strings, regex matching, printf, gsub/sub, split, array subscripts and regex RS (gawk keeps them).",
-    "G87: NUL bytes in program strings and escapes, -v/-F/operand values, RS, FS, split(), gsub(), regex literals and OFS/ORS/SUBSEP; parenthesized print/printf argument lists."
+    "G87: NUL bytes in program strings and escapes, -v/-F/operand values, RS, FS, split(), gsub(), regex literals and OFS/ORS/SUBSEP; parenthesized print/printf argument lists.",
+    "Pass 8 (G120): unknown options print a GNU getopt diagnostic and the usage line naming awk, status 1 (contract)."
   ],
   "exclusions": [
     "RT is outside the implementation's documented scope.",
@@ -466,6 +467,26 @@
       "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\na() { local rc=0 out; out=$(awk_cmd \"$@\" 2>&1) || rc=$?; out=${out//gawk: /awk: }; printf '%s\\nrc=%s\\n' \"$out\" \"$rc\"; }\nprintf '1\\n2\\n' > in2\necho 0 | a '{print 1/$1}'\necho 0 | a 'BEGIN{print \"a\"} END{print \"end\"} {print 5/$1}'\na 'END{print 1/z}' in2\na '{x=1} END{print 1/z}' in2\na 'NR==2{print 1%z}' in2\na '{print 1/z}' < in2\nprintf '' | a 'END{print 1/z}'\necho a | a 'END{FNR=0; print 1/z}'\necho a | a '{FILENAME=\"q\"; print 1/z}'\necho a | a 'END{NR=5;FNR=7; print 1/z}'\nprintf 'BEGIN{z=0\\nprint 1\\nprint 2/z\\n}\\n' > d2.awk; a -f d2.awk\nprintf 'BEGIN{\\n}\\n' > e1.awk; a -f e1.awk -e 'BEGIN{print 1/z}'\na -f e1.awk -f d2.awk\n",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "contract",
+      "purpose": "G120: awk --bogus reports a GNU getopt option error and the usage line, naming awk only, status 1 (gawk prints only its long usage text).",
+      "script": "rc=0\nawk --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stdout": "rc=1\n",
+      "stderr": "exact",
+      "stderr_text": "awk: unrecognized option '--bogus'\nUsage: awk [-F SEP] [-v VAR=VAL] [-e SCRIPT] [-f FILE] [SCRIPT] [FILE...]\n"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "contract",
+      "purpose": "G120: awk -Y reports a GNU getopt option error and the usage line, naming awk only, status 1 (gawk prints only its long usage text).",
+      "script": "rc=0\nawk -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stdout": "rc=1\n",
+      "stderr": "exact",
+      "stderr_text": "awk: invalid option -- 'Y'\nUsage: awk [-F SEP] [-v VAR=VAL] [-e SCRIPT] [-f FILE] [SCRIPT] [FILE...]\n"
     }
   ]
 }

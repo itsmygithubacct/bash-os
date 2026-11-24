@@ -114,6 +114,7 @@
 #include "_mbedtls_md5.h"
 #include "_mbedtls_sha1.h"
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 /* getrandom(2) syscall number — preferred over <sys/random.h> here
    because musl's <sys/random.h> may not be in the include path under
@@ -323,8 +324,9 @@ bu_name_based (int version, const char *ns_arg, const char *name, int is_hex)
   unsigned char ns[16];
   if (bu_namespace_bytes (ns_arg, ns) < 0)
     {
-      builtin_error ("bad namespace: %s", ns_arg ? ns_arg : "(null)");
-      return EX_USAGE;
+      builtin_error ("invalid uuid for namespace: '%s'", ns_arg ? ns_arg : "");
+      bos_shim_try_help ("uuidgen");
+      return EXECUTION_FAILURE;
     }
   if (name == NULL)
     {
@@ -343,7 +345,8 @@ bu_name_based (int version, const char *ns_arg, const char *name, int is_hex)
       if (name_len % 2 != 0)
         {
           builtin_error ("not a valid hex string");
-          return EX_USAGE;
+          bos_shim_try_help ("uuidgen");
+          return EXECUTION_FAILURE;
         }
       hexbuf = (unsigned char *) malloc (name_len / 2 + 1);
       if (hexbuf == NULL)
@@ -359,7 +362,8 @@ bu_name_based (int version, const char *ns_arg, const char *name, int is_hex)
             {
               free (hexbuf);
               builtin_error ("not a valid hex string");
-              return EX_USAGE;
+              bos_shim_try_help ("uuidgen");
+              return EXECUTION_FAILURE;
             }
           hexbuf[i / 2] = (unsigned char) ((hi << 4) | lo);
         }
@@ -537,8 +541,8 @@ uuidgen_builtin (WORD_LIST *list)
           if (mode_set && mode != 4)
             {
               builtin_error ("UUID version options are mutually exclusive");
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_try_help ("uuidgen");
+              return EXECUTION_FAILURE;
             }
           mode = 4;
           mode_set = 1;
@@ -549,8 +553,8 @@ uuidgen_builtin (WORD_LIST *list)
           if (mode_set && mode != 1)
             {
               builtin_error ("UUID version options are mutually exclusive");
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_try_help ("uuidgen");
+              return EXECUTION_FAILURE;
             }
           mode = 1;
           mode_set = 1;
@@ -561,8 +565,8 @@ uuidgen_builtin (WORD_LIST *list)
           if (mode_set && mode != 3)
             {
               builtin_error ("UUID version options are mutually exclusive");
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_try_help ("uuidgen");
+              return EXECUTION_FAILURE;
             }
           mode = 3;
           mode_set = 1;
@@ -573,8 +577,8 @@ uuidgen_builtin (WORD_LIST *list)
           if (mode_set && mode != 5)
             {
               builtin_error ("UUID version options are mutually exclusive");
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_try_help ("uuidgen");
+              return EXECUTION_FAILURE;
             }
           mode = 5;
           mode_set = 1;
@@ -585,8 +589,8 @@ uuidgen_builtin (WORD_LIST *list)
           if (mode_set && mode != 6)
             {
               builtin_error ("UUID version options are mutually exclusive");
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_try_help ("uuidgen");
+              return EXECUTION_FAILURE;
             }
           mode = 6;
           mode_set = 1;
@@ -596,9 +600,8 @@ uuidgen_builtin (WORD_LIST *list)
         {
           if (p->next == NULL)
             {
-              builtin_error ("%s requires a namespace", w);
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_missing_arg (w, w[1], "uuidgen");
+              return EXECUTION_FAILURE;
             }
           namespace_arg = p->next->word->word;
           p = p->next->next;
@@ -612,9 +615,8 @@ uuidgen_builtin (WORD_LIST *list)
         {
           if (p->next == NULL)
             {
-              builtin_error ("%s requires a name", w);
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_missing_arg (w, w[1], "uuidgen");
+              return EXECUTION_FAILURE;
             }
           name_arg = p->next->word->word;
           p = p->next->next;
@@ -629,8 +631,8 @@ uuidgen_builtin (WORD_LIST *list)
           if (mode_set && mode != 7)
             {
               builtin_error ("UUID version options are mutually exclusive");
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_try_help ("uuidgen");
+              return EXECUTION_FAILURE;
             }
           mode = 7;
           mode_set = 1;
@@ -640,15 +642,14 @@ uuidgen_builtin (WORD_LIST *list)
         {
           if (p->next == NULL)
             {
-              builtin_error ("%s requires a count", w);
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_missing_arg (w, w[1], "uuidgen");
+              return EXECUTION_FAILURE;
             }
           if (bu_parse_count (p->next->word->word, &count) < 0)
             {
               builtin_error ("invalid count: %s", p->next->word->word);
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_try_help ("uuidgen");
+              return EXECUTION_FAILURE;
             }
           p = p->next->next;
         }
@@ -657,8 +658,8 @@ uuidgen_builtin (WORD_LIST *list)
           if (bu_parse_count (w + 2, &count) < 0)
             {
               builtin_error ("invalid count: %s", w + 2);
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_try_help ("uuidgen");
+              return EXECUTION_FAILURE;
             }
           p = p->next;
         }
@@ -667,8 +668,8 @@ uuidgen_builtin (WORD_LIST *list)
           if (bu_parse_count (w + 8, &count) < 0)
             {
               builtin_error ("invalid count: %s", w + 8);
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_try_help ("uuidgen");
+              return EXECUTION_FAILURE;
             }
           p = p->next;
         }
@@ -694,42 +695,41 @@ uuidgen_builtin (WORD_LIST *list)
           if (p->next)
             {
               builtin_error ("unexpected argument: %s", p->next->word->word);
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_try_help ("uuidgen");
+              return EXECUTION_FAILURE;
             }
           break;
         }
       else
         {
-          builtin_error ("unknown option: %s (try -h for usage)", w);
-          builtin_usage ();
-          return EX_USAGE;
+          bos_shim_bad_option (w, w[1], "uuidgen");
+          return EXECUTION_FAILURE;
         }
     }
 
   if (namespace_arg != NULL && mode != 3 && mode != 5)
     {
       builtin_error ("-n/--namespace requires -m/--md5 or -s/--sha1");
-      builtin_usage ();
-      return EX_USAGE;
+      bos_shim_try_help ("uuidgen");
+      return EXECUTION_FAILURE;
     }
   if (name_arg != NULL && mode != 3 && mode != 5)
     {
       builtin_error ("-N/--name requires -m/--md5 or -s/--sha1");
-      builtin_usage ();
-      return EX_USAGE;
+      bos_shim_try_help ("uuidgen");
+      return EXECUTION_FAILURE;
     }
   if ((mode == 3 || mode == 5) && namespace_arg == NULL)
     {
       builtin_error ("-n/--namespace is required for name-based UUIDs");
-      builtin_usage ();
-      return EX_USAGE;
+      bos_shim_try_help ("uuidgen");
+      return EXECUTION_FAILURE;
     }
   if ((mode == 3 || mode == 5) && name_arg == NULL)
     {
       builtin_error ("-N/--name is required for name-based UUIDs");
-      builtin_usage ();
-      return EX_USAGE;
+      bos_shim_try_help ("uuidgen");
+      return EXECUTION_FAILURE;
     }
 
   for (unsigned int i = 0; i < count; i++)

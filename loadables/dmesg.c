@@ -74,6 +74,7 @@
 #endif
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 /* Linux ABI: priority byte = (facility << 3) | level. */
 #define BD_LEVEL(p)    ((p) & 0x07)
@@ -472,59 +473,57 @@ dmesg_builtin (WORD_LIST *list)
         else if (!strcmp (w, "-c") || !strcmp (w, "-C")) do_clear = 1;
         else if (!strcmp (w, "--since")) {
             list = list->next;
-            if (!list) { builtin_error ("--since: missing SECONDS"); builtin_usage (); return EX_USAGE; }
+            if (!list) { bos_shim_missing_arg ("--since", 0, "dmesg"); return EXECUTION_FAILURE; }
             if (bd_parse_seconds_us (list->word->word, &since_us) < 0) {
                 builtin_error ("--since: invalid seconds '%s'", list->word->word);
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_try_help ("dmesg");
+                return EXECUTION_FAILURE;
             }
             have_since = 1;
         }
         else if (!strncmp (w, "--since=", 8)) {
             if (bd_parse_seconds_us (w + 8, &since_us) < 0) {
                 builtin_error ("--since: invalid seconds '%s'", w + 8);
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_try_help ("dmesg");
+                return EXECUTION_FAILURE;
             }
             have_since = 1;
         }
         else if (!strcmp (w, "--until")) {
             list = list->next;
-            if (!list) { builtin_error ("--until: missing SECONDS"); builtin_usage (); return EX_USAGE; }
+            if (!list) { bos_shim_missing_arg ("--until", 0, "dmesg"); return EXECUTION_FAILURE; }
             if (bd_parse_seconds_us (list->word->word, &until_us) < 0) {
                 builtin_error ("--until: invalid seconds '%s'", list->word->word);
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_try_help ("dmesg");
+                return EXECUTION_FAILURE;
             }
             have_until = 1;
         }
         else if (!strncmp (w, "--until=", 8)) {
             if (bd_parse_seconds_us (w + 8, &until_us) < 0) {
                 builtin_error ("--until: invalid seconds '%s'", w + 8);
-                builtin_usage ();
-                return EX_USAGE;
+                bos_shim_try_help ("dmesg");
+                return EXECUTION_FAILURE;
             }
             have_until = 1;
         }
         else if (!strcmp (w, "-f")) {
             list = list->next;
-            if (!list) { builtin_error ("-f: missing FACILITIES"); builtin_usage (); return EX_USAGE; }
+            if (!list) { bos_shim_missing_arg ("-f", 'f', "dmesg"); return EXECUTION_FAILURE; }
             int mask = bd_parse_facility_mask (list->word->word);
             if (mask < 0) {
-                builtin_error ("-f: unknown facility in '%s'", list->word->word);
-                builtin_usage ();
-                return EX_USAGE;
+                builtin_error ("unknown facility '%s'", list->word->word);
+                return EXECUTION_FAILURE;
             }
             facility_mask = mask;
         }
         else if (!strcmp (w, "-l")) {
             list = list->next;
-            if (!list) { builtin_error ("-l: missing LEVELS"); builtin_usage (); return EX_USAGE; }
+            if (!list) { bos_shim_missing_arg ("-l", 'l', "dmesg"); return EXECUTION_FAILURE; }
             int mask = bd_parse_level_mask (list->word->word);
             if (mask < 0) {
-                builtin_error ("-l: unknown level in '%s'", list->word->word);
-                builtin_usage ();
-                return EX_USAGE;
+                builtin_error ("unknown level '%s'", list->word->word);
+                return EXECUTION_FAILURE;
             }
             level_mask = mask;
         }
@@ -532,8 +531,7 @@ dmesg_builtin (WORD_LIST *list)
             list = list->next;
             if (!list) {
                 /* util-linux's getopt diagnostic and status. */
-                builtin_error ("option requires an argument -- 'n'");
-                fprintf (stderr, "Try 'dmesg --help' for more information.\n");
+                bos_shim_missing_arg ("-n", 'n', "dmesg");
                 return EXECUTION_FAILURE;
             }
             const char *arg = list->word->word;
@@ -552,16 +550,15 @@ dmesg_builtin (WORD_LIST *list)
             return EXECUTION_SUCCESS;
         }
         else {
-            builtin_error ("unknown flag: %s", w);
-            builtin_usage ();
-            return EX_USAGE;
+            bos_shim_bad_option (w, w[1], "dmesg");
+            return EXECUTION_FAILURE;
         }
         list = list->next;
     }
     if (list) {
-        builtin_error ("unexpected operand: %s", list->word->word);
-        builtin_usage ();
-        return EX_USAGE;
+        builtin_error ("bad usage");
+        bos_shim_try_help ("dmesg");
+        return EXECUTION_FAILURE;
     }
 
     /* These output formats are mutually exclusive in dmesg(1), including

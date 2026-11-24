@@ -16,7 +16,8 @@
     "-d / --numeric-suffixes, -x / --hex-suffixes and --additional-suffix (guest pass 2 G35)",
     "G68: --filter=COMMAND, with FILE exported, early-closing filters, and filter exit/signal statuses.",
     "Guest compatibility pass 5 (G74/G83): pass5-long-lines-bytes, pass5-number-elide-hex, pass5-line-bytes-and-separator, pass5-long-diagnostics.",
-    "Guest compatibility pass 6 (G90): GNU diagnostic wording for operand and usage errors."
+    "Guest compatibility pass 6 (G90): GNU diagnostic wording for operand and usage errors.",
+    "Pass 8 (G121): -a 0 is the default suffix length, -a 8 and longer are accepted, an overlong length is rejected."
   ],
   "exclusions": [
     "This is focused coverage, not the full GNU split option surface; numeric line/byte splitting and common suffix behavior are covered, while options such as --elide-empty-files are outside the documented builtin interface.",
@@ -268,6 +269,44 @@
       "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\ns 'split -l x </dev/null'\ns 'split -l 0 </dev/null'\ns 'split -l '\"'\"''\"'\"' </dev/null'\ns 'split -l 1x </dev/null'\ns 'split --lines=x </dev/null'\ns 'split -b x </dev/null'\ns 'split -b 0 </dev/null'\ns 'split -C x </dev/null'\ns 'split -a x </dev/null'\ns 'split --bogus </dev/null'\n",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-suffix-length-zero",
+      "kind": "parity",
+      "purpose": "G121: -a 0 means the default length.",
+      "requires": [
+        "split",
+        "seq",
+        "ls"
+      ],
+      "script": "rc=0\nseq 3 | split -l1 -a 0 || rc=$?\necho \"rc=$rc\"\nrc=0\nls x* || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-suffix-length-eight",
+      "kind": "parity",
+      "purpose": "G121: -a 8 is accepted.",
+      "requires": [
+        "split",
+        "seq",
+        "ls"
+      ],
+      "script": "rc=0\nseq 3 | split -l1 -a 8 || rc=$?\necho \"rc=$rc\"\nrc=0\nls x* || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-suffix-length-huge",
+      "kind": "parity",
+      "purpose": "G121: a suffix length too large for the type is rejected.",
+      "requires": [
+        "split",
+        "seq"
+      ],
+      "script": "rc=0\nseq 3 | split -a 99999999999999999999 || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

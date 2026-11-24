@@ -37,6 +37,8 @@
 #include <regex.h>
 
 #include "loadables.h"
+#include "gnu-quote.h"
+#include "shim-prog-name.h"
 
 typedef enum { CS_NONE, CS_REGEX, CS_SKIP, CS_LINENO } cs_kind;
 
@@ -195,6 +197,15 @@ cs_open_stdin (void)
     return in;
 }
 
+/* GNU csplit: "'PATTERN': invalid pattern". */
+static void
+cs_bad_pattern (const char *w)
+{
+    char *q = bos_quote (w);
+    builtin_error ("%s: invalid pattern", q ? q : w);
+    free (q);
+}
+
 int
 csplit_builtin (WORD_LIST *list)
 {
@@ -206,75 +217,78 @@ csplit_builtin (WORD_LIST *list)
     const char *prefix = "xx";
     const char *sfmt = NULL;   /* -b / --suffix-format printf template */
 
+    /* Options before the operands; short ones cluster ("-sk", "-n3"),
+       and errors are GNU csplit's (status 1). */
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
+        const char *val = NULL;
+        int opt = 0;
         if (!strcmp (w, "--")) { list = list->next; break; }
-        if (!strcmp (w, "-z") || !strcmp (w, "--elide-empty-files"))
-            { elide = 1; list = list->next; continue; }
-        if (!strcmp (w, "--help")) {
-            builtin_usage ();
-            return EXECUTION_SUCCESS;
+        if (w[1] == '-') {
+            if (!strcmp (w, "--help")) {
+                builtin_help ();
+                return EXECUTION_SUCCESS;
+            }
+            if (!strcmp (w, "--version")) {
+                puts ("csplit 1.0 (bash-loadable)");
+                return EXECUTION_SUCCESS;
+            }
+            if (!strcmp (w, "--elide-empty-files")) elide = 1;
+            else if (!strcmp (w, "--keep-files")) keep = 1;
+            else if (!strcmp (w, "--silent") || !strcmp (w, "--quiet")) silent = 1;
+            else if (!strcmp (w, "--suppress-matched")) suppress = 1;
+            else if (!strcmp (w, "--digits") || !strcmp (w, "--prefix") || !strcmp (w, "--suffix-format")) {
+                if (!list->next) { bos_shim_missing_arg (w, 0, "csplit"); return EXECUTION_FAILURE; }
+                opt = w[2] == 'd' ? 'n' : w[2] == 'p' ? 'f' : 'b';
+                list = list->next;
+                val = list->word->word;
+            } else if (!strncmp (w, "--digits=", 9)) { opt = 'n'; val = w + 9; }
+            else if (!strncmp (w, "--prefix=", 9)) { opt = 'f'; val = w + 9; }
+            else if (!strncmp (w, "--suffix-format=", 16)) { opt = 'b'; val = w + 16; }
+            else { bos_shim_bad_option (w, 0, "csplit"); return EXECUTION_FAILURE; }
+        } else {
+            for (const char *c = w + 1; *c && !opt; c++) {
+                switch (*c) {
+                case 'z': elide = 1; break;
+                case 'k': keep = 1; break;
+                case 's': case 'q': silent = 1; break;
+                case 'n': case 'f': case 'b':
+                    opt = *c;
+                    if (c[1]) val = c + 1;
+                    else if (list->next) { list = list->next; val = list->word->word; }
+                    else { bos_shim_missing_arg ("-", *c, "csplit"); return EXECUTION_FAILURE; }
+                    break;
+                default:
+                    bos_shim_bad_option (w, *c, "csplit");
+                    return EXECUTION_FAILURE;
+                }
+            }
         }
-        if (!strcmp (w, "--version")) {
-            puts ("csplit 1.0 (bash-loadable)");
-            return EXECUTION_SUCCESS;
-        }
-        if (!strcmp (w, "-k") || !strcmp (w, "--keep-files"))
-            { keep = 1; list = list->next; continue; }
-        if (!strcmp (w, "-s") || !strcmp (w, "-q")
-            || !strcmp (w, "--silent") || !strcmp (w, "--quiet"))
-            { silent = 1; list = list->next; continue; }
-        if (!strcmp (w, "--suppress-matched"))
-            { suppress = 1; list = list->next; continue; }
-        if (!strcmp (w, "-n") || !strcmp (w, "--digits")) {
-            if (!list->next) { builtin_error ("-n needs DIGITS"); builtin_usage (); return EX_USAGE; }
-            list = list->next;
-            if (cs_parse_digits (list->word->word, &digits) < 0)
-                { builtin_error ("-n: invalid DIGITS"); builtin_usage (); return EX_USAGE; }
-            list = list->next;
-            continue;
-        }
-        if (!strncmp (w, "--digits=", 9)) {
-            if (cs_parse_digits (w + 9, &digits) < 0)
-                { builtin_error ("--digits: invalid DIGITS"); builtin_usage (); return EX_USAGE; }
-            list = list->next;
-            continue;
-        }
-        if (!strcmp (w, "-f") || !strcmp (w, "--prefix")) {
-            if (!list->next) { builtin_error ("-f needs PREFIX"); builtin_usage (); return EX_USAGE; }
-            list = list->next;
-            prefix = list->word->word;
-            list = list->next;
-            continue;
-        }
-        if (!strncmp (w, "--prefix=", 9)) {
-            prefix = w + 9;
-            list = list->next;
-            continue;
-        }
-        if (!strcmp (w, "-b") || !strcmp (w, "--suffix-format")) {
-            if (!list->next) { builtin_error ("-b needs SUFFIX-FORMAT"); builtin_usage (); return EX_USAGE; }
-            list = list->next;
-            sfmt = list->word->word;
+        if (opt == 'n') {
+            if (cs_parse_digits (val, &digits) < 0) {
+                char *q = bos_quote (val);
+                builtin_error ("invalid number: %s", q ? q : val);
+                free (q);
+                return EXECUTION_FAILURE;
+            }
+        } else if (opt == 'f')
+            prefix = val;
+        else if (opt == 'b') {
+            sfmt = val;
             if (cs_check_suffix_format (sfmt) != 0)
-                { builtin_error ("invalid suffix format: %s", sfmt); builtin_usage (); return EX_USAGE; }
-            list = list->next;
-            continue;
+                { builtin_error ("invalid suffix format: %s", sfmt); return EXECUTION_FAILURE; }
         }
-        if (!strncmp (w, "--suffix-format=", 16)) {
-            sfmt = w + 16;
-            if (cs_check_suffix_format (sfmt) != 0)
-                { builtin_error ("invalid suffix format: %s", sfmt); builtin_usage (); return EX_USAGE; }
-            list = list->next;
-            continue;
-        }
-        builtin_error ("unknown flag: %s", w);
-        builtin_usage ();
-        return EX_USAGE;
+        list = list->next;
     }
     if (!list || !list->next) {
-        builtin_usage ();
-        return EX_USAGE;
+        char *q = list ? bos_quote (list->word->word) : NULL;
+        if (list)
+            builtin_error ("missing operand after %s", q ? q : list->word->word);
+        else
+            builtin_error ("missing operand");
+        free (q);
+        bos_shim_try_help ("csplit");
+        return EXECUTION_FAILURE;
     }
     const char *fname = list->word->word;
     list = list->next;
@@ -292,7 +306,7 @@ csplit_builtin (WORD_LIST *list)
         cp->word = w;        /* original token — used verbatim in GNU errors */
         if (w[0] == '{' && (w[1] == '*' || (w[1] >= '0' && w[1] <= '9'))) {
             /* repeat directive — modifies the PREVIOUS pattern. */
-            if (i == 0) { builtin_error ("'%s' has no preceding pattern", w); builtin_usage (); free (pats); return EX_USAGE; }
+            if (i == 0) { cs_bad_pattern (w); free (pats); return EXECUTION_FAILURE; }
             if (w[1] == '*') pats[i - 1].repeat = -1;
             else             pats[i - 1].repeat = atol (w + 1);
             n_pat--;
@@ -300,7 +314,7 @@ csplit_builtin (WORD_LIST *list)
         }
         if (w[0] == '/' || w[0] == '%') {
             const char *end = strrchr (w + 1, w[0]);
-            if (!end || end == w) { builtin_error ("bad pattern: %s", w); builtin_usage (); free (pats); return EX_USAGE; }
+            if (!end || end == w) { builtin_error ("%s: closing delimiter '%c' missing", w, w[0]); free (pats); return EXECUTION_FAILURE; }
             size_t rl = (size_t) (end - w - 1);
             char *re_buf = malloc (rl + 1);
             if (!re_buf) { builtin_error ("out of memory"); free (pats); return EXECUTION_FAILURE; }
@@ -308,7 +322,14 @@ csplit_builtin (WORD_LIST *list)
             re_buf[rl] = '\0';
             int rc = regcomp (&cp->re, re_buf, REG_EXTENDED);
             free (re_buf);
-            if (rc != 0) { builtin_error ("bad regex: %s", w); builtin_usage (); free (pats); return EX_USAGE; }
+            if (rc != 0) {
+                char why[256], *q = bos_quote (w);
+                regerror (rc, &cp->re, why, sizeof why);
+                builtin_error ("%s: invalid regular expression: %s", q ? q : w, why);
+                free (q);
+                free (pats);
+                return EXECUTION_FAILURE;
+            }
             cp->re_compiled = 1;
             cp->kind = (w[0] == '/') ? CS_REGEX : CS_SKIP;
             /* Trailing [+OFF] or [-OFF] after the closing delimiter. */
@@ -323,10 +344,9 @@ csplit_builtin (WORD_LIST *list)
             i++;
             continue;
         }
-        builtin_error ("unrecognized pattern: %s", w);
-        builtin_usage ();
+        cs_bad_pattern (w);
         free (pats);
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
     }
 
     int from_stdin = !strcmp (fname, "-");

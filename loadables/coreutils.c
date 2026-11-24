@@ -74,6 +74,7 @@
 #include "error.h"
 #include "bl-output.h"
 #include "gnu-quote.h"
+#include "shim-prog-name.h"
 #include <limits.h>
 
 static void *bcu_calloc (size_t n, size_t size)
@@ -266,7 +267,7 @@ bcu_tac_stream (FILE *fp, const char *sep, bl_output *out)
   char *buf = NULL;
   ssize_t len = bcu_tac_slurp (fileno (fp), &buf);
   if (len < 0)
-    { builtin_error ("tac: read: %s", strerror (errno)); return EXECUTION_FAILURE; }
+    { builtin_error ("read error: %s", strerror (errno)); return EXECUTION_FAILURE; }
   /* GNU selects NUL for an empty separator. Search from the right so
      overlapping literal separators consume the rightmost match first.
      Emit each record immediately, avoiding a per-record offset array. */
@@ -296,7 +297,7 @@ bcu_tac_stream (FILE *fp, const char *sep, bl_output *out)
 }
 
 static int
-bcu_tac_cmd (WORD_LIST *list)
+bcu_tac_run (WORD_LIST *list)
 {
   const char *sep = "\n";
   /* Parse -s SEP / -sSEP / --separator=SEP (GNU tac). -r/-b out of scope. */
@@ -306,13 +307,13 @@ bcu_tac_cmd (WORD_LIST *list)
       if (!strcmp (w, "--")) { list = list->next; break; }
       if (!strcmp (w, "-s") || !strcmp (w, "--separator"))
         {
-          if (!list->next) { builtin_error ("tac: option requires an argument -- 's'"); return EX_USAGE; }
+          if (!list->next) { bos_shim_missing_arg (w, 's', "tac"); return EXECUTION_FAILURE; }
           list = list->next; sep = list->word->word; list = list->next; continue;
         }
       if (!strncmp (w, "-s", 2))            { sep = w + 2; list = list->next; continue; }
       if (!strncmp (w, "--separator=", 12)) { sep = w + 12; list = list->next; continue; }
-      builtin_error ("tac: unknown option: %s", w);
-      return EX_USAGE;
+      bos_shim_bad_option (w, w[1], "tac");
+      return EXECUTION_FAILURE;
     }
   bl_output out;
   bl_output_init (&out, stdout);
@@ -329,7 +330,17 @@ bcu_tac_cmd (WORD_LIST *list)
     }
   bl_output_flush (&out);
   if (out.error)
-    { builtin_error ("tac: write: %s", strerror (out.error)); rc = EXECUTION_FAILURE; }
+    { builtin_error ("write error: %s", strerror (out.error)); rc = EXECUTION_FAILURE; }
+  return rc;
+}
+
+static int
+bcu_tac_cmd (WORD_LIST *list)
+{
+  char *saved = this_command_name;
+  this_command_name = (char *) "tac";
+  int rc = bcu_tac_run (list);
+  this_command_name = saved;
   return rc;
 }
 
@@ -2417,12 +2428,42 @@ bcu_factor_cmd (WORD_LIST *list)
  * =================================================================== */
 
 static int
-bcu_yes_cmd (WORD_LIST *list)
+bcu_yes_run (WORD_LIST *list)
 {
   /* Assemble the line once; loop tight on fwrite. SIGPIPE from
    * `yes | head -3` terminates us cleanly. */
   char *line = NULL;
   size_t llen = 0;
+  /* GNU yes takes options anywhere before "--" (--help and --version by
+     any prefix); an option-looking word is an error, the first "--" is
+     dropped and every other word is a STRING. */
+  WORD_LIST *dashdash = NULL;
+  for (WORD_LIST *w = list; w; w = w->next)
+    {
+      const char *a = w->word->word;
+      if (a[0] != '-' || !a[1])
+        continue;
+      if (!strcmp (a, "--")) { dashdash = w; break; }
+      size_t n = strlen (a + 2);
+      if (a[1] == '-' && n && !strncmp ("help", a + 2, n))
+        {
+          puts ("Usage: yes [STRING]...\n  or:  yes OPTION\n"
+                "Repeatedly output a line with all specified STRING(s), or 'y'.");
+          return EXECUTION_SUCCESS;
+        }
+      if (a[1] == '-' && n && !strncmp ("version", a + 2, n))
+        {
+          printf ("yes (bash-os coreutils, Bash %s)\n", dist_version);
+          return EXECUTION_SUCCESS;
+        }
+      bos_shim_bad_option (a, a[1], "yes");
+      return EXECUTION_FAILURE;
+    }
+  if (dashdash && dashdash == list)
+    {
+      list = list->next;
+      dashdash = NULL;
+    }
   if (!list)
     {
       line = bcu_strdup ("y\n");
@@ -2430,18 +2471,21 @@ bcu_yes_cmd (WORD_LIST *list)
     }
   else
     {
-      size_t total = 0;
+      size_t total = 1;
       for (WORD_LIST *w = list; w; w = w->next)
-        total += strlen (w->word->word) + 1;
+        total += w == dashdash ? 0 : strlen (w->word->word) + 1;
       line = xmalloc (total + 1);
       if (!line) { builtin_error ("oom"); return EXECUTION_FAILURE; }
       char *p = line;
       for (WORD_LIST *w = list; w; w = w->next)
         {
+          if (w == dashdash)
+            continue;
           size_t n = strlen (w->word->word);
           memcpy (p, w->word->word, n); p += n;
-          *p++ = w->next ? ' ' : '\n';
+          *p++ = ' ';
         }
+      p[-1] = '\n';
       *p = '\0';
       llen = (size_t) (p - line);
     }
@@ -2449,6 +2493,16 @@ bcu_yes_cmd (WORD_LIST *list)
     ;
   free (line);
   return EXECUTION_FAILURE;
+}
+
+static int
+bcu_yes_cmd (WORD_LIST *list)
+{
+  char *saved = this_command_name;
+  this_command_name = (char *) "yes";
+  int rc = bcu_yes_run (list);
+  this_command_name = saved;
+  return rc;
 }
 
 /* ===================================================================
@@ -4129,33 +4183,79 @@ bcu_nproc_omp (const char *value)
   return !*end || *end == ',' ? n : 0;
 }
 
+extern char *this_command_name;
+
+/* GNU nproc's options: --all and --ignore=N, matched by any prefix (their
+   names start with different letters), options anywhere until "--", and
+   no operands. Diagnostics name nproc and exit 1. */
 static int
-bcu_nproc_cmd (WORD_LIST *list)
+bcu_nproc_run (WORD_LIST *list)
 {
   unsigned long ignore = 0;
-  int use_all = 0;
+  int use_all = 0, ended = 0;
   for (WORD_LIST *w = list; w; w = w->next)
     {
       const char *a = w->word->word, *value = NULL;
-      if (!strcmp (a, "--all")) { use_all = 1; continue; }
-      if (!strcmp (a, "--") && !w->next) break;
-      if (!strncmp (a, "--ignore=", 9)) value = a + 9;
-      else if (!strcmp (a, "--ignore") && w->next)
-        { w = w->next; value = w->word->word; }
-      if (value)
+      if (ended || a[0] != '-' || !a[1])
         {
-          while (isspace ((unsigned char) *value)) value++;
-          char *end;
-          errno = 0;
-          ignore = strtoul (value, &end, 10);
-          if (*value && *value != '-' && end != value && !*end)
-            continue;
-          builtin_error ("nproc: invalid number: %s", value);
+          char *q = bcu_quote (a);
+          builtin_error ("extra operand %s", q);
+          free (q);
+          bos_shim_try_help ("nproc");
           return EXECUTION_FAILURE;
         }
-      builtin_error ("nproc: unknown flag: %s", a);
-      bcu_usage ("nproc");
-      return EX_USAGE;
+      if (!strcmp (a, "--")) { ended = 1; continue; }
+      if (a[1] != '-')
+        {
+          bos_shim_bad_option (a, a[1], "nproc");
+          return EXECUTION_FAILURE;
+        }
+      const char *name = a + 2, *eq = strchr (name, '=');
+      size_t len = eq ? (size_t) (eq - name) : strlen (name);
+      if (len && !strncmp ("ignore", name, len) && len <= 6)
+        {
+          if (eq) value = eq + 1;
+          else if (w->next) { w = w->next; value = w->word->word; }
+          else { bos_shim_missing_arg ("--ignore", 0, "nproc"); return EXECUTION_FAILURE; }
+        }
+      else if (len && len <= 3 && !strncmp ("all", name, len) && !eq) { use_all = 1; continue; }
+      else if (len && len <= 4 && !strncmp ("help", name, len) && !eq)
+        {
+          puts ("Usage: nproc [OPTION]...\n"
+                "Print the number of processing units available to the current process.\n\n"
+                "      --all       print the number of installed processors\n"
+                "      --ignore=N  if possible, exclude N processing units");
+          return EXECUTION_SUCCESS;
+        }
+      else if (len && len <= 7 && !strncmp ("version", name, len) && !eq)
+        {
+          printf ("nproc (bash-os coreutils, Bash %s)\n", dist_version);
+          return EXECUTION_SUCCESS;
+        }
+      else if (eq && len && ((len <= 3 && !strncmp ("all", name, len))
+                             || (len <= 4 && !strncmp ("help", name, len))
+                             || (len <= 7 && !strncmp ("version", name, len))))
+        {
+          builtin_error ("option '--%s' doesn't allow an argument",
+                         name[0] == 'a' ? "all" : name[0] == 'h' ? "help" : "version");
+          bos_shim_try_help ("nproc");
+          return EXECUTION_FAILURE;
+        }
+      else
+        {
+          bos_shim_bad_option (a, 0, "nproc");
+          return EXECUTION_FAILURE;
+        }
+      while (isspace ((unsigned char) *value)) value++;
+      char *end;
+      errno = 0;
+      ignore = strtoul (value, &end, 10);
+      if (*value && *value != '-' && end != value && !*end)
+        continue;
+      char *q = bcu_quote (value);
+      builtin_error ("invalid number: %s", q);
+      free (q);
+      return EXECUTION_FAILURE;
     }
   unsigned long n = 0, limit = ULONG_MAX;
   if (!use_all)
@@ -4174,6 +4274,18 @@ bcu_nproc_cmd (WORD_LIST *list)
   n = ignore < n ? n - ignore : 1;
   printf ("%lu\n", n);
   return EXECUTION_SUCCESS;
+}
+
+/* Diagnostics read "nproc: ..." (and, run by the /bin shim, name the
+   command as invoked). */
+static int
+bcu_nproc_cmd (WORD_LIST *list)
+{
+  char *saved = this_command_name;
+  this_command_name = (char *) "nproc";
+  int rc = bcu_nproc_run (list);
+  this_command_name = saved;
+  return rc;
 }
 
 /* ===================================================================
@@ -5169,7 +5281,7 @@ bcu_shred_remove (const char *path, int how, int verbose)
   int rc = EXECUTION_SUCCESS;
   if (unlink (old) < 0)
     {
-      builtin_error ("shred: %s: failed to remove: %s", path, strerror (errno));
+      builtin_error ("%s: failed to remove: %s", path, strerror (errno));
       rc = EXECUTION_FAILURE;
     }
   else if (verbose)
@@ -5191,13 +5303,13 @@ bcu_shred_one (const char *path, int passes, int zero_pass, int remove_how,
       else
         errno = EACCES;
     }
-  if (fd < 0) { builtin_error ("shred: %s: failed to open for writing: %s", path, strerror (errno)); return EXECUTION_FAILURE; }
+  if (fd < 0) { builtin_error ("%s: failed to open for writing: %s", path, strerror (errno)); return EXECUTION_FAILURE; }
   off_t sz;
   if (fixed_size >= 0) sz = (off_t) fixed_size;
   else
     {
       struct stat st;
-      if (fstat (fd, &st) < 0) { close (fd); builtin_error ("shred: fstat: %s", strerror (errno)); return EXECUTION_FAILURE; }
+      if (fstat (fd, &st) < 0) { close (fd); builtin_error ("fstat: %s", strerror (errno)); return EXECUTION_FAILURE; }
       sz = st.st_size;
     }
   unsigned char *buf = xmalloc (BUFSZ);
@@ -5238,14 +5350,14 @@ bcu_shred_one (const char *path, int passes, int zero_pass, int remove_how,
   if (close (fd) < 0 && !error) error = errno;
   /* Never unlink a file after an unsuccessful overwrite. */
   if (error)
-    { builtin_error ("shred: %s: %s", path, strerror (error)); return EXECUTION_FAILURE; }
+    { builtin_error ("%s: %s", path, strerror (error)); return EXECUTION_FAILURE; }
   if (remove_how != BCU_RM_NONE)
     return bcu_shred_remove (path, remove_how, verbose);
   return EXECUTION_SUCCESS;
 }
 
 static int
-bcu_shred_cmd (WORD_LIST *list)
+bcu_shred_run (WORD_LIST *list)
 {
   int passes = 3, zero_pass = 0, remove_how = BCU_RM_NONE, verbose = 0, force = 0;
   int options_done = 0;
@@ -5288,19 +5400,20 @@ bcu_shred_cmd (WORD_LIST *list)
               else if (strcmp (how, "wipesync") == 0) remove_how = BCU_RM_WIPESYNC;
               else
                 {
-                  builtin_error ("shred: invalid argument '%s' for '--remove'", how);
-                  builtin_error ("shred: valid arguments are: 'unlink', 'wipe', 'wipesync'");
-                  return EX_USAGE;
+                  builtin_error ("invalid argument '%s' for '--remove'", how);
+                  fputs ("Valid arguments are:\n  - 'unlink'\n  - 'wipe'\n  - 'wipesync'\n", stderr);
+                  bos_shim_try_help ("shred");
+                  return EXECUTION_FAILURE;
                 }
               continue;
             }
           char opt = 0;
           if (n == 12 && strncmp (a, "--iterations", n) == 0) opt = 'n';
           else if (n == 6 && strncmp (a, "--size", n) == 0) opt = 's';
-          if (!opt) { builtin_error ("shred: unknown flag: %s", a); bcu_usage ("shred"); return EX_USAGE; }
+          if (!opt) { bos_shim_bad_option (a, 0, "shred"); return EXECUTION_FAILURE; }
           if (eq) val = eq + 1;
           else if (w->next) { w = w->next; val = w->word->word; }
-          else { builtin_error ("shred: option '%s' requires an argument", a); bcu_usage ("shred"); return EX_USAGE; }
+          else { bos_shim_missing_arg (a, 0, "shred"); return EXECUTION_FAILURE; }
           if (opt == 'n') goto iterations;
           goto size;
         }
@@ -5317,32 +5430,42 @@ bcu_shred_cmd (WORD_LIST *list)
             case 'n': case 's':
               if (p[1]) val = p + 1;
               else if (w->next) { w = w->next; val = w->word->word; }
-              else { builtin_error ("shred: option requires an argument -- '%c'", *p); bcu_usage ("shred"); return EX_USAGE; }
+              else { bos_shim_missing_arg ("-", *p, "shred"); return EXECUTION_FAILURE; }
               if (*p == 'n') goto iterations;
               goto size;
             default:
-              builtin_error ("shred: unknown flag: %s", a); bcu_usage ("shred"); return EX_USAGE;
+              bos_shim_bad_option (a, *p, "shred"); return EXECUTION_FAILURE;
             }
         }
       continue;
     iterations:
       {
         long long v;
-        if (!bcu_parse_ll (val, &v) || v < 0 || v >= INT_MAX) { builtin_error ("shred: bad -n"); bcu_usage ("shred"); return EX_USAGE; }
+        if (!bcu_parse_ll (val, &v) || v < 0 || v >= INT_MAX) { char *q = bcu_quote (val); builtin_error ("invalid number of passes: %s", q); free (q); return EXECUTION_FAILURE; }
         passes = (int) v;
         continue;
       }
     size:
-      if (!bcu_parse_ll (val, &fixed_size) || fixed_size < 0) { builtin_error ("shred: bad -s"); bcu_usage ("shred"); return EX_USAGE; }
+      if (!bcu_parse_ll (val, &fixed_size) || fixed_size < 0) { char *q = bcu_quote (val); builtin_error ("invalid file size: %s", q); free (q); return EXECUTION_FAILURE; }
     }
 
-  if (!files) { builtin_error ("shred: missing FILE"); bcu_usage ("shred"); return EX_USAGE; }
+  if (!files) { builtin_error ("missing file operand"); bos_shim_try_help ("shred"); return EXECUTION_FAILURE; }
 
   int rc = EXECUTION_SUCCESS;
   for (WORD_LIST *w = files; w; w = w->next)
     if (bcu_shred_one (w->word->word, passes, zero_pass, remove_how, fixed_size, verbose, force) != EXECUTION_SUCCESS)
       rc = EXECUTION_FAILURE;
 
+  return rc;
+}
+
+static int
+bcu_shred_cmd (WORD_LIST *list)
+{
+  char *saved = this_command_name;
+  this_command_name = (char *) "shred";
+  int rc = bcu_shred_run (list);
+  this_command_name = saved;
   return rc;
 }
 
@@ -5354,15 +5477,21 @@ static int
 bcu_groups_print (const char *user)
 {
   struct passwd *pw = getpwnam (user);
-  if (!pw) { builtin_error ("groups: no such user: %s", user); return EXECUTION_FAILURE; }
+  if (!pw)
+    {
+      char *q = bcu_quote (user);
+      builtin_error ("%s: no such user", q);
+      free (q);
+      return EXECUTION_FAILURE;
+    }
   int ngroups = 0;
   /* First call: ask glibc how many slots we need. */
   getgrouplist (pw->pw_name, pw->pw_gid, NULL, &ngroups);
   if (ngroups <= 0) ngroups = 16;
   gid_t *gids = xmalloc ((size_t) ngroups * sizeof (gid_t));
-  if (!gids) { builtin_error ("groups: oom"); return EXECUTION_FAILURE; }
+  if (!gids) { builtin_error ("memory exhausted"); return EXECUTION_FAILURE; }
   if (getgrouplist (pw->pw_name, pw->pw_gid, gids, &ngroups) < 0)
-    { free (gids); builtin_error ("groups: getgrouplist failed"); return EXECUTION_FAILURE; }
+    { free (gids); builtin_error ("getgrouplist failed"); return EXECUTION_FAILURE; }
   for (int i = 0; i < ngroups; i++)
     {
       struct group *gr = getgrgid (gids[i]);
@@ -5375,9 +5504,32 @@ bcu_groups_print (const char *user)
   return EXECUTION_SUCCESS;
 }
 
+/* GNU groups: --help and --version (any prefix), "--", then user names;
+   an unknown option is GNU's option error (status 1). */
 static int
-bcu_groups_cmd (WORD_LIST *list)
+bcu_groups_run (WORD_LIST *list)
 {
+  for (; list; list = list->next)
+    {
+      const char *a = list->word->word;
+      if (a[0] != '-' || !a[1])
+        break;
+      if (!strcmp (a, "--")) { list = list->next; break; }
+      if (a[1] == '-' && a[2] && !strncmp ("help", a + 2, strlen (a + 2)))
+        {
+          puts ("Usage: groups [OPTION]... [USERNAME]...\n"
+                "Print group memberships for each USERNAME or, if no USERNAME is specified,\n"
+                "for the current process.");
+          return EXECUTION_SUCCESS;
+        }
+      if (a[1] == '-' && a[2] && !strncmp ("version", a + 2, strlen (a + 2)))
+        {
+          printf ("groups (bash-os coreutils, Bash %s)\n", dist_version);
+          return EXECUTION_SUCCESS;
+        }
+      bos_shim_bad_option (a, a[1], "groups");
+      return EXECUTION_FAILURE;
+    }
   if (!list)
     {
       /* No operand: print the CURRENT PROCESS's groups via getgroups(),
@@ -5387,9 +5539,9 @@ bcu_groups_cmd (WORD_LIST *list)
       int ng = getgroups (0, NULL);
       if (ng < 0) ng = 0;
       gid_t *gids = xmalloc ((size_t) (ng ? ng : 1) * sizeof (gid_t));
-      if (!gids) { builtin_error ("groups: oom"); return EXECUTION_FAILURE; }
+      if (!gids) { builtin_error ("memory exhausted"); return EXECUTION_FAILURE; }
       ng = getgroups (ng, gids);
-      if (ng < 0) { free (gids); builtin_error ("groups: getgroups failed"); return EXECUTION_FAILURE; }
+      if (ng < 0) { free (gids); builtin_error ("cannot get supplemental groups"); return EXECUTION_FAILURE; }
       /* GNU prints the effective gid's group FIRST, then the remaining
          supplementary groups (in getgroups() order) skipping the egid. */
       gid_t egid = getegid ();
@@ -5411,10 +5563,30 @@ bcu_groups_cmd (WORD_LIST *list)
   int rc = EXECUTION_SUCCESS;
   for (WORD_LIST *w = list; w; w = w->next)
     {
+      if (!getpwnam (w->word->word))
+        {
+          /* GNU checks the user before printing its name. */
+          fflush (stdout);
+          char *q = bcu_quote (w->word->word);
+          builtin_error ("%s: no such user", q);
+          free (q);
+          rc = EXECUTION_FAILURE;
+          continue;
+        }
       printf ("%s : ", w->word->word);
       if (bcu_groups_print (w->word->word) != EXECUTION_SUCCESS)
         rc = EXECUTION_FAILURE;
     }
+  return rc;
+}
+
+static int
+bcu_groups_cmd (WORD_LIST *list)
+{
+  char *saved = this_command_name;
+  this_command_name = (char *) "groups";
+  int rc = bcu_groups_run (list);
+  this_command_name = saved;
   return rc;
 }
 

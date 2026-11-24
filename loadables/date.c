@@ -62,6 +62,7 @@
 #include <sys/stat.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 #include "date-parse.h"
 
@@ -624,8 +625,7 @@ date_builtin (WORD_LIST *list)
         }
         if (!strcmp (w, "-d") || !strcmp (w, "--date")) {
             if (!list->next) {
-                builtin_error ("%s needs STRING", w);
-                builtin_usage ();
+                bos_shim_missing_arg (w, w[1], "date");
                 return EXECUTION_FAILURE;
             }
             list = list->next;
@@ -692,8 +692,7 @@ date_builtin (WORD_LIST *list)
         }
         if (!strcmp (w, "-s") || !strcmp (w, "--set")) {
             if (!list->next) {
-                builtin_error ("%s needs STRING", w);
-                builtin_usage ();
+                bos_shim_missing_arg (w, w[1], "date");
                 return EXECUTION_FAILURE;
             }
             list = list->next;
@@ -726,8 +725,7 @@ date_builtin (WORD_LIST *list)
             list = list->next;
             continue;
         }
-        builtin_error ("unknown arg: %s", w);
-        builtin_usage ();
+        bos_shim_bad_option (w, w[1], "date");
         return EXECUTION_FAILURE;
     }
     /* Words after "--" are operands: a format or the POSIX set form. */

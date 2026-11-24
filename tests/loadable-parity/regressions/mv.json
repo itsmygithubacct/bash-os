@@ -426,7 +426,7 @@
         "chmod",
         "cat"
       ],
-      "script": "mkdir -p x/y/z; printf 1 > x/y/z/f; ln x/y/z/f x/l; ln -s ../f x/y/s; mkfifo -m 640 x/p; chmod 2750 x/y; chmod 604 x/y/z/f\nmv -v x /tmp/x\n[ -p /tmp/x/p ] && [ ! -e x ] && echo moved-out\nmv -v /tmp/x back\n[ ! -e /tmp/x ] && [ -p back/p ] && cat back/l back/y/z/f && echo\nprintf 1 > a; ln a b; mv -v a b /tmp/; mv -v /tmp/a /tmp/b .",
+      "script": "mkdir -p x/y/z; printf 1 > x/y/z/f; ln x/y/z/f x/l; ln -s ../f x/y/s; mkfifo -m 640 x/p; chmod 2750 x/y; chmod 604 x/y/z/f\nmv -v x /tmp/x | LC_ALL=C sort\n[ -p /tmp/x/p ] && [ ! -e x ] && echo moved-out\nmv -v /tmp/x back | LC_ALL=C sort\n[ ! -e /tmp/x ] && [ -p back/p ] && cat back/l back/y/z/f && echo\nprintf 1 > a; ln a b; mv -v a b /tmp/; mv -v /tmp/a /tmp/b .",
       "expected_status": 0,
       "stderr": "empty"
     },
@@ -442,7 +442,7 @@
         "sed",
         "touch"
       ],
-      "script": "trap 'chmod 600 u T/u 2>/dev/null || :' EXIT\nprintf u > u; chmod 0 u; printf old > /tmp/u\n{ mv -bv u /tmp/ || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ncat /tmp/u; echo; [ -e /tmp/u~ ] || echo no-backup-left\nmkdir T; printf a > T/a; printf u > T/u; chmod 0 T/u; printf z > T/z\n{ mv -v T /tmp/ || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ncat T/a T/z /tmp/T/a /tmp/T/z; echo; [ -e /tmp/T/u ] || echo no-partial-u\nchmod 600 u T/u\nprintf n > n; { mv --no-copy n /tmp/n || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ntouch -d '2030-01-01 00:00' /tmp/n; mv -vu n /tmp/n; [ -e n ] && echo kept-older\nmkdir -p U /tmp/U/q; printf a > U/a; { mv -v U /tmp/ || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\nmkdir -p V /tmp/V; printf a > V/a; mv -v V /tmp/\nprintf d > dbg; mv --debug dbg /tmp/dbg; mv --debug /tmp/dbg dbg2; mv --debug dbg2 dbg3",
+      "script": "trap 'chmod 600 u T/u 2>/dev/null || :' EXIT\nprintf u > u; chmod 0 u; printf old > /tmp/u\n{ mv -bv u /tmp/ || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ncat /tmp/u; echo; [ -e /tmp/u~ ] || echo no-backup-left\nmkdir T; printf a > T/a; printf u > T/u; chmod 0 T/u; printf z > T/z\n{ mv -v T /tmp/ || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g' | LC_ALL=C sort\ncat T/a T/z /tmp/T/a /tmp/T/z; echo; [ -e /tmp/T/u ] || echo no-partial-u\nchmod 600 u T/u\nprintf n > n; { mv --no-copy n /tmp/n || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ntouch -d '2030-01-01 00:00' /tmp/n; mv -vu n /tmp/n; [ -e n ] && echo kept-older\nmkdir -p U /tmp/U/q; printf a > U/a; { mv -v U /tmp/ || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\nmkdir -p V /tmp/V; printf a > V/a; mv -v V /tmp/\nprintf d > dbg; mv --debug dbg /tmp/dbg; mv --debug /tmp/dbg dbg2; mv --debug dbg2 dbg3",
       "expected_status": 0,
       "stderr": "empty"
     },

@@ -48,6 +48,8 @@
 #include <time.h>
 
 #include "loadables.h"
+#include "gnu-quote.h"
+#include "shim-prog-name.h"
 
 /* conv=  */
 #define DDC_NOTRUNC   (1<<0)
@@ -307,12 +309,25 @@ typedef struct { const char *name; int bit; } dd_flag_entry;
 
 extern char *dd_doc[];
 
-/* Parse a comma-separated flag list and OR matching bits into *out. */
+/* GNU dd's "WHAT: 'VALUE'" diagnostic; with TRY, its Try line. */
+static void
+dd_bad_value (const char *what, const char *value, int try)
+{
+    char *q = bos_quote (value);
+    builtin_error ("%s%s%s", what, *what ? " " : "", q ? q : value);
+    free (q);
+    if (try)
+        bos_shim_try_help ("dd");
+}
+
+/* Parse a comma-separated flag list and OR matching bits into *out. WHAT
+   names the list in GNU's diagnostic ("invalid conversion: 'X'"). */
 static int
-dd_parse_flags (const char *spec, const dd_flag_entry *table, int *out)
+dd_parse_flags (const char *spec, const dd_flag_entry *table, int *out,
+                const char *what)
 {
     char buf[256];
-    if (strlen (spec) >= sizeof buf) return -1;
+    if (strlen (spec) >= sizeof buf) { dd_bad_value (what, spec, 1); return -1; }
     strcpy (buf, spec);
     char *save = NULL;
     for (char *tok = strtok_r (buf, ",", &save); tok;
@@ -326,8 +341,7 @@ dd_parse_flags (const char *spec, const dd_flag_entry *table, int *out)
             }
         }
         if (!hit) {
-            builtin_error ("unknown flag value: %s", tok);
-            builtin_usage ();
+            dd_bad_value (what, tok, 1);
             return -1;
         }
     }
@@ -574,14 +588,21 @@ dd_builtin (WORD_LIST *list)
             return EXECUTION_SUCCESS;
         }
         if (!strcmp (arg, "--version")) {
-            puts ("bashdd 1.0 (bash-loadable)");
+            puts ("dd 1.0 (bash-loadable)");
             return EXECUTION_SUCCESS;
+        }
+        /* GNU dd: "--" before the first operand ends the options; other
+           words starting with '-' are unknown options. */
+        if (l == list && !strcmp (arg, "--"))
+            continue;
+        if (arg[0] == '-' && arg[1] && l == list) {
+            bos_shim_bad_option (arg, arg[1], "dd");
+            return EXECUTION_FAILURE;
         }
         const char *eq = strchr (arg, '=');
         if (!eq) {
-            builtin_error ("bad operand (no =): %s", arg);
-            builtin_usage ();
-            return EX_USAGE;
+            dd_bad_value ("unrecognized operand", arg, 1);
+            return EXECUTION_FAILURE;
         }
         size_t klen = (size_t) (eq - arg);
         const char *val = eq + 1;
@@ -595,29 +616,26 @@ dd_builtin (WORD_LIST *list)
         else if (K ("count"))  { if (dd_parse_nonnegative (val, &count) < 0) goto bad_size; }
         else if (K ("skip"))   { if (dd_parse_nonnegative (val, &skip)  < 0) goto bad_size; }
         else if (K ("seek"))   { if (dd_parse_nonnegative (val, &seek)  < 0) goto bad_size; }
-        else if (K ("conv"))   { if (dd_parse_flags (val, conv_tbl,   &conv)   < 0) return EX_USAGE; }
-        else if (K ("iflag"))  { if (dd_parse_flags (val, iflag_tbl,  &iflag)  < 0) return EX_USAGE; }
-        else if (K ("oflag"))  { if (dd_parse_flags (val, oflag_tbl,  &oflag)  < 0) return EX_USAGE; }
-        else if (K ("status")) { if (dd_parse_flags (val, status_tbl, &status) < 0) return EX_USAGE; }
+        else if (K ("conv"))   { if (dd_parse_flags (val, conv_tbl,   &conv, "invalid conversion:") < 0) return EXECUTION_FAILURE; }
+        else if (K ("iflag"))  { if (dd_parse_flags (val, iflag_tbl,  &iflag, "invalid input flag:") < 0) return EXECUTION_FAILURE; }
+        else if (K ("oflag"))  { if (dd_parse_flags (val, oflag_tbl,  &oflag, "invalid output flag:") < 0) return EXECUTION_FAILURE; }
+        else if (K ("status")) { if (dd_parse_flags (val, status_tbl, &status, "invalid status level:") < 0) return EXECUTION_FAILURE; }
         else {
-            builtin_error ("unknown operand: %.*s", (int) klen, arg);
-            builtin_usage ();
-            return EX_USAGE;
+            dd_bad_value ("unrecognized operand", arg, 1);
+            return EXECUTION_FAILURE;
         }
 #undef K
         continue;
     bad_size:
-        builtin_error ("bad size: %s", val);
-        builtin_usage ();
-        return EX_USAGE;
+        dd_bad_value ("invalid number:", val, 0);
+        return EXECUTION_FAILURE;
     }
     if (bs > 0) { ibs = bs; obs = bs; }
 
     /* GNU dd rejects combining the two reblocking modes. */
     if ((conv & DDC_BLOCK) && (conv & DDC_UNBLOCK)) {
         builtin_error ("cannot combine block and unblock");
-        builtin_usage ();
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
     }
     /* conv=block/unblock with cbs unset (0) is an identity passthrough in
        GNU dd, so only treat the reblocking as active when cbs > 0. */

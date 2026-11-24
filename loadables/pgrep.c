@@ -59,6 +59,7 @@
 #include <langinfo.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 /* Backend dispatch flag — bashpkill.c / bashkillall.c set this via bp_dispatch. */
 #define BP_MODE_GREP    0
@@ -1156,8 +1157,7 @@ bp_dispatch_words (WORD_LIST *list, int mode, struct bp_selection *selp)
                     }
                     break;
                 }
-                builtin_error ("unknown flag: -%c", *c);
-                builtin_usage ();
+                bos_shim_procps_usage (w, *c, "[options] <pattern>", "1", this_command_name);
                 return EX_USAGE;
             }
             list = list->next;
@@ -1175,8 +1175,7 @@ bp_dispatch_words (WORD_LIST *list, int mode, struct bp_selection *selp)
                 continue;
             }
         }
-        builtin_error ("unknown flag: %s", w);
-        builtin_usage ();
+        bos_shim_procps_usage (w, w[1], "[options] <pattern>", "1", this_command_name);
         return EX_USAGE;
     }
 

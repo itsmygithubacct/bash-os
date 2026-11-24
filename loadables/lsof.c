@@ -244,7 +244,11 @@ lsof_builtin (WORD_LIST *list)
             list = list->next;
             continue;
         }
-        builtin_error ("unknown arg: %s", w);
+        /* lsof's own wording: the first option character it rejects. */
+        if (w[0] == '-' && w[1])
+            builtin_error ("illegal option character: %c", w[1]);
+        else
+            builtin_error ("unknown arg: %s", w);
         builtin_usage ();
         return EXECUTION_FAILURE;
     }

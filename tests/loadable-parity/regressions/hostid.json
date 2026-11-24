@@ -8,7 +8,8 @@
     "Valid fixture override formatting, including zero padding and uppercase digits",
     "Fallback to gethostid for non-hex, short, empty, and missing override files",
     "Extra-operand status and diagnostic behavior against GNU hostid",
-    "Unsupported-option rejection against GNU hostid; custom implementation identity checked separately from GNU parity."
+    "Unsupported-option rejection against GNU hostid; custom implementation identity checked separately from GNU parity.",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "A controlled /etc/hostid cannot be installed through the relative private fixture directory; see the deferred case.",
@@ -133,6 +134,39 @@
       "kind": "deferred",
       "purpose": "Verify precedence and byte interpretation when a system /etc/hostid is present.",
       "reason": "Requires a disposable VM or reviewed privileged mock that starts with /etc/hostid set to a known 32-bit fixture, then runs both GNU hostid and the loadable against that same system configuration. The current runner exposes no writable system path, and the suite must not alter machine identity."
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option is reported as hostid reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "hostid"
+      ],
+      "script": "rc=0\nhostid --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option is reported as hostid reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "hostid"
+      ],
+      "script": "rc=0\nhostid -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-operand",
+      "kind": "parity",
+      "purpose": "G120: an operand is extra.",
+      "requires": [
+        "hostid"
+      ],
+      "script": "rc=0\nhostid x || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

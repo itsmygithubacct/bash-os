@@ -3,7 +3,8 @@
   "loadable": "dd",
   "reference": "GNU coreutils dd from the runner's read-only /usr tree is the parity oracle; each parity case runs the same script under reference Bash with GNU dd on PATH and under bash-os with PATH empty.",
   "coverage": [
-    "conv=sparse to a regular file and to a pipe, including a trailing all-NUL block (guest pass 3)."
+    "conv=sparse to a regular file and to a pipe, including a trailing all-NUL block (guest pass 3).",
+    "Pass 8 (G119, G120): invalid numbers (bs=0), unrecognized operands, invalid flags and options in GNU form with status 1."
   ],
   "exclusions": [
     "Allocation is compared only as 'fewer blocks than bytes'; exact block counts depend on the filesystem."
@@ -20,6 +21,61 @@
       "script": "/usr/bin/python3 -c 'open(\"in\",\"wb\").write(bytes(8192)+b\"abc\"+bytes(4093)+bytes(8192))'\ndd if=in of=out bs=4096 conv=sparse status=none\ndd if=in bs=4096 conv=sparse status=none > piped\n/usr/bin/python3 -c 'import os; a=open(\"in\",\"rb\").read(); print(open(\"out\",\"rb\").read()==a, open(\"piped\",\"rb\").read()==a, os.stat(\"out\").st_size, os.stat(\"out\").st_blocks*512 < os.stat(\"out\").st_size)'",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-zero-block-size",
+      "kind": "parity",
+      "purpose": "G119: bs=0 and ibs=0 are invalid numbers.",
+      "requires": [
+        "dd"
+      ],
+      "script": "rc=0\ndd bs=0 || rc=$?\necho \"rc=$rc\"\nrc=0\ndd ibs=0 </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-invalid-number",
+      "kind": "parity",
+      "purpose": "G119: a malformed or negative number.",
+      "requires": [
+        "dd"
+      ],
+      "script": "rc=0\ndd bs=x || rc=$?\necho \"rc=$rc\"\nrc=0\ndd count=-1 || rc=$?\necho \"rc=$rc\"\nrc=0\ndd skip=1x || rc=$?\necho \"rc=$rc\"\nrc=0\ndd count= </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unrecognized-operand",
+      "kind": "parity",
+      "purpose": "G119: an operand without '=' or with an unknown key.",
+      "requires": [
+        "dd"
+      ],
+      "script": "rc=0\ndd foo || rc=$?\necho \"rc=$rc\"\nrc=0\ndd foo=bar || rc=$?\necho \"rc=$rc\"\nrc=0\ndd if || rc=$?\necho \"rc=$rc\"\nrc=0\ndd =x </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-invalid-flags",
+      "kind": "parity",
+      "purpose": "G119: invalid conv, iflag, oflag and status values.",
+      "requires": [
+        "dd"
+      ],
+      "script": "rc=0\ndd conv=bogus || rc=$?\necho \"rc=$rc\"\nrc=0\ndd iflag=bogus || rc=$?\necho \"rc=$rc\"\nrc=0\ndd oflag=bogus,direct || rc=$?\necho \"rc=$rc\"\nrc=0\ndd status=bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-option",
+      "kind": "parity",
+      "purpose": "G120: unknown options name only dd, status 1.",
+      "requires": [
+        "dd"
+      ],
+      "script": "rc=0\ndd --bogus || rc=$?\necho \"rc=$rc\"\nrc=0\ndd -x </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

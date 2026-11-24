@@ -1,6 +1,9 @@
 --- builtins/realpath.c
 +++ builtins/realpath.c
-@@ -65,0 +66,228 @@
+@@ -58,0 +59,2 @@
++#include "gnu-longopt.h"
++#include "shim-prog-name.h"
+@@ -65,0 +68,256 @@
 +/* GNU's default permits a missing final component, including the target of
 +   a dangling final symlink. Resolve every parent before accepting that leaf. */
 +static char *
@@ -229,14 +232,43 @@
 +	return out;
 +}
 +
-@@ -69,3 +297,3 @@
++/* coreutils realpath's long options, matched by unambiguous prefix. The
++   order is the one GNU lists in an ambiguity diagnostic. */
++enum { RP_RELATIVE_TO = BOS_OPT_FIRST, RP_RELATIVE_BASE };
++static const struct bos_longopt realpath_longopts[] = {
++	{ "canonicalize-existing", BOS_NO_ARG, 'e' },
++	{ "canonicalize-missing", BOS_NO_ARG, 'm' },
++	{ "relative-to", BOS_REQ_ARG, RP_RELATIVE_TO },
++	{ "relative-base", BOS_REQ_ARG, RP_RELATIVE_BASE },
++	{ "quiet", BOS_NO_ARG, 'q' },
++	{ "strip", BOS_NO_ARG, 's' },
++	{ "no-symlinks", BOS_NO_ARG, 's' },
++	{ "zero", BOS_NO_ARG, 'z' },
++	{ "logical", BOS_NO_ARG, 'L' },
++	{ "physical", BOS_NO_ARG, 'P' },
++	{ "help", BOS_NO_ARG, BOS_OPT_HELP },
++	{ "version", BOS_NO_ARG, BOS_OPT_VERSION },
++	{ 0, 0, 0 }
++};
++
++/* A file name in a diagnostic, quoted only when a reader needs it. */
++static void
++realpath_file_error (const char *name, int error)
++{
++	char *q = bos_quotef (name);
++	builtin_error ("%s: %s", q ? q : name, strerror (error));
++	free (q);
++}
++
+@@ -69,3 +327,4 @@
 -	int	opt, cflag, vflag, qflag, sflag, aflag, es;
 -	char	*r, realbuf[PATH_MAX], *p, *newpath;
 -	struct stat sb;
-+	int	cflag, vflag, qflag, sflag, aflag, mflag, zflag, lflag, es;
++	int	cflag, vflag, qflag, sflag, aflag, mflag, zflag, lflag, es, opt, i;
 +	char	*r, *p, *rel_to, *rel_base, *can_to, *can_base;
-+	WORD_LIST *l;
-@@ -78,6 +306,2 @@
++	const char *prog;
++	bos_getopt g;
+@@ -78,6 +337,2 @@
 -	if (list == 0) {
 -		builtin_usage();
 -		return (EX_USAGE);
@@ -245,114 +277,106 @@
 -	vflag = cflag = qflag = aflag = sflag = 0;
 +	vflag = cflag = qflag = aflag = sflag = mflag = zflag = lflag = 0;
 +	rel_to = rel_base = can_to = can_base = 0;
-@@ -89,11 +313,5 @@
+@@ -89,2 +344,10 @@
 -	reset_internal_getopt();
 -	while ((opt = internal_getopt (list, "a:cqsv")) != -1) {
--		switch (opt) {
--#if defined (ARRAY_VARS)
--		case 'a':
--			aflag = 1;
++	/* Options as GNU getopt_long scans them: clusters ("-ez"), unambiguous
++	   long prefixes, options after operands, "--". Errors are coreutils'
++	   (glibc's wording, the Try line, status 1). */
++	prog = bos_shim_prog_name ("realpath");
++#if defined (ARRAY_VARS)
++	bos_getopt_init (&g, prog, "a:cemqsvzLP", realpath_longopts, list);
++#else
++	bos_getopt_init (&g, prog, "cemqsvzLP", realpath_longopts, list);
++#endif
++	while ((opt = bos_getopt_next (&g)) != -1) {
+@@ -95 +358 @@
 -			aname = list_optarg;
--			break;
--#endif
--		case 'c':
++			aname = (char *)g.optarg;
+@@ -99,4 +362,3 @@
 -			cflag = 1;
-+	/* Short options cluster ("-ez"); GNU long options take =VALUE or the
-+	   next word; "--" ends the options. */
-+	for (l = list; l; l = l->next) {
-+		char *w = l->word->word;
-+		if (w[0] != '-' || w[1] == 0)
-@@ -101,12 +319,23 @@
+-			break;
 -		case 'q':
 -			qflag = 1;
--			break;
++		case 'e':
++			/* -e (GNU) and -c: every component must exist. */
++			cflag = 1; mflag = 0;
+@@ -104,2 +366,2 @@
 -		case 's':
 -			sflag = 1;
--			break;
++		case 'm':
++			mflag = 1; cflag = 0;
+@@ -107,4 +369,16 @@
 -		case 'v':
 -			vflag = 1;
 -			break;
 -		CASE_HELPOPT;
--		default:
++		case 'q': qflag = 1; break;
++		case 's': sflag = 1; break;
++		case 'v': vflag = 1; break;
++		case 'z': zflag = 1; break;
++		case 'L': lflag = 1; break;
++		case 'P': lflag = 0; break;
++		case RP_RELATIVE_TO: rel_to = (char *)g.optarg; break;
++		case RP_RELATIVE_BASE: rel_base = (char *)g.optarg; break;
++		case BOS_OPT_HELP:
++			bos_getopt_free (&g);
++			builtin_help ();
++			return (sh_chkwrite (EXECUTION_SUCCESS));
++		case BOS_OPT_VERSION:
++			bos_getopt_free (&g);
++			printf ("realpath (bash-os builtin, Bash %s)\n", dist_version);
++			return (sh_chkwrite (EXECUTION_SUCCESS));
+@@ -112,2 +386,2 @@
 -			builtin_usage();
-+		if (STREQ (w, "--")) { l = l->next; break; }
-+		if (w[1] == '-') {
-+			char *eq = strchr (w, '=');
-+			size_t n = eq ? (size_t) (eq - w) : strlen (w);
-+			char **slot = 0;
-+			if (n == 6 && strncmp (w, "--help", n) == 0) { builtin_help (); return (EXECUTION_SUCCESS); }
-+			if (n == 13 && strncmp (w, "--relative-to", n) == 0) slot = &rel_to;
-+			else if (n == 15 && strncmp (w, "--relative-base", n) == 0) slot = &rel_base;
-+			if (slot) {
-+				if (eq) *slot = eq + 1;
-+				else if (l->next) { l = l->next; *slot = l->word->word; }
-+				else { builtin_error ("option '%s' requires an argument", w); builtin_usage (); return (EX_USAGE); }
-+				continue;
-+			}
-+			if (eq == 0 && STREQ (w, "--canonicalize-existing")) { cflag = 1; mflag = 0; continue; }
-+			if (eq == 0 && STREQ (w, "--canonicalize-missing")) { mflag = 1; cflag = 0; continue; }
-+			if (eq == 0 && (STREQ (w, "--strip") || STREQ (w, "--no-symlinks"))) { sflag = 1; continue; }
-+			if (eq == 0 && STREQ (w, "--quiet")) { qflag = 1; continue; }
-+			if (eq == 0 && STREQ (w, "--zero")) { zflag = 1; continue; }
-+			if (eq == 0 && STREQ (w, "--logical")) { lflag = 1; continue; }
-+			if (eq == 0 && STREQ (w, "--physical")) { lflag = 0; continue; }
-+			builtin_error ("unrecognized option '%s'", w);
-+			builtin_usage ();
-@@ -114,0 +344,33 @@
-+		int took = 0;
-+		for (p = w + 1; *p; p++) {
-+			switch (*p) {
-+#if defined (ARRAY_VARS)
-+			case 'a':
-+				aflag = 1;
-+				if (p[1]) aname = p + 1;
-+				else if (l->next) { l = l->next; aname = l->word->word; }
-+				else { sh_needarg ("-a"); builtin_usage (); return (EX_USAGE); }
-+				took = 1;	/* the rest of the word was the argument */
-+				break;
-+#endif
-+			case 'c':
-+			case 'e':
-+				/* -e (GNU) and -c: every component must exist. */
-+				cflag = 1; mflag = 0;
-+				break;
-+			case 'm':
-+				mflag = 1; cflag = 0;
-+				break;
-+			case 'q': qflag = 1; break;
-+			case 's': sflag = 1; break;
-+			case 'v': vflag = 1; break;
-+			case 'z': zflag = 1; break;
-+			case 'L': lflag = 1; break;
-+			case 'P': lflag = 0; break;
-+			default:
-+				sh_invalidopt (w);
-+				builtin_usage ();
-+				return (EX_USAGE);
-+			}
-+			if (took) break;
-+		}
-@@ -116,2 +378 @@
--
+-			return (EX_USAGE);
++			bos_getopt_free (&g);
++			return (EXECUTION_FAILURE);
+@@ -117,5 +391,5 @@
 -	list = loptend;
-+	list = l;
-@@ -120,2 +381,3 @@
+-
+-	if (list == 0) {
 -		builtin_usage();
 -		return (EX_USAGE);
++	if (g.noperands == 0) {
 +		builtin_error ("missing operand");
-+		builtin_usage ();
++		bos_try_help (prog);
++		bos_getopt_free (&g);
 +		return (EXECUTION_FAILURE);
-@@ -146,0 +409,20 @@
+@@ -126,0 +401 @@
++		bos_getopt_free (&g);
+@@ -129 +404,2 @@
+-	if (aname && builtin_unbind_variable (aname) == -2)
++	if (aname && builtin_unbind_variable (aname) == -2) {
++		bos_getopt_free (&g);
+@@ -130,0 +407 @@
++	}
+@@ -135,0 +413 @@
++			bos_getopt_free (&g);
+@@ -138,0 +417 @@
++			bos_getopt_free (&g);
+@@ -147,9 +426,25 @@
+-	for (es = EXECUTION_SUCCESS; list; list = list->next) {
+-		p = list->word->word;
+-		if (sflag) {
+-			/* sh_canonpath doesn't convert to absolute pathnames */
+-			newpath = make_absolute(p, get_string_value("PWD"));
+-			r = sh_canonpath(newpath, PATH_CHECKDOTDOT|PATH_CHECKEXISTS);
+-			free(newpath);
+-		} else
+-			r = sh_realpath(p, realbuf);
 +	/* --relative-to/--relative-base, canonicalized like the operands. A
 +	   --relative-to outside --relative-base disables relative output. */
 +	if (rel_base && (can_base = realpath_canon (rel_base, mflag, cflag, sflag, lflag)) == 0) {
-+		builtin_error ("%s: %s", rel_base, strerror (errno));
++		realpath_file_error (rel_base, errno);
++		bos_getopt_free (&g);
 +		return (EXECUTION_FAILURE);
 +	}
 +	if (rel_to) {
 +		if ((can_to = realpath_canon (rel_to, mflag, cflag, sflag, lflag)) == 0) {
-+			builtin_error ("%s: %s", rel_to, strerror (errno));
++			realpath_file_error (rel_to, errno);
 +			free (can_base);
++			bos_getopt_free (&g);
 +			return (EXECUTION_FAILURE);
 +		}
 +		if (can_base && !realpath_prefix (can_base, can_to)) {
@@ -363,49 +387,63 @@
 +	} else if (can_base)
 +		can_to = savestring (can_base);
 +
-@@ -149,7 +431 @@
--		if (sflag) {
--			/* sh_canonpath doesn't convert to absolute pathnames */
--			newpath = make_absolute(p, get_string_value("PWD"));
--			r = sh_canonpath(newpath, PATH_CHECKDOTDOT|PATH_CHECKEXISTS);
--			free(newpath);
--		} else
--			r = sh_realpath(p, realbuf);
++	for (es = EXECUTION_SUCCESS, i = 0; i < g.noperands; i++) {
++		p = g.operands[i];
 +		r = realpath_canon (p, mflag, cflag, sflag, lflag);
-@@ -159,6 +434,0 @@
+@@ -159 +454 @@
 -				builtin_error("%s: cannot resolve: %s", p, strerror(errno));
--			continue;
--		}
++				realpath_file_error (p, errno);
+@@ -162,5 +457,4 @@
 -		if (cflag && (stat(r, &sb) < 0)) {
 -			es = EXECUTION_FAILURE;
 -			if (qflag == 0)
-@@ -167,0 +438,5 @@
+-				builtin_error("%s: %s", p, strerror(errno));
+-			continue;
 +		if (can_to && (can_base == 0 || realpath_prefix (can_base, r))) {
 +			char *rel = realpath_relative (r, can_to);
 +			free (r);
 +			r = rel;
-+		}
-@@ -177 +452,2 @@
+@@ -174 +468,3 @@
+-		if (qflag == 0) {
++		/* coreutils -q only quiets diagnostics. Bash's -q -a VARNAME
++		   fills the array without printing. */
++		if (qflag == 0 || aflag == 0) {
+@@ -177 +473,2 @@
 -			printf("%s\n", r);
 +			fputs (r, stdout);
 +			putchar (zflag ? '\0' : '\n');
-@@ -179,2 +455 @@
+@@ -179,2 +476 @@
 -		if (sflag)
 -			free (r);
 +		free (r);
-@@ -181,0 +457,2 @@
+@@ -182 +478,4 @@
+-	return es;
 +	free (can_to);
 +	free (can_base);
-@@ -192 +469,8 @@
++	bos_getopt_free (&g);
++	return (sh_chkwrite (es));
+@@ -189 +488 @@
+-	"symbolic links.",
++	"symbolic links, as coreutils realpath does.",
+@@ -192,4 +491,12 @@
 -	"The -c option checks whether or not each resolved name exists.",
+-	"The -q option produces no output; the exit status determines the",
+-	"validity of each PATHNAME, but any array assignment is still performed.",
+-	"If the -s option is supplied, canonicalize . and .. pathname components",
 +	"The -c or -e (--canonicalize-existing) option requires every component",
 +	"of each resolved name to exist.",
 +	"By default, a missing final pathname component is permitted.",
 +	"With -m (--canonicalize-missing), any component of a pathname may be missing.",
-+	"-L resolves '..' before symbolic links; -P (the default) after them.",
++	"-L (--logical) resolves '..' before symbolic links; -P (--physical, the",
++	"default) after them.",
 +	"--relative-to=DIR prints each name relative to DIR; --relative-base=DIR",
 +	"prints names below DIR relative to it and others absolute.",
 +	"-z (--zero) ends each output name with NUL, not newline.",
-@@ -207 +491 @@
++	"The -q (--quiet) option suppresses most error messages. With -a, -q also",
++	"suppresses the output; the array assignment is still performed.",
++	"With -s (--strip, --no-symlinks), canonicalize . and .. pathname components",
+@@ -197,0 +505 @@
++	"--help displays help; --version displays the Bash builtin version.",
+@@ -207 +515 @@
 -	"realpath [-a varname] [-cqsv] pathname [pathname...]",	/* usage synopsis */
 +	"realpath [-a varname] [-cemqsvzLP] [--relative-to=DIR] [--relative-base=DIR] pathname [pathname...]",	/* usage synopsis */

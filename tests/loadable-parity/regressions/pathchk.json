@@ -10,7 +10,8 @@
     "Missing operands produce an error status.",
     "Bash type metadata reports pathchk as a builtin.",
     "Search-denied directory, symlink directory prefix, empty pathname, and repeated-call option state.",
-    "Empty pathnames are rejected in default and portability modes."
+    "Empty pathnames are rejected in default and portability modes.",
+    "Pass 8 (G124): -P, --portability, the -p wording (non-portable character, length limits, empty name) and options only before the first operand."
   ],
   "exclusions": [
     "Filesystem-specific 255/4096 default limits are Linux fixture assumptions, checked against the reference before candidate classification. Exact diagnostic wording is not compared."
@@ -204,6 +205,138 @@
       "requires": [
         "pathchk"
       ]
+    },
+    {
+      "id": "pass8-leading-hyphen",
+      "kind": "parity",
+      "purpose": "G124: -P rejects a component that starts with a hyphen.",
+      "requires": [
+        "pathchk"
+      ],
+      "script": "rc=0\npathchk -P a/-b || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-leading-hyphen-ok",
+      "kind": "parity",
+      "purpose": "G124: -P accepts a hyphen inside a component.",
+      "requires": [
+        "pathchk"
+      ],
+      "script": "rc=0\npathchk -P a-b/c- || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-empty-p",
+      "kind": "parity",
+      "purpose": "G124: -p and -P reject an empty name.",
+      "requires": [
+        "pathchk"
+      ],
+      "script": "rc=0\npathchk -p '' || rc=$?\necho \"rc=$rc\"\nrc=0\npathchk -P '' || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-nonportable",
+      "kind": "parity",
+      "purpose": "G124: -p names the non-portable character and the file name.",
+      "requires": [
+        "pathchk"
+      ],
+      "script": "rc=0\npathchk -p 'a/b c' || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-portability",
+      "kind": "parity",
+      "purpose": "G124: --portability is -p and -P together.",
+      "requires": [
+        "pathchk"
+      ],
+      "script": "rc=0\npathchk --portability 'a b' || rc=$?\necho \"rc=$rc\"\nrc=0\npathchk --portability -- -x || rc=$?\necho \"rc=$rc\"\nrc=0\npathchk --port abc || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-both",
+      "kind": "parity",
+      "purpose": "G124: -pP checks both.",
+      "requires": [
+        "pathchk"
+      ],
+      "script": "rc=0\npathchk -pP 'a/-b' || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-name-limit",
+      "kind": "parity",
+      "purpose": "G124: -p limits a whole name to 255 bytes.",
+      "requires": [
+        "pathchk"
+      ],
+      "script": "rc=0\npathchk -p \"$(printf %0300d 0)\" || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-component-limit",
+      "kind": "parity",
+      "purpose": "G124: -p limits a component to 14 bytes.",
+      "requires": [
+        "pathchk"
+      ],
+      "script": "rc=0\npathchk -p \"a/$(printf %015d 0)\" || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-apostrophe",
+      "kind": "parity",
+      "purpose": "G124: a name with an apostrophe is quoted with double quotes.",
+      "requires": [
+        "pathchk"
+      ],
+      "script": "rc=0\npathchk -p \"it's\" || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-operand",
+      "kind": "parity",
+      "purpose": "G124: no operand is a usage error.",
+      "requires": [
+        "pathchk"
+      ],
+      "script": "rc=0\npathchk || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-option",
+      "kind": "parity",
+      "purpose": "G124: unknown options in GNU form.",
+      "requires": [
+        "pathchk"
+      ],
+      "script": "rc=0\npathchk --bogus || rc=$?\necho \"rc=$rc\"\nrc=0\npathchk -Y || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-no-argument",
+      "kind": "parity",
+      "purpose": "G124: --portability takes no argument.",
+      "requires": [
+        "pathchk"
+      ],
+      "script": "rc=0\npathchk --portability=x a || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

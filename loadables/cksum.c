@@ -51,6 +51,8 @@
 #include "_mbedtls_sha512.h"
 #include "_monocypher_monocypher.h"
 #include "loadables.h"
+#include "gnu-quote.h"
+#include "shim-prog-name.h"
 
 /* POSIX cksum CRC-32 table (non-reflected, polynomial 0x04C11DB7). */
 static uint32_t bck_table[256];
@@ -347,6 +349,28 @@ bck_unescape (char *s)
 }
 
 /* Hash NAME with ALG into HEX. MISSING is set when it does not exist. */
+/* GNU's name for a checksum list or a listed file in a diagnostic: quoted
+   only when needed, and standard input (a list read from "-") called
+   'standard input'. Each returns its own static buffer, replaced on the
+   next call. */
+static const char *
+bck_list_label (const char *file)
+{
+    static char *shown;
+    free (shown);
+    shown = bos_quotef (strcmp (file, "-") ? file : "standard input");
+    return shown ? shown : file;
+}
+
+static const char *
+bck_file_label (const char *file)
+{
+    static char *shown;
+    free (shown);
+    shown = bos_quotef (file);
+    return shown ? shown : file;
+}
+
 /* QUIET (--ignore-missing) silences the error only for a missing file. */
 static int
 bck_hash_name (const char *name, enum bck_alg alg, char *hex, int quiet, int *missing)
@@ -357,14 +381,14 @@ bck_hash_name (const char *name, enum bck_alg alg, char *hex, int quiet, int *mi
     *missing = 0;
     if (fd < 0) {
         *missing = errno == ENOENT;
-        if (!(quiet && *missing)) builtin_error ("%s: %s", name, strerror (errno));
+        if (!(quiet && *missing)) builtin_error ("%s: %s", bck_file_label (name), strerror (errno));
         return -1;
     }
     int failed = bck_compute_digest_fd (fd, alg, digest) < 0;
     int saved = errno;
     if (!from_stdin) close (fd);
     if (failed) {
-        builtin_error ("%s: %s", name, strerror (saved ? saved : EIO));
+        builtin_error ("%s: %s", bck_file_label (name), strerror (saved ? saved : EIO));
         return -1;
     }
     bck_hex (digest, bck_alg_digest_len (alg), hex);
@@ -380,7 +404,7 @@ bck_verify (const char *file, const struct bck_check *o)
     };
     int from_stdin = !strcmp (file, "-");
     FILE *f = from_stdin ? fdopen (dup (STDIN_FILENO), "r") : fopen (file, "r");
-    if (!f) { builtin_error ("%s: %s", file, strerror (errno)); return 1; }
+    if (!f) { builtin_error ("%s: %s", bck_file_label (file), strerror (errno)); return 1; }
     char *line = NULL;
     size_t cap = 0, number = 0, valid = 0, checked = 0, bad = 0, mismatched = 0, unreadable = 0;
     enum bck_alg last = o->alg;
@@ -467,16 +491,16 @@ bck_verify (const char *file, const struct bck_check *o)
 malformed:
         bad++;
         if (o->warn && !o->status)
-            builtin_error ("%s: %zu: improperly formatted %s checksum line", file, number, bck_alg_tag (last));
+            builtin_error ("%s: %zu: improperly formatted %s checksum line", bck_list_label (file), number, bck_alg_tag (last));
     }
-    if (ferror (f)) { if (!o->status) builtin_error ("%s: read error", file); rc = 1; }
+    if (ferror (f)) { if (!o->status) builtin_error ("%s: read error", bck_list_label (file)); rc = 1; }
     free (line);
     if (fclose (f)) rc = 1;
     /* As GNU: a list with no well-formed line gets only that error, even
        under --status; otherwise the WARNING counts come first and "no file
        was verified" (every file skipped by --ignore-missing) last. */
     if (!valid) {
-        builtin_error ("%s: no properly formatted checksum lines found", file);
+        builtin_error ("%s: no properly formatted checksum lines found", bck_list_label (file));
         return 1;
     }
     if (!o->status) {
@@ -485,7 +509,7 @@ malformed:
         if (mismatched) builtin_error ("WARNING: %zu computed checksum%s did NOT match", mismatched, mismatched == 1 ? "" : "s");
     }
     if (!checked) {
-        if (!o->status) builtin_error ("%s: no file was verified", file);
+        if (!o->status) builtin_error ("%s: no file was verified", bck_list_label (file));
         return 1;
     }
     if (bad && o->strict) rc = 1;
@@ -495,7 +519,7 @@ malformed:
 static int
 bck_try (void)
 {
-    fprintf (stderr, "Try 'cksum --help' for more information.\n");
+    bos_shim_try_help ("cksum");
     return EXECUTION_FAILURE;
 }
 
@@ -593,8 +617,7 @@ cksum_builtin (WORD_LIST *list)
         const char *alg_name = NULL;
         if (!strcmp (w, "-a") || !strcmp (w, "--algorithm")) {
             if (!list->next) {
-                builtin_error ("%s needs an algorithm", w);
-                builtin_usage ();
+                bos_shim_missing_arg (w, 'a', "cksum");
                 return EXECUTION_FAILURE;
             }
             list = list->next;
@@ -617,8 +640,17 @@ cksum_builtin (WORD_LIST *list)
             list = list->next;
             continue;
         }
-        builtin_error ("unknown flag: %s", w);
-        builtin_usage ();
+        /* A cluster of the flags that take no argument ("-cw"), as GNU's
+           getopt takes it; anything else is GNU's option error. */
+        if (w[1] != '-' && !w[strspn (w + 1, "zcw") + 1]) {
+            for (const char *c = w + 1; *c; c++)
+                if (*c == 'z') delim = '\0';
+                else if (*c == 'c') check = 1;
+                else co.warn = 1;
+            list = list->next;
+            continue;
+        }
+        bos_shim_bad_option (w, w[1] == '-' ? 0 : w[strspn (w + 1, "zcw") + 1], "cksum");
         return EXECUTION_FAILURE;
     }
     if (length_arg) {

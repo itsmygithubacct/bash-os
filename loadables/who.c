@@ -25,6 +25,8 @@
 #include <limits.h>
 #include <sys/sysinfo.h>
 #include "loadables.h"
+#include "gnu-quote.h"
+#include "shim-prog-name.h"
 
 /* GNU who prints ISO times unless LC_TIME is the C or POSIX locale, where it
    keeps the traditional "%b %e %H:%M" (gnulib hard_locale). */
@@ -595,7 +597,7 @@ who_builtin (WORD_LIST *list)
         if (w[1] == '-') {
             single[0] = bw_option (w);
             if (!single[0]) {
-                builtin_error ("unrecognized option: %s", w);
+                bos_shim_bad_option (w, 0, "who");
                 return EXECUTION_FAILURE;
             }
             flags = single;
@@ -622,7 +624,7 @@ who_builtin (WORD_LIST *list)
             case 'T': case 'w': mesg = 1; break;
             case 'm': my_line = 1; break;
             default:
-                builtin_error ("invalid option: -%c", *c);
+                bos_shim_bad_option (w, *c, "who");
                 return EXECUTION_FAILURE;
             }
         }
@@ -638,7 +640,10 @@ who_builtin (WORD_LIST *list)
            that exact spelling still means the logind sessions. */
         file_operand = strcmp (path, BW_DEFAULT_PATH) != 0;
         if (list->next) {
-            builtin_error ("extra operand: %s", list->next->word->word);
+            char *q = bos_quote (list->next->word->word);
+            builtin_error ("extra operand %s", q ? q : list->next->word->word);
+            free (q);
+            bos_shim_try_help ("who");
             return EXECUTION_FAILURE;
         }
     }

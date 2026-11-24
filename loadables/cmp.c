@@ -40,6 +40,7 @@
 #include <sys/stat.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 /* GNU diffutils says "byte", except in the C/POSIX message locale, where
    POSIX requires "char". */
@@ -113,6 +114,27 @@ bcm_skip (int fd, uint64_t n, const char *name)
     return 0;
 }
 
+/* diffutils cmp's option error: glibc's line, then its own Try line,
+   which carries the "cmp: " prefix too; status 2. */
+static void
+bcm_try (void)
+{
+    fflush (stdout);
+    builtin_error ("Try '%s --help' for more information.", bos_shim_prog_name ("cmp"));
+}
+
+static int
+bcm_bad_option (const char *word, int c)
+{
+    fflush (stdout);
+    if (word[0] == '-' && word[1] == '-')
+        builtin_error ("unrecognized option '%s'", word);
+    else
+        builtin_error ("invalid option -- '%c'", c);
+    builtin_error ("Try '%s --help' for more information.", bos_shim_prog_name ("cmp"));
+    return 2;
+}
+
 int
 cmp_builtin (WORD_LIST *list)
 {
@@ -130,7 +152,7 @@ cmp_builtin (WORD_LIST *list)
             return EXECUTION_SUCCESS;
         }
         if (strcmp (w, "--version") == 0) {
-            puts ("bashcmp 1.0 (bash-loadable)");
+            puts ("cmp 1.0 (bash-loadable)");
             return EXECUTION_SUCCESS;
         }
         if (strncmp (w, "--bytes=", 8) == 0) {
@@ -145,14 +167,14 @@ cmp_builtin (WORD_LIST *list)
                 if (npath < 2) paths[npath++] = p->word->word;
                 else if (nskip < 2) {
                     if (bcm_parse_skip (p->word->word, &skip[nskip]) < 0) {
-                        builtin_error ("invalid skip count: %s", p->word->word);
-                        builtin_usage ();
+                        builtin_error ("invalid --ignore-initial value '%s'", p->word->word);
+                        bcm_try ();
                         return EX_USAGE;
                     }
                     nskip++;
                 } else {
-                    builtin_error ("too many arguments");
-                    builtin_usage ();
+                    builtin_error ("extra operand '%s'", p->word->word);
+                    bcm_try ();
                     return EX_USAGE;
                 }
             }
@@ -161,18 +183,20 @@ cmp_builtin (WORD_LIST *list)
         if (npath >= 2) {
             if (nskip < 2) {
                 if (bcm_parse_skip (w, &skip[nskip]) < 0) {
-                    builtin_error ("invalid skip count: %s", w);
-                    builtin_usage ();
+                    builtin_error ("invalid --ignore-initial value '%s'", w);
+                    bcm_try ();
                     return EX_USAGE;
                 }
                 nskip++;
             } else {
-                builtin_error ("too many arguments");
-                builtin_usage ();
+                builtin_error ("extra operand '%s'", p->word->word);
+                bcm_try ();
                 return EX_USAGE;
             }
             continue;
         }
+        if (w[0] == '-' && w[1] == '-')
+            return bcm_bad_option (w, 0);
         if (w[0] == '-' && w[1] && strcmp (w, "-") != 0) {
             for (int i = 1; w[i]; i++) {
                 if (w[i] == 'n') {
@@ -182,7 +206,7 @@ cmp_builtin (WORD_LIST *list)
                     if (!count) {
                         if (!p->next) {
                             builtin_error ("option requires an argument -- 'n'");
-                            builtin_usage ();
+                            bcm_try ();
                             return 2;
                         }
                         p = p->next;
@@ -198,37 +222,35 @@ cmp_builtin (WORD_LIST *list)
                 case 'l': lflag = 1; break;
                 case 's': sflag = 1; break;
                 default:
-                    builtin_error ("unknown flag: -%c", w[i]);
-                    builtin_usage ();
-                    return EX_USAGE;
+                    return bcm_bad_option (w, w[i]);
                 }
             }
         } else {
             if (npath < 2) paths[npath++] = w;
             else if (nskip < 2) {
                 if (bcm_parse_skip (w, &skip[nskip]) < 0) {
-                    builtin_error ("invalid skip count: %s", w);
-                    builtin_usage ();
+                    builtin_error ("invalid --ignore-initial value '%s'", w);
+                    bcm_try ();
                     return EX_USAGE;
                 }
                 nskip++;
             }
-            else { builtin_error ("too many arguments"); builtin_usage (); return EX_USAGE; }
+            else { builtin_error ("extra operand '%s'", w); bcm_try (); return EX_USAGE; }
         }
     }
     if (npath != 2) {
-        builtin_error ("missing file operand");
-        builtin_usage ();
+        builtin_error ("missing operand after '%s'", npath ? paths[0] : bos_shim_prog_name ("cmp"));
+        bcm_try ();
         return EX_USAGE;
     }
     if (lflag && sflag) {
-        builtin_error ("-l and -s are mutually exclusive");
-        builtin_usage ();
+        builtin_error ("options -l and -s are incompatible");
+        bcm_try ();
         return EX_USAGE;
     }
     if (strcmp (paths[0], "-") == 0 && strcmp (paths[1], "-") == 0) {
         builtin_error ("only one stdin operand is supported");
-        builtin_usage ();
+        bcm_try ();
         return EX_USAGE;
     }
 

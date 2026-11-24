@@ -12,7 +12,8 @@
     "Legacy used calculation without MemAvailable",
     "Repeated output count with a static fixture",
     "Missing meminfo diagnostic",
-    "GNU extra-operand exit status"
+    "GNU extra-operand exit status",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "Full GNU numeric output comparison is deferred because GNU free cannot consume the candidate relative fixture and live proc counters change; the deferred reason specifies the required shared immutable procfs mock.",
@@ -172,6 +173,30 @@
       "script": "free --seconds",
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option: the free diagnostic and the start of its usage text, and the status.",
+      "requires": [
+        "free",
+        "sed"
+      ],
+      "script": "rc=0\nout=$(free --bogus </dev/null 2>&1) || rc=$?\nprintf '%s\\n' \"$out\" | sed -n '1,4p'\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option: the free diagnostic and the start of its usage text, and the status.",
+      "requires": [
+        "free",
+        "sed"
+      ],
+      "script": "rc=0\nout=$(free -Y </dev/null 2>&1) || rc=$?\nprintf '%s\\n' \"$out\" | sed -n '1,4p'\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

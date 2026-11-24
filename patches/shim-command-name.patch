@@ -144,13 +144,26 @@
  
    name = get_name_for_error ();
    fprintf (stderr, "%s: ", name);
-@@ -128,7 +146,7 @@
+@@ -128,7 +146,19 @@
  builtin_usage (void)
  {
++  const char *doc = _(current_builtin->short_doc);
++  size_t len;
++
    if (this_command_name && *this_command_name)
 -    fprintf (stderr, _("%s: usage: "), this_command_name);
+-  fprintf (stderr, "%s\n", _(current_builtin->short_doc));
 +    fprintf (stderr, _("%s: usage: "), bashos_shim_name (this_command_name));
-   fprintf (stderr, "%s\n", _(current_builtin->short_doc));
++  /* bash-os: run by the /bin shim, a synopsis that starts with the
++     builtin's own name (bashsort, bashjoin, ...) names the command as it
++     was invoked instead, as the line's prefix does. */
++  len = this_command_name ? strlen (this_command_name) : 0;
++  if (len && doc && bashos_shim_runs (this_command_name) &&
++      strncmp (doc, this_command_name, len) == 0 &&
++      (doc[len] == ' ' || doc[len] == '\0'))
++    fprintf (stderr, "%s%s\n", bashos_shim_display (), doc + len);
++  else
++    fprintf (stderr, "%s\n", doc);
    fflush (stderr);
  }
 --- builtins/test.def

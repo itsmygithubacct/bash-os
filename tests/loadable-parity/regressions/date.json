@@ -11,7 +11,8 @@
     "Invalid calendar input statuses and invalid ISO timespec status",
     "Bash type/help metadata for the registered date builtin",
     "-r/--reference=FILE modification times and their conflicts with -d (guest compatibility pass 1).",
-    "Guest pass 4 G57: a TZ=\"ZONE\" prefix in -d strings (escapes, spacing, with relative items and @SECONDS), zone-plus-offset items (UTC+3, UTC-0500, UTC+05:30, EST+1, out of range), and 'extra operand' for a second operand."
+    "Guest pass 4 G57: a TZ=\"ZONE\" prefix in -d strings (escapes, spacing, with relative items and @SECONDS), zone-plus-offset items (UTC+3, UTC-0500, UTC+05:30, EST+1, out of range), and 'extra operand' for a second operand.",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "Current-time output and the documented now input alias are omitted because they depend on wall-clock timing.",
@@ -263,6 +264,39 @@
       "script": "date -d @0 +%F +%T || echo rc=$?\ndate -u 0101 +%F || echo rc=$?\ndate -u +%F -- +%T || echo rc=$?",
       "expected_status": 0,
       "stderr": "nonempty"
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option is reported as date reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "date"
+      ],
+      "script": "rc=0\ndate --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option is reported as date reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "date"
+      ],
+      "script": "rc=0\ndate -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-argument",
+      "kind": "parity",
+      "purpose": "G120: -d without its argument.",
+      "requires": [
+        "date"
+      ],
+      "script": "rc=0\ndate -d || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

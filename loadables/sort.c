@@ -63,6 +63,7 @@
 
 #include "loadables.h"
 #include "gnu-quote.h"
+#include "shim-prog-name.h"
 
 typedef struct {
     int field;            /* 1-based start field; 0 = the whole line */
@@ -2204,6 +2205,33 @@ bs_ext_needed (const char **files, size_t n_files, const bs_opts *o, const bs_ex
     return est > x->limit;
 }
 
+/* -t SEP as GNU sort takes it: one byte, or "\\0" for NUL; the same
+   separator may be repeated. Returns -1 after GNU's diagnostic. */
+static int
+bs_set_tab (bs_opts *o, const char *sep)
+{
+    int c;
+
+    if (sep[0] == '\0') {
+        builtin_error ("empty tab");
+        return -1;
+    }
+    if (sep[1] && strcmp (sep, "\\0") != 0) {
+        char *q = bos_quote (sep);
+        builtin_error ("multi-character tab %s", q ? q : sep);
+        free (q);
+        return -1;
+    }
+    c = sep[1] ? '\0' : (unsigned char) sep[0];
+    if (o->has_tsep && (unsigned char) o->tsep != c) {
+        builtin_error ("incompatible tabs");
+        return -1;
+    }
+    o->tsep = c;
+    o->has_tsep = 1;
+    return 0;
+}
+
 static int
 bs_sort (WORD_LIST *list, const char **files)
 {
@@ -2232,7 +2260,7 @@ bs_sort (WORD_LIST *list, const char **files)
             const char *value;
             if (w[10] == '=') value = w + 11;
             else {
-                if (!list->next) { builtin_error ("--parallel needs a count"); return EX_USAGE; }
+                if (!list->next) { bos_shim_missing_arg (w, 0, "sort"); return EX_USAGE; }
                 list = list->next;
                 value = list->word->word;
             }
@@ -2257,7 +2285,7 @@ bs_sort (WORD_LIST *list, const char **files)
             return EXECUTION_SUCCESS;
         }
         if (!strcmp (w, "--version")) {
-            puts ("bashsort 1.0 (bash-os)");
+            printf ("sort (bash-os builtin, Bash %s)\n", dist_version);
             return EXECUTION_SUCCESS;
         }
         if (!strcmp (w, "--numeric-sort")) { o.nflag = 1; list = list->next; continue; }
@@ -2283,7 +2311,7 @@ bs_sort (WORD_LIST *list, const char **files)
             continue;
         }
         if (!strcmp (w, "--random-source")) {
-            if (!list->next) { builtin_error ("%s needs FILE", w); return EX_USAGE; }
+            if (!list->next) { bos_shim_missing_arg (w, 0, "sort"); return EX_USAGE; }
             list = list->next;
             if (random_source && strcmp (random_source, list->word->word) != 0) {
                 builtin_error ("multiple random sources specified");
@@ -2312,7 +2340,7 @@ bs_sort (WORD_LIST *list, const char **files)
             if (eq)
                 val = eq + 1;
             else {
-                if (!list->next) { builtin_error ("%s needs an argument", w); return EX_USAGE; }
+                if (!list->next) { bos_shim_missing_arg (w, 0, "sort"); return EX_USAGE; }
                 list = list->next;
                 val = list->word->word;
             }
@@ -2344,29 +2372,21 @@ bs_sort (WORD_LIST *list, const char **files)
             continue;
         }
         if (!strcmp (w, "-t") || !strcmp (w, "--field-separator")) {
-            if (!list->next) { builtin_error ("%s needs SEP", w); return EX_USAGE; }
+            if (!list->next) { bos_shim_missing_arg (w, 't', "sort"); return EX_USAGE; }
             list = list->next;
-            if (list->word->word[0] == '\0') {
-                builtin_error ("%s needs a non-empty SEP", w);
+            if (bs_set_tab (&o, list->word->word) < 0)
                 return EX_USAGE;
-            }
-            o.tsep = list->word->word[0];
-            o.has_tsep = 1;
             list = list->next;
             continue;
         }
         if (!strncmp (w, "--field-separator=", 18)) {
-            if (w[18] == '\0') {
-                builtin_error ("--field-separator needs a non-empty SEP");
+            if (bs_set_tab (&o, w + 18) < 0)
                 return EX_USAGE;
-            }
-            o.tsep = w[18];
-            o.has_tsep = 1;
             list = list->next;
             continue;
         }
         if (!strcmp (w, "-k") || !strcmp (w, "--key")) {
-            if (!list->next) { builtin_error ("%s needs FIELD", w); return EX_USAGE; }
+            if (!list->next) { bos_shim_missing_arg (w, 'k', "sort"); return EX_USAGE; }
             list = list->next;
             if (bs_add_keydef (&o, list->word->word) < 0)
                 return EX_USAGE;
@@ -2380,7 +2400,7 @@ bs_sort (WORD_LIST *list, const char **files)
             continue;
         }
         if (!strcmp (w, "-o") || !strcmp (w, "--output")) {
-            if (!list->next) { builtin_error ("%s needs FILE", w); return EX_USAGE; }
+            if (!list->next) { bos_shim_missing_arg (w, 'o', "sort"); return EX_USAGE; }
             list = list->next;
             output_file = list->word->word;
             list = list->next;
@@ -2398,8 +2418,7 @@ bs_sort (WORD_LIST *list, const char **files)
             continue;
         }
         if (w[1] == '-') {
-            builtin_error ("unknown option: %s", w);
-            builtin_usage ();
+            bos_shim_bad_option (w, 0, "sort");
             return EX_USAGE;
         }
         for (const char *p = w + 1; *p; p++) {
@@ -2424,18 +2443,14 @@ bs_sort (WORD_LIST *list, const char **files)
                 case 't':
                     /* Field separator: glued (-t:) or as the next argument (-t :). */
                     if (p[1]) {
-                        o.tsep = p[1];
-                        o.has_tsep = 1;
+                        if (bs_set_tab (&o, p + 1) < 0)
+                            return EX_USAGE;
                         p += strlen (p) - 1;
                     } else {
-                        if (!list->next) { builtin_error ("-t needs SEP"); return EX_USAGE; }
+                        if (!list->next) { bos_shim_missing_arg ("-t", 't', "sort"); return EX_USAGE; }
                         list = list->next;
-                        if (list->word->word[0] == '\0') {
-                            builtin_error ("-t needs a non-empty SEP");
+                        if (bs_set_tab (&o, list->word->word) < 0)
                             return EX_USAGE;
-                        }
-                        o.tsep = list->word->word[0];
-                        o.has_tsep = 1;
                     }
                     break;
                 case 'k':
@@ -2445,7 +2460,7 @@ bs_sort (WORD_LIST *list, const char **files)
                             return EX_USAGE;
                         p += strlen (p) - 1;
                     } else {
-                        if (!list->next) { builtin_error ("-k needs FIELD"); return EX_USAGE; }
+                        if (!list->next) { bos_shim_missing_arg ("-k", 'k', "sort"); return EX_USAGE; }
                         list = list->next;
                         if (bs_add_keydef (&o, list->word->word) < 0)
                             return EX_USAGE;
@@ -2459,7 +2474,7 @@ bs_sort (WORD_LIST *list, const char **files)
                         val = p + 1;
                         p += strlen (p) - 1;
                     } else {
-                        if (!list->next) { builtin_error ("-%c needs an argument", opt); return EX_USAGE; }
+                        if (!list->next) { bos_shim_missing_arg ("-", opt, "sort"); return EX_USAGE; }
                         list = list->next;
                         val = list->word->word;
                     }
@@ -2478,12 +2493,12 @@ bs_sort (WORD_LIST *list, const char **files)
                         output_file = p + 1;
                         p += strlen (p) - 1;
                     } else {
-                        if (!list->next) { builtin_error ("-o needs FILE"); return EX_USAGE; }
+                        if (!list->next) { bos_shim_missing_arg ("-o", 'o', "sort"); return EX_USAGE; }
                         list = list->next;
                         output_file = list->word->word;
                     }
                     break;
-                default:  builtin_error ("unknown flag: -%c", *p); builtin_usage (); return EX_USAGE;
+                default:  bos_shim_bad_option (w, *p, "sort"); return EX_USAGE;
             }
         }
         list = list->next;

@@ -6,7 +6,8 @@
     "Guest pass 3 G46: -N/--new-file, -ruN patches, -c/-C/--context, -U/--unified=N, -s, -B, -i, -b, -Z, -w, -x/--exclude, -X/--exclude-from, -p, -I and option conflicts.",
     "Edit-script choice and change placement among repeated lines, without and with -d, --horizon-lines and the -c/-u context, compared with GNU diff (clean-room matcher, 0.1.5 pass 5).",
     "Guest pass 4 G63: -e/--ed (reverse order, lone '.' lines, incomplete lines), -t/--expand-tabs and --tabsize in every format, -y --suppress-common-lines, --strip-trailing-cr, --color=never|always|auto and --palette with GNU's default palette, and their option errors.",
-    "Guest pass 5 G80: -T/--initial-tab, -D/--ifdef, the --*-line-format and --*-group-format options with GNU's % directives and defaults, -n/--rcs, --from-file/--to-file, --no-dereference, --left-column, and -t -y tabs in the right column."
+    "Guest pass 5 G80: -T/--initial-tab, -D/--ifdef, the --*-line-format and --*-group-format options with GNU's % directives and defaults, -n/--rcs, --from-file/--to-file, --no-dereference, --left-column, and -t -y tabs in the right column.",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "Side-by-side output, -q and stdin are covered by suites/diff.json; the -l/--paginate, --suppress-blank-empty, -E, --ignore-tab-expansion and --ignore-file-name-case options are not implemented."
@@ -585,6 +586,39 @@
       ],
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option is reported as diff reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "diff"
+      ],
+      "script": "rc=0\ndiff --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option is reported as diff reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "diff"
+      ],
+      "script": "rc=0\ndiff -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-operands",
+      "kind": "parity",
+      "purpose": "G120: operand errors with the \"diff: Try\" line, status 2.",
+      "requires": [
+        "diff"
+      ],
+      "script": "rc=0\ndiff || rc=$?\necho \"rc=$rc\"\nrc=0\n: > a || rc=$?\necho \"rc=$rc\"\nrc=0\ndiff a || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

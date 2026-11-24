@@ -108,29 +108,63 @@ bu_count_users (void)
     return n;
 }
 
+/* procps uptime's usage text, which it prints on standard error after a
+   usage error (status 1). */
+static void
+bu_usage (FILE *out)
+{
+    fputs ("\nUsage:\n"
+           " uptime [options]\n"
+           "\n"
+           "Options:\n"
+           " -p, --pretty   show uptime in pretty format\n"
+           " -h, --help     display this help and exit\n"
+           " -s, --since    system up since\n"
+           " -V, --version  output version information and exit\n"
+           "\n"
+           "For more details see uptime(1).\n", out);
+}
+
 int
 uptime_builtin (WORD_LIST *list)
 {
     int pretty = 0, since = 0;
-    while (list && list->word->word[0] == '-') {
+    /* procps options: short ones cluster ("-ps"); long ones may be
+       abbreviated to any prefix (their first letters differ). */
+    while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
-        if (!strcmp (w, "-h") || !strcmp (w, "--help")) {
-            builtin_usage ();
-            return EXECUTION_SUCCESS;
+        int bad = 0;
+        if (!strcmp (w, "--")) { list = list->next; break; }
+        if (w[1] == '-') {
+            const char *n = w + 2;
+            size_t len = strlen (n);
+            if (len && !strncmp (n, "help", len)) { builtin_usage (); return EXECUTION_SUCCESS; }
+            else if (len && !strncmp (n, "version", len)) { puts ("uptime 1.0 (bash-loadable)"); return EXECUTION_SUCCESS; }
+            else if (len && !strncmp (n, "pretty", len)) pretty = 1;
+            else if (len && !strncmp (n, "since", len)) since = 1;
+            else bad = '-';
+        } else
+            for (const char *c = w + 1; *c && !bad; c++)
+                switch (*c) {
+                case 'h': builtin_usage (); return EXECUTION_SUCCESS;
+                case 'V': puts ("uptime 1.0 (bash-loadable)"); return EXECUTION_SUCCESS;
+                case 'p': pretty = 1; break;
+                case 's': since = 1; break;
+                default: bad = (unsigned char) *c; break;
+                }
+        if (bad) {
+            if (bad == '-')
+                builtin_error ("unrecognized option '%s'", w);
+            else
+                builtin_error ("invalid option -- '%c'", bad);
+            bu_usage (stderr);
+            return EXECUTION_FAILURE;
         }
-        else if (!strcmp (w, "-V") || !strcmp (w, "--version")) {
-            puts ("uptime 1.0 (bash-loadable)");
-            return EXECUTION_SUCCESS;
-        }
-        else if (!strcmp (w, "-p")) pretty = 1;
-        else if (!strcmp (w, "-s")) since = 1;
-        else { builtin_error ("unknown flag: %s", w); builtin_usage (); return EX_USAGE; }
         list = list->next;
     }
     if (list != NULL) {
-        builtin_error ("unexpected operand: %s", list->word->word);
-        builtin_usage ();
-        return EX_USAGE;
+        bu_usage (stderr);
+        return EXECUTION_FAILURE;
     }
     double up_secs, idle;
     if (bu_read_uptime (&up_secs, &idle) < 0) {

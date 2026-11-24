@@ -10,7 +10,8 @@
     "single-column width truncation and indentation",
     "double spacing and header formatting with a fixed date format",
     "invalid column geometry status and exact diagnostic parity",
-    "Bash builtin/help metadata contract"
+    "Bash builtin/help metadata contract",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "PTY streaming and early page flushing require a bounded private PTY driver; see the deferred case.",
@@ -131,6 +132,39 @@
       "kind": "deferred",
       "purpose": "Verify complete page/row delivery while input remains open on an attached terminal.",
       "reason": "The harness supplies closed stdin fixtures and no PTY driver. A future bounded private-PTY fixture should keep stdin open, feed enough records for a full page or across-column row, and compare candidate delivery timing and bytes with GNU pr without using a host terminal."
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option is reported as pr reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "pr"
+      ],
+      "script": "rc=0\npr --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option is reported as pr reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "pr"
+      ],
+      "script": "rc=0\npr -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-argument",
+      "kind": "parity",
+      "purpose": "G120: -l without its argument.",
+      "requires": [
+        "pr"
+      ],
+      "script": "rc=0\npr -l || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

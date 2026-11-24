@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "loadable": "uptime",
+  "reference": "procps-ng uptime, run by the harness with Bash as the reference shell and LC_ALL=C; only usage errors are compared (status recorded on stdout, stderr bytes), since the uptime itself differs between runs.",
+  "coverage": [
+    "Pass 8 (G119, G120): unknown options and operands print the procps message and usage with status 1."
+  ],
+  "exclusions": [],
+  "cases": [
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G119: an unknown long option prints the procps usage on stderr, status 1.",
+      "requires": [
+        "uptime"
+      ],
+      "script": "rc=0\nuptime --bogus || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G119: an unknown short option, status 1.",
+      "requires": [
+        "uptime"
+      ],
+      "script": "rc=0\nuptime -Y || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-operand",
+      "kind": "parity",
+      "purpose": "G119: an operand is a usage error, status 1.",
+      "requires": [
+        "uptime"
+      ],
+      "script": "rc=0\nuptime x || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    }
+  ]
+}

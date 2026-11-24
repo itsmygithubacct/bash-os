@@ -49,6 +49,7 @@
 #include <sys/sysmacros.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 #define BF_PROBE_LEN 512
 #define BF_BYTES_MAX (7 * 1024 * 1024)   /* libmagic's default bytes_max */
@@ -1539,10 +1540,22 @@ bf_namefile (const char *namefile, unsigned char *buf, int brief, int out,
         if (failed_) rc = EXECUTION_FAILURE; \
     } while (0)
 
+/* file(1)'s usage error: the diagnostic, then "Usage: file" and the
+   synopsis (whatever name the builtin's own synopsis starts with). */
+static void
+bf_usage_line (void)
+{
+    const char *doc = current_builtin && current_builtin->short_doc ? current_builtin->short_doc : "";
+    const char *rest = strchr (doc, ' ');
+    fflush (stdout);
+    fprintf (stderr, "Usage: %s%s\n", bos_shim_prog_name ("file"), rest ? rest : "");
+}
+
 #define BF_FAIL_USAGE(...) \
     do { \
+        fflush (stdout); \
         builtin_error (__VA_ARGS__); \
-        builtin_usage (); \
+        bf_usage_line (); \
         free (buf); \
         free (operands); \
         return EXECUTION_FAILURE; \
@@ -1605,7 +1618,7 @@ file_builtin (WORD_LIST *list)
                 did_namefile = 1;
             }
             else
-                BF_FAIL_USAGE ("unknown flag: %s", w);
+                BF_FAIL_USAGE ("unrecognized option '%s'", w);
             continue;
         }
         const char *option;
@@ -1613,7 +1626,7 @@ file_builtin (WORD_LIST *list)
             if (*option == 'f')
                 break;              /* the rest of the word is NAMEFILE */
         if (*option && *option != 'f')
-            BF_FAIL_USAGE ("unknown flag: %s", w);
+            BF_FAIL_USAGE ("invalid option -- '%c'", *option);
         for (option = w + 1; *option; option++) {
             if (*option == 'b') brief = 1;
             else if (*option == 'E') error_mode = 1;

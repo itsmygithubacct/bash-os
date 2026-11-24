@@ -15,7 +15,8 @@
     "CRC and length failures with retained output, stdin CRC failure, and a bounded output-buffer crossing.",
     "Reject a valid zlib wrapper under the gzip-only contract.",
     "Small stored gzip members exercise both split and exact input-buffer boundaries.",
-    "G30: zcat -f/--force copies input that is not gzip through unchanged, alongside gzip members."
+    "G30: zcat -f/--force copies input that is not gzip through unchanged, alongside gzip members.",
+    "Pass 8 (G120): option errors in GNU getopt form naming zcat, status 1 (contract: gzip names itself)."
   ],
   "exclusions": [
     "GNU gzip option compatibility beyond the documented zcat [FILE...] interface is not asserted.",
@@ -355,6 +356,26 @@
       "script": "printf 'a\\n' | /usr/bin/gzip > x.gz\nst() { if \"$@\"; then echo rc=0; else echo rc=$?; fi; }\n{ /usr/bin/cat x.gz; echo junk; } > g.gz; { /usr/bin/cat x.gz; printf '\\0\\0\\0'; } > z.gz; { /usr/bin/cat x.gz; printf 'j'; } > v.gz\nst zcat g.gz x.gz 2>/dev/null\nst zcat -q g.gz 2>/tmp/err; /usr/bin/wc -c < /tmp/err\nst zcat < g.gz 2>/dev/null\nst zcat z.gz\nst zcat v.gz 2>/dev/null\nst zcat -f g.gz\n",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "contract",
+      "purpose": "G120: zcat --bogus reports a GNU getopt option error naming zcat (gzip itself says 'gzip' and quotes `gzip --help'), status 1.",
+      "script": "rc=0\nzcat --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stdout": "rc=1\n",
+      "stderr": "exact",
+      "stderr_text": "zcat: unrecognized option '--bogus'\nTry 'zcat --help' for more information.\n"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "contract",
+      "purpose": "G120: zcat -Y reports a GNU getopt option error naming zcat (gzip itself says 'gzip' and quotes `gzip --help'), status 1.",
+      "script": "rc=0\nzcat -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stdout": "rc=1\n",
+      "stderr": "exact",
+      "stderr_text": "zcat: invalid option -- 'Y'\nTry 'zcat --help' for more information.\n"
     }
   ]
 }

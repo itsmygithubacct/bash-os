@@ -10,7 +10,8 @@
     "Nonempty zero-width list and table modes, ragged explicitly separated tails, repeated dash operands, and a custom identity banner.",
     "G66: display-width -t padding under UTF-8, -N/--table-columns, -n/--table-name and -J/--json.",
     "Guest pass 5 G81: -R/--table-right, -l/--table-columns-limit, -H/--table-hide and -O/--table-order with util-linux 2.41 column lists (names, numbers, ranges, 0, -1, '-'), and no header without data.",
-    "Guest pass 6 G96: -d/--table-noheadings, -L/--keep-empty-lines, -e/--table-header-repeat (LINES page height), -r/--tree with -i/-p (ASCII, UTF-8 and JSON), and -T/-W/-E against an explicit -c width on single-row tables."
+    "Guest pass 6 G96: -d/--table-noheadings, -L/--keep-empty-lines, -e/--table-header-repeat (LINES page height), -r/--tree with -i/-p (ASCII, UTF-8 and JSON), and -T/-W/-E against an explicit -c width on single-row tables.",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "Only the column command is covered; the sibling col and colrm builtins are outside this suite.",
@@ -390,6 +391,39 @@
       ],
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option is reported as column reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "column"
+      ],
+      "script": "rc=0\ncolumn --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option is reported as column reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "column"
+      ],
+      "script": "rc=0\ncolumn -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-argument",
+      "kind": "parity",
+      "purpose": "G120: --table-columns without its argument.",
+      "requires": [
+        "column"
+      ],
+      "script": "rc=0\ncolumn --table-columns || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

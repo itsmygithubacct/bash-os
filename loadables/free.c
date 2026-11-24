@@ -38,6 +38,7 @@
 #include <math.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 typedef enum { BF_K, BF_B, BF_M, BF_G } bf_unit;
 
@@ -398,15 +399,13 @@ free_builtin (WORD_LIST *list)
                         i = strlen (w) - 1;
                         break;
                     default:
-                        builtin_error ("unknown flag: -%c", w[i]);
-                        builtin_usage ();
+                        bos_shim_procps_usage (w, w[i], "[options]", "1", "free");
                         return EXECUTION_FAILURE;
                 }
             }
         }
         else {
-            builtin_error ("unknown flag: %s", w);
-            builtin_usage ();
+            bos_shim_procps_usage (w, w[1], "[options]", "1", "free");
             return EXECUTION_FAILURE;
         }
         list = list->next;

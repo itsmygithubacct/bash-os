@@ -13,7 +13,8 @@
     "Independent concise classifier format contract",
     "Explicit -E, brief combinations, continuation, no-operand usage and ordinary ENOTDIR errors",
     "Guest pass 3 G51: -L/-h, -i/--mime, --mime-type, --mime-encoding, symlink targets, libmagic text encodings and line-terminator notes, PNG/GIF/gzip/bzip2/xz headers, scripts, HTML and XML.",
-    "G71: -f NAMEFILE/--files-from and -s/--special-files."
+    "G71: -f NAMEFILE/--files-from and -s/--special-files.",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "The classifier's full curated signature catalog is not exhaustively enumerated; the suite samples broad fallback, document, and binary paths.",
@@ -395,6 +396,30 @@
         "file"
       ],
       "script": "printf 'x\\n' > a\nfile /dev/null\nfile -s /dev/null\nfile --special-files /dev/null a\nfile -s -b /dev/zero\nfile -sL /dev/null",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option: the file diagnostic and the start of its usage text, and the status.",
+      "requires": [
+        "file",
+        "sed"
+      ],
+      "script": "rc=0\nout=$(file --bogus </dev/null 2>&1) || rc=$?\nprintf '%s\\n' \"$out\" | sed -n '1,1p'\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option: the file diagnostic and the start of its usage text, and the status.",
+      "requires": [
+        "file",
+        "sed"
+      ],
+      "script": "rc=0\nout=$(file -Y </dev/null 2>&1) || rc=$?\nprintf '%s\\n' \"$out\" | sed -n '1,1p'\necho \"rc=$rc\"",
       "expected_status": 0,
       "stderr": "empty"
     }

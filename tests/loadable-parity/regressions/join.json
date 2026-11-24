@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "loadable": "join",
+  "reference": "GNU coreutils join, run by the harness with Bash as the reference shell, LC_ALL=C and the same fixture files; status (recorded on stdout), stdout and stderr bytes are compared with the candidate.",
+  "coverage": [
+    "Pass 8 (G119, G120): usage errors exit 1 in GNU form: operands, missing arguments, bad field and file numbers, multi-character tab, unknown options."
+  ],
+  "exclusions": [],
+  "cases": [
+    {
+      "id": "pass8-operands",
+      "kind": "parity",
+      "purpose": "G119: missing and extra operands are usage errors with status 1.",
+      "requires": [
+        "join"
+      ],
+      "script": ": > e1; : > e2\nrc=0\njoin || rc=$?\necho \"rc=$rc\"\nrc=0\njoin e1 || rc=$?\necho \"rc=$rc\"\nrc=0\njoin e1 e2 e2 || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-argument",
+      "kind": "parity",
+      "purpose": "G119: an option missing its argument.",
+      "requires": [
+        "join"
+      ],
+      "script": ": > e1; : > e2\nrc=0\njoin -t || rc=$?\necho \"rc=$rc\"\nrc=0\njoin -1 || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-field-number",
+      "kind": "parity",
+      "purpose": "G119: invalid field numbers.",
+      "requires": [
+        "join"
+      ],
+      "script": ": > e1; : > e2\nrc=0\njoin -1 x e1 e2 || rc=$?\necho \"rc=$rc\"\nrc=0\njoin -1 0 e1 e2 || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-file-number",
+      "kind": "parity",
+      "purpose": "G119: an invalid -a or -v file number.",
+      "requires": [
+        "join"
+      ],
+      "script": ": > e1; : > e2\nrc=0\njoin -a 3 e1 e2 || rc=$?\necho \"rc=$rc\"\nrc=0\njoin -v x e1 e2 || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-multi-character-tab",
+      "kind": "parity",
+      "purpose": "G119: a multi-character -t.",
+      "requires": [
+        "join"
+      ],
+      "script": ": > e1; : > e2\nrc=0\njoin -t ab e1 e2 || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-option",
+      "kind": "parity",
+      "purpose": "G120: unknown options name only join, status 1.",
+      "requires": [
+        "join"
+      ],
+      "script": ": > e1; : > e2\nrc=0\njoin --bogus || rc=$?\necho \"rc=$rc\"\nrc=0\njoin -Y || rc=$?\necho \"rc=$rc\"\nrc=0\njoin -ix e1 e2 || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    }
+  ]
+}

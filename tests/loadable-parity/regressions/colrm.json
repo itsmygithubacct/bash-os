@@ -10,7 +10,8 @@
     "Repeated fresh stdin redirections in one Bash process, a known loadable stream-state regression area.",
     "Zero and reversed-range operands, including utility-specific status, stderr, and output behavior.",
     "Bash builtin type and short help metadata contracts.",
-    "Nonempty zero and reversed endpoints, tab boundary overlap, backspace movement, double-cell and combining characters, and the custom identity banner."
+    "Nonempty zero and reversed endpoints, tab boundary overlap, backspace movement, double-cell and combining characters, and the custom identity banner.",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "No deferred cases: colrm only filters bounded stdin and has no privileged, hardware, network, terminal, or host-system operation to isolate separately.",
@@ -175,6 +176,28 @@
       "script": "printf 'abcd\\n' | colrm 4 2\nprintf '<1>\\n'\nprintf abcd | colrm 4 2\nprintf '<2>\\n'\nprintf 'A\\t' | colrm 3 5\nprintf '<3>\\n'\nprintf 'A\\t\\n' | colrm 3 5\nprintf '<4>\\n'\nprintf '\\347\\225\\214' | LC_ALL=C.UTF-8 colrm 1 1\nprintf '<5>\\n'\nprintf '\\347\\225\\214\\n' | LC_ALL=C.UTF-8 colrm 1 1\nprintf '<6>\\n'",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option is reported as colrm reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "colrm"
+      ],
+      "script": "rc=0\ncolrm --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option is reported as colrm reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "colrm"
+      ],
+      "script": "rc=0\ncolrm -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

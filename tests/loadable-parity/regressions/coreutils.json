@@ -16,7 +16,8 @@
     "install -t DIR / --target-directory, -D -t, -T and -c (guest pass 2 G35)",
     "install (guest pass 5 G74/G78): GNU long options and prefixes, -v/-b/-S output, symbolic -m modes, clustered options and diagnostics.",
     "install (clean-room rewrite): GNU check order, -d mode semantics and failures, -v removal/backup reporting and VERSION_CONTROL, per-file copy failures, -D/-t creation, -s/--strip-program and -p, numeric -o/-g, -C with modes, quoting and symbolic-link destinations.",
-    "factor (guest pass 6 G82): integers of any size, GNU operand syntax and quoting, standard-input words, -h and option diagnostics."
+    "factor (guest pass 6 G82): integers of any size, GNU operand syntax and quoting, standard-input words, -h and option diagnostics.",
+    "Pass 8 (G120): the nproc, groups, yes, shred and tac verbs name themselves (not \"coreutils\" or \"VERB: VERB:\") and report option errors in GNU form."
   ],
   "exclusions": [
     "Shuf permutation distribution and seeded output are not GNU byte-parity claims because the documented implementation uses a different random-source algorithm.",
@@ -642,6 +643,78 @@
       ],
       "expected_status": 0,
       "stderr": "exact"
+    },
+    {
+      "id": "pass8-nproc-options",
+      "kind": "parity",
+      "purpose": "G120: nproc option and operand errors.",
+      "requires": [
+        "nproc",
+        "sed"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n{ cu nproc --bogus || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu nproc -Y || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu nproc x || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu nproc --ignore || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu nproc --ignore=x || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu nproc --all=x || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass8-groups-options",
+      "kind": "parity",
+      "purpose": "G120: groups option errors and an unknown user.",
+      "requires": [
+        "groups",
+        "sed"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n{ cu groups --bogus || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu groups -Y || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu groups nosuchuserzz || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass8-yes-options",
+      "kind": "parity",
+      "purpose": "G120: yes takes options before \"--\" anywhere and drops the first \"--\".",
+      "requires": [
+        "yes",
+        "sed"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n{ cu yes --bogus || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu yes a -Y || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu yes a -- -Y | sed 1q || : || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass8-shred-options",
+      "kind": "parity",
+      "purpose": "G120: shred option, value and operand errors.",
+      "requires": [
+        "shred",
+        "sed"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n{ cu shred || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu shred -n x f || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu shred -s x f || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu shred --bogus || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu shred -n || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu shred --remove=x f || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass8-shred-open",
+      "kind": "parity",
+      "purpose": "G120: a shred runtime error names shred once.",
+      "requires": [
+        "shred",
+        "sed"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n{ cu shred nosuchdir/x || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass8-tac-options",
+      "kind": "parity",
+      "purpose": "G120: tac option errors.",
+      "requires": [
+        "tac",
+        "sed"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n{ cu tac --bogus || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu tac -Y || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu tac -s || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

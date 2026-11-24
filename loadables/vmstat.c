@@ -45,6 +45,7 @@
 #include <time.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 #include "_bl_proc_slabinfo.h"
 
 /* --- unit scaling (procps: cvSize = size_KB * 1024 / dataUnit) --------- */
@@ -555,9 +556,8 @@ vmstat_builtin (WORD_LIST *list)
             if (table_mode && table_mode != 4) { builtin_error ("%s: conflicting table mode", w); return EX_USAGE; }
             table_mode = 4; list = list->next; continue;
         }
-        builtin_error ("unknown flag: %s", w);
-        builtin_usage ();
-        return EX_USAGE;
+        bos_shim_procps_usage (w, w[1], "[options] [delay [count]]", "8", "vmstat");
+        return EXECUTION_FAILURE;
     }
 
     if (table_mode) {

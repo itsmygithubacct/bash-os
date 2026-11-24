@@ -99,10 +99,10 @@
     {
       "id": "usage-error-contracts",
       "kind": "contract",
-      "purpose": "Invalid documented invocations should fail with the conventional usage status: missing name, malformed namespace, malformed hex name and conflicting version selectors.",
-      "script": "missing_name=0\nif uuidgen --md5 --namespace @dns; then missing_name=0; else missing_name=$?; fi\ninvalid_namespace=0\nif uuidgen -m -n not-a-uuid -N x; then invalid_namespace=0; else invalid_namespace=$?; fi\ninvalid_hex=0\nif uuidgen -m -x -n @dns -N zz; then invalid_hex=0; else invalid_hex=$?; fi\nconflicting_modes=0\nif uuidgen -r -s -n @dns -N x; then conflicting_modes=0; else conflicting_modes=$?; fi\nif [[ $missing_name -ne 2 || $invalid_namespace -ne 2 || $invalid_hex -ne 2 || $conflicting_modes -ne 2 ]]; then exit 1; fi\nprintf 'missing-name=2 invalid-namespace=2 invalid-hex=2 conflicting-modes=2\\n'",
+      "purpose": "Invalid documented invocations fail with util-linux uuidgen's usage status 1 (pass 8, G120; measured on util-linux 2.41): missing name, malformed namespace, malformed hex name and conflicting version selectors.",
+      "script": "missing_name=0\nif uuidgen --md5 --namespace @dns; then missing_name=0; else missing_name=$?; fi\ninvalid_namespace=0\nif uuidgen -m -n not-a-uuid -N x; then invalid_namespace=0; else invalid_namespace=$?; fi\ninvalid_hex=0\nif uuidgen -m -x -n @dns -N zz; then invalid_hex=0; else invalid_hex=$?; fi\nconflicting_modes=0\nif uuidgen -r -s -n @dns -N x; then conflicting_modes=0; else conflicting_modes=$?; fi\nif [[ $missing_name -ne 1 || $invalid_namespace -ne 1 || $invalid_hex -ne 1 || $conflicting_modes -ne 1 ]]; then exit 1; fi\nprintf 'missing-name=1 invalid-namespace=1 invalid-hex=1 conflicting-modes=1\\n'",
       "expected_status": 0,
-      "stdout": "missing-name=2 invalid-namespace=2 invalid-hex=2 conflicting-modes=2\n",
+      "stdout": "missing-name=1 invalid-namespace=1 invalid-hex=1 conflicting-modes=1\n",
       "stderr": "nonempty"
     },
     {

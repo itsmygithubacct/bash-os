@@ -49,6 +49,7 @@
 #include <regex.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 #include "bl-output.h"
 
 #if defined REG_STARTEND && !defined BNL_NO_STARTEND
@@ -734,7 +735,7 @@ nl_builtin (WORD_LIST *list)
     return rc;
 
 usage:
-    builtin_usage ();
+    bos_shim_try_help ("nl");
     bnl_release (&o, files);
     return EXECUTION_FAILURE;
 }

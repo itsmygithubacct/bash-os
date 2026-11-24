@@ -41,6 +41,7 @@
 #include <regex.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 #define BSC_PROC_SYS  "/proc/sys"
 #define BSC_PATH_MAX  4096
@@ -545,15 +546,14 @@ sysctl_builtin (WORD_LIST *list)
         if (!strcmp (w, "-e")) { flags &= ~BSC_F_SHOW_KEY_ERROR; list = list->next; continue; }
         if (!strcmp (w, "-q")) { flags |= BSC_F_QUIET; list = list->next; continue; }
         if (!strcmp (w, "-r") || !strcmp (w, "--pattern")) {
-            if (!list->next) { builtin_error ("-r needs a pattern"); builtin_usage (); return EX_USAGE; }
+            if (!list->next) { bos_shim_missing_arg (w, 'r', "sysctl"); return EX_USAGE; }
             list = list->next;
             bsc_pattern = list->word->word;
             list = list->next;
             continue;
         }
         if (!strncmp (w, "--pattern=", 10)) { bsc_pattern = w + 10; list = list->next; continue; }
-        builtin_error ("unknown flag: %s", w);
-        builtin_usage ();
+        bos_shim_procps_usage (w, w[1], "[options] [variable[=value] ...]", "8", "sysctl");
         return EX_USAGE;
     }
 

@@ -81,6 +81,7 @@
 #include <sys/ioctl.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 #ifndef BCOL_MAX_FILES
 #  define BCOL_MAX_FILES 256
@@ -788,9 +789,8 @@ column_builtin (WORD_LIST *list)
         {
           if (!p->next)
             {
-              builtin_error ("option '%s' requires an argument", w);
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_missing_arg (w, 0, "column");
+              return EXECUTION_FAILURE;
             }
           if (w[8] == 'c')
             colnames = p->next->word->word;
@@ -842,9 +842,8 @@ column_builtin (WORD_LIST *list)
           char *endp = NULL;
           if (!p->next)
             {
-              builtin_error ("column: %s requires an argument", w);
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_missing_arg (w, w[1], "column");
+              return EXECUTION_FAILURE;
             }
           errno = 0;
           width_given = 1;
@@ -854,8 +853,8 @@ column_builtin (WORD_LIST *list)
             output_width = strtol (p->next->word->word, &endp, 10);
           if (errno || endp == p->next->word->word || !endp || *endp || output_width < 0)
             {
-              builtin_error ("column: bad output width: %s", p->next->word->word);
-              builtin_usage ();
+              builtin_error ("bad output width: %s", p->next->word->word);
+              bos_shim_try_help ("column");
               return EXECUTION_FAILURE;
             }
           p = p->next;
@@ -872,8 +871,8 @@ column_builtin (WORD_LIST *list)
             output_width = strtol (w + 15, &endp, 10);
           if (errno || endp == w + 15 || !endp || *endp || output_width < 0)
             {
-              builtin_error ("column: bad output width: %s", w + 15);
-              builtin_usage ();
+              builtin_error ("bad output width: %s", w + 15);
+              bos_shim_try_help ("column");
               return EXECUTION_FAILURE;
             }
           continue;
@@ -883,16 +882,15 @@ column_builtin (WORD_LIST *list)
           char *endp = NULL;
           if (!p->next)
             {
-              builtin_error ("column: %s requires an argument", w);
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_missing_arg (w, w[1], "column");
+              return EXECUTION_FAILURE;
             }
           use_spaces = strtol (p->next->word->word, &endp, 10);
           if (!endp || *endp || use_spaces < 1)
             {
-              builtin_error ("column: bad use-spaces value: %s", p->next->word->word);
-              builtin_usage ();
-              return EX_USAGE;
+              builtin_error ("bad use-spaces value: %s", p->next->word->word);
+              bos_shim_try_help ("column");
+              return EXECUTION_FAILURE;
             }
           p = p->next;
           continue;
@@ -903,9 +901,9 @@ column_builtin (WORD_LIST *list)
           use_spaces = strtol (w + 13, &endp, 10);
           if (!endp || *endp || use_spaces < 1)
             {
-              builtin_error ("column: bad use-spaces value: %s", w + 13);
-              builtin_usage ();
-              return EX_USAGE;
+              builtin_error ("bad use-spaces value: %s", w + 13);
+              bos_shim_try_help ("column");
+              return EXECUTION_FAILURE;
             }
           continue;
         }
@@ -914,9 +912,8 @@ column_builtin (WORD_LIST *list)
         {
           if (!p->next)
             {
-              builtin_error ("column: %s requires an argument", w);
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_missing_arg (w, w[1], "column");
+              return EXECUTION_FAILURE;
             }
           seps = p->next->word->word;
           sflag = 1;
@@ -931,9 +928,8 @@ column_builtin (WORD_LIST *list)
         {
           if (!p->next)
             {
-              builtin_error ("column: %s requires an argument", w);
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_missing_arg (w, w[1], "column");
+              return EXECUTION_FAILURE;
             }
           outsep = p->next->word->word;
           p = p->next;
@@ -965,9 +961,8 @@ column_builtin (WORD_LIST *list)
                     {
                       if (!p->next)
                         {
-                          builtin_error ("column: -%c requires an argument", *q);
-                          builtin_usage ();
-                          return EX_USAGE;
+                          bos_shim_missing_arg ("-", *q, "column");
+                          return EXECUTION_FAILURE;
                         }
                       arg = p->next->word->word;
                       p = p->next;
@@ -980,8 +975,8 @@ column_builtin (WORD_LIST *list)
                     output_width = strtol (arg, &endp, 10);
                   if (errno || endp == arg || !endp || *endp || output_width < 0)
                     {
-                      builtin_error ("column: bad output width: %s", arg);
-                      builtin_usage ();
+                      builtin_error ("bad output width: %s", arg);
+                      bos_shim_try_help ("column");
                       return EXECUTION_FAILURE;
                     }
                   break;
@@ -994,9 +989,8 @@ column_builtin (WORD_LIST *list)
                     {
                       if (!p->next)
                         {
-                          builtin_error ("column: -%c requires an argument", *q);
-                          builtin_usage ();
-                          return EX_USAGE;
+                          bos_shim_missing_arg ("-", *q, "column");
+                          return EXECUTION_FAILURE;
                         }
                       arg = p->next->word->word;
                       p = p->next;
@@ -1004,9 +998,9 @@ column_builtin (WORD_LIST *list)
                   use_spaces = strtol (arg, &endp, 10);
                   if (!endp || *endp || use_spaces < 1)
                     {
-                      builtin_error ("column: bad use-spaces value: %s", arg);
-                      builtin_usage ();
-                      return EX_USAGE;
+                      builtin_error ("bad use-spaces value: %s", arg);
+                      bos_shim_try_help ("column");
+                      return EXECUTION_FAILURE;
                     }
                   break;
                 }
@@ -1042,9 +1036,8 @@ column_builtin (WORD_LIST *list)
                     {
                       if (!p->next)
                         {
-                          builtin_error ("column: -%c requires an argument", *q);
-                          builtin_usage ();
-                          return EX_USAGE;
+                          bos_shim_missing_arg ("-", *q, "column");
+                          return EXECUTION_FAILURE;
                         }
                       arg = p->next->word->word;
                       p = p->next;
@@ -1059,9 +1052,8 @@ column_builtin (WORD_LIST *list)
                     outsep = arg;
                   break;
                 }
-              builtin_error ("column: unknown flag: -%c", *q);
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_bad_option (w, w[1] == '-' ? 0 : *q, "column");
+              return EXECUTION_FAILURE;
             }
           continue;
         }
@@ -1636,8 +1628,7 @@ col_builtin (WORD_LIST *list)
       if (strcmp (w, "-b") == 0) { bflag = 1; continue; }
       if (w[0] == '-' && w[1] != '\0' && strcmp (w, "-") != 0)
         {
-          builtin_error ("col: unknown flag: %s", w);
-          builtin_usage ();
+          bos_shim_bad_option (w, w[1], "col");
           return EXECUTION_FAILURE;
         }
       if (n_files < BCOL_MAX_FILES)
@@ -1751,26 +1742,25 @@ colrm_builtin (WORD_LIST *list)
         { puts ("colrm 1.0 (bash-loadable)"); return EXECUTION_SUCCESS; }
       if (w[0] == '-' && w[1] != '\0' && strcmp (w, "-") != 0)
         {
-          builtin_error ("colrm: unknown flag: %s", w);
-          builtin_usage ();
-          return EX_USAGE;
+          bos_shim_bad_option (w, w[1], "colrm");
+          return EXECUTION_FAILURE;
         }
       char *e = NULL;
       errno = 0;
       long v = strtol (w, &e, 10);
       if (errno || e == w || !e || *e != '\0' || v < 0)
         {
-          builtin_error ("colrm: bad column: %s", w);
-          builtin_usage ();
-          return EX_USAGE;
+          builtin_error ("bad column: %s", w);
+          bos_shim_try_help ("colrm");
+          return EXECUTION_FAILURE;
         }
       if (n_pos == 0) start = v;
       else if (n_pos == 1) end = v;
       else
         {
-          builtin_error ("colrm: too many operands");
-          builtin_usage ();
-          return EX_USAGE;
+          builtin_error ("too many operands");
+          bos_shim_try_help ("colrm");
+          return EXECUTION_FAILURE;
         }
       n_pos++;
     }

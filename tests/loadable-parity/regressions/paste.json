@@ -9,7 +9,8 @@
     "NUL record framing with -z and the empty delimiter escape \\0.",
     "Missing-input and invalid-option status/diagnostic behavior, plus -- before a leading-dash filename.",
     "Relative fixture file lifecycle using mkdir, cp, ln, chmod, touch, mv, rm and paste; resulting bytes, modes, hardlinks, and symlink target are compared.",
-    "Repeated serial stdin redirections and multiple shared stdin operands in a single invocation."
+    "Repeated serial stdin redirections and multiple shared stdin operands in a single invocation.",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "No VM-only cases are needed for paste's bounded local-file and pipe operations; the suite uses only small relative fixtures and no host paths, network, devices, or privileged actions.",
@@ -172,6 +173,39 @@
       ],
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option is reported as paste reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "paste"
+      ],
+      "script": "rc=0\npaste --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option is reported as paste reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "paste"
+      ],
+      "script": "rc=0\npaste -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-argument",
+      "kind": "parity",
+      "purpose": "G120: -d without its argument.",
+      "requires": [
+        "paste"
+      ],
+      "script": "rc=0\npaste -d || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

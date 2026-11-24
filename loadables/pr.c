@@ -46,6 +46,7 @@
 #include <time.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 #include "bl-output.h"
 
 typedef struct {
@@ -1055,7 +1056,7 @@ pr_options (WORD_LIST *list, pr_opts *o, const char ***files, int *count)
                 int found = -1;
                 for (int k = 0; names[k].name; k++)
                     if (strlen (names[k].name) == len && !strncmp (cursor, names[k].name, len)) { found = k; break; }
-                if (found < 0) goto invalid;
+                if (found < 0) { bos_shim_bad_option (word, 0, "pr"); return EXECUTION_FAILURE; }
                 key = names[found].key; kind = names[found].argument;
                 if (equals) { if (!kind) goto invalid; arg = equals + 1; }
                 cursor += strlen (cursor);
@@ -1068,7 +1069,7 @@ pr_options (WORD_LIST *list, pr_opts *o, const char ***files, int *count)
                 if (kind && *cursor) { arg = cursor; cursor += strlen (cursor); }
             }
             if (kind == 1 && !arg) {
-                if (!list->next) goto invalid;
+                if (!list->next) { bos_shim_missing_arg (long_option ? word : "-", key, "pr"); return EXECUTION_FAILURE; }
                 list = list->next; arg = list->word->word;
             }
             int value = 0;
@@ -1130,7 +1131,7 @@ pr_options (WORD_LIST *list, pr_opts *o, const char ***files, int *count)
                 if (*end) goto invalid;
                 o->first_page = first; o->last_page = last; break;
             }
-            default: goto invalid;
+            default: bos_shim_bad_option (word, key, "pr"); return EXECUTION_FAILURE;
             }
         } while (*cursor && !long_option);
         continue;

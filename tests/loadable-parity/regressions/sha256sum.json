@@ -3,7 +3,8 @@
   "loadable": "sha256sum",
   "reference": "GNU coreutils sha256sum from the runner's read-only /usr tree is the parity oracle; each case runs the same script under reference Bash with GNU sha256sum on PATH and under bash-os with PATH empty.",
   "coverage": [
-    "-c summary lines, --status and --ignore-missing, and usage diagnostics (guest pass 7)."
+    "-c summary lines, --status and --ignore-missing, and usage diagnostics (guest pass 7).",
+    "Pass 8 (G122): -c diagnostics name standard input as 'standard input' and quote file names as GNU does."
   ],
   "exclusions": [
     "Digest output itself is covered by suites/sha256sum.json and the cksum suites."
@@ -20,6 +21,50 @@
       "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\necho 1 > a; echo 2 > b; sha256sum a b > s; cp s s2; echo junk >> s; echo junk >> s2; echo junk2 >> s2; echo junk > s7; sha256sum a | sed 's/ a$/ a5/' > s5; cp s5 s5j; echo junk >> s5j; sha256sum a | sed 's/^./x/' > bad; echo junk >> bad\ns 'sha256sum -c s'\ns 'sha256sum -c s2'\ns 'sha256sum -c -w s'\ns 'sha256sum -c s7'\ns 'sha256sum -c --status s7'\ns 'sha256sum -c -w s7'\ns 'sha256sum -c --status nosuch'\ns 'sha256sum -c --status s5'\ns 'sha256sum -c --ignore-missing s5j'\ns 'sha256sum -c --status --ignore-missing s5'\ns 'sha256sum -c --quiet s'\ns 'sha256sum -c --status --quiet bad'\ns 'sha256sum -c --quiet --status bad'\ns 'sha256sum -c --status --warn bad'\ns 'sha256sum --bogus'\ns 'sha256sum -Q'\ns 'sha256sum --quiet a'\ns 'sha256sum --status --warn a'\ns 'sha256sum --ignore-missing --quiet a'\ns 'sha256sum -c --tag a'\ns 'sha256sum -c --tag -z a'\n",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-stdin-no-lines",
+      "kind": "parity",
+      "purpose": "G122: no checksum lines on stdin names 'standard input'.",
+      "requires": [
+        "sha256sum"
+      ],
+      "script": "rc=0\necho junk | sha256sum -c || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-warn-stdin",
+      "kind": "parity",
+      "purpose": "G122: --warn names 'standard input' with the line number.",
+      "requires": [
+        "sha256sum"
+      ],
+      "script": "rc=0\necho a > a || rc=$?\necho \"rc=$rc\"\nrc=0\nsha256sum a > la || rc=$?\necho \"rc=$rc\"\nrc=0\necho junk >> la || rc=$?\necho \"rc=$rc\"\nrc=0\nsha256sum -c --warn < la || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-file",
+      "kind": "parity",
+      "purpose": "G122: a listed file that cannot be read, and --ignore-missing.",
+      "requires": [
+        "sha256sum"
+      ],
+      "script": "rc=0\nprintf '%064d  nosuch\\n' 0 | sha256sum -c || rc=$?\necho \"rc=$rc\"\nrc=0\nprintf '%064d  nosuch\\n' 0 | sha256sum -c --ignore-missing || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-quoted-list",
+      "kind": "parity",
+      "purpose": "G122: a list file name with a space is quoted.",
+      "requires": [
+        "sha256sum"
+      ],
+      "script": "rc=0\necho junk > 'l b' || rc=$?\necho \"rc=$rc\"\nrc=0\nsha256sum -c 'l b' || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

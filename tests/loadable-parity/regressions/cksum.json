@@ -13,7 +13,8 @@
     "Explicit dash operands retain their name, including repeated EOF and NUL-delimited records.",
     "Same-shell parser failures leave input unread and reset options for later invocations.",
     "Missing/directory/closed-input failures retain failure status while later checksums work.",
-    "--check over tagged lines of every supported digest and untagged lines with -a, with --quiet/--status/--strict/--warn/--ignore-missing and GNU option conflicts; blake2b digests (guest pass 3 G47)"
+    "--check over tagged lines of every supported digest and untagged lines with -a, with --quiet/--status/--strict/--warn/--ignore-missing and GNU option conflicts; blake2b digests (guest pass 3 G47)",
+    "Pass 8 (G120, G122): -c names 'standard input'; option errors in GNU form."
   ],
   "exclusions": [
     "GNU --raw, --base64, --length, legacy sysv/bsd/crc32b modes, and algorithms outside the documented set",
@@ -288,6 +289,61 @@
       "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\necho 1 > a; cksum -a sha256 a > k; cp k k2; echo junk >> k; echo junk >> k2; echo junk >> k2; cksum -a sha256 a | sed 's/ a)/ a5)/' > k5; cat k > k5x; cat k5 >> k5x; echo junk > k7\ns 'cksum -c k'\ns 'cksum -c k2'\ns 'cksum -c --ignore-missing k5x'\ns 'cksum -c --status k7'\ns 'cksum -c --status nosuch'\ns 'cksum -c --status k5'\n",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-stdin-no-lines",
+      "kind": "parity",
+      "purpose": "G122: no checksum lines on stdin names 'standard input'.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "rc=0\necho junk | cksum -c || rc=$?\necho \"rc=$rc\"\nrc=0\necho junk | cksum -c -a md5 || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-warn-stdin",
+      "kind": "parity",
+      "purpose": "G122: --warn names 'standard input'.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "rc=0\nprintf 'junk\\n' | cksum -a sha256 -c --warn || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option is reported as cksum reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "rc=0\ncksum --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option is reported as cksum reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "rc=0\ncksum -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-argument",
+      "kind": "parity",
+      "purpose": "G120: -a without its argument.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "rc=0\ncksum -a || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

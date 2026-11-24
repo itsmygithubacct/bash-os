@@ -3,7 +3,8 @@
   "loadable": "sysctl",
   "reference": "Parity cases run procps-ng sysctl (/usr/sbin/sysctl) in the reference Bash and the sysctl builtin in the candidate, both reading only kernel.ostype from the sandbox's read-only /proc. The contract case states the help text directly.",
   "coverage": [
-    "G84: -b/--binary value output without names or newlines, alone, repeated and after -n; help and synopsis."
+    "G84: -b/--binary value output without names or newlines, alone, repeated and after -n; help and synopsis.",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "Writes with -b are not exercised: no sysctl write is made under this safety scope."
@@ -49,6 +50,18 @@
       "script": "sysctl --help | grep -c -- '-b, --binary'\nhelp sysctl | grep -c -- '-b/--binary'\nsysctl --help | head -n 1",
       "expected_status": 0,
       "stdout": "1\n1\nUsage: sysctl [-beNnq] [-r PATTERN] {-a | -p [FILE]... | --system | [-w] KEY[=VAL]...}\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-option",
+      "kind": "parity",
+      "purpose": "G120: sysctl prints the procps diagnostic and usage head. The status is not compared: procps sysctl 4.0.4 exits 0 here, the builtin keeps its usage status.",
+      "requires": [
+        "sysctl",
+        "sed"
+      ],
+      "script": "rc=0\nout=$(sysctl --bogus 2>&1) || rc=$?\nprintf '%s\\n' \"$out\" | sed -n '1,4p'\n:",
+      "expected_status": 0,
       "stderr": "empty"
     }
   ]

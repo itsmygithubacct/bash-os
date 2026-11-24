@@ -25,6 +25,7 @@
 #include <inttypes.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 #include "bl-output.h"
 
 /* Keep embedded NULs and batch records without changing the shell's stdio. */
@@ -338,7 +339,7 @@ uniq_builtin (WORD_LIST *list)
             continue;
         }
         if (!strcmp (w, "--skip-fields")) {
-            if (!list->next) { builtin_error ("option '%s' requires an argument", w); return EXECUTION_FAILURE; }
+            if (!list->next) { bos_shim_missing_arg (w, 0, "uniq"); return EXECUTION_FAILURE; }
             if (bu_size_arg (list->next->word->word, BU_MSG_FIELDS, &o.skip_fields) != 0) return EXECUTION_FAILURE;
             sfo_new = 1;
             list = list->next->next;
@@ -351,7 +352,7 @@ uniq_builtin (WORD_LIST *list)
             continue;
         }
         if (!strcmp (w, "--skip-chars")) {
-            if (!list->next) { builtin_error ("option '%s' requires an argument", w); return EXECUTION_FAILURE; }
+            if (!list->next) { bos_shim_missing_arg (w, 0, "uniq"); return EXECUTION_FAILURE; }
             if (bu_size_arg (list->next->word->word, BU_MSG_SKIP, &o.skip_chars) != 0) return EXECUTION_FAILURE;
             list = list->next->next;
             continue;
@@ -362,7 +363,7 @@ uniq_builtin (WORD_LIST *list)
             continue;
         }
         if (!strcmp (w, "--check-chars")) {
-            if (!list->next) { builtin_error ("option '%s' requires an argument", w); return EXECUTION_FAILURE; }
+            if (!list->next) { bos_shim_missing_arg (w, 0, "uniq"); return EXECUTION_FAILURE; }
             if (bu_size_arg (list->next->word->word, BU_MSG_CHECK, &o.check_chars) != 0) return EXECUTION_FAILURE;
             list = list->next->next;
             continue;
@@ -373,8 +374,7 @@ uniq_builtin (WORD_LIST *list)
             continue;
         }
         if (w[1] == '-') {
-            builtin_error ("unknown option: %s", w);
-            builtin_usage ();
+            bos_shim_bad_option (w, 0, "uniq");
             return EXECUTION_FAILURE;
         }
         for (const char *p = w + 1; *p; p++) {
@@ -398,7 +398,7 @@ uniq_builtin (WORD_LIST *list)
                         if (bu_size_arg (p + 1, BU_MSG_FIELDS, &o.skip_fields) != 0) return EXECUTION_FAILURE;
                         p += strlen (p) - 1;
                     } else {
-                        if (!list->next) { builtin_error ("option requires an argument -- 'f'"); return EXECUTION_FAILURE; }
+                        if (!list->next) { bos_shim_missing_arg ("-", 'f', "uniq"); return EXECUTION_FAILURE; }
                         if (bu_size_arg (list->next->word->word, BU_MSG_FIELDS, &o.skip_fields) != 0) return EXECUTION_FAILURE;
                         list = list->next;
                     }
@@ -409,7 +409,7 @@ uniq_builtin (WORD_LIST *list)
                         if (bu_size_arg (p + 1, BU_MSG_SKIP, &o.skip_chars) != 0) return EXECUTION_FAILURE;
                         p += strlen (p) - 1;
                     } else {
-                        if (!list->next) { builtin_error ("option requires an argument -- 's'"); return EXECUTION_FAILURE; }
+                        if (!list->next) { bos_shim_missing_arg ("-", 's', "uniq"); return EXECUTION_FAILURE; }
                         if (bu_size_arg (list->next->word->word, BU_MSG_SKIP, &o.skip_chars) != 0) return EXECUTION_FAILURE;
                         list = list->next;
                     }
@@ -419,12 +419,12 @@ uniq_builtin (WORD_LIST *list)
                         if (bu_size_arg (p + 1, BU_MSG_CHECK, &o.check_chars) != 0) return EXECUTION_FAILURE;
                         p += strlen (p) - 1;
                     } else {
-                        if (!list->next) { builtin_error ("option requires an argument -- 'w'"); return EXECUTION_FAILURE; }
+                        if (!list->next) { bos_shim_missing_arg ("-", 'w', "uniq"); return EXECUTION_FAILURE; }
                         if (bu_size_arg (list->next->word->word, BU_MSG_CHECK, &o.check_chars) != 0) return EXECUTION_FAILURE;
                         list = list->next;
                     }
                     break;
-                default: builtin_error ("unknown flag: -%c", *p); builtin_usage (); return EXECUTION_FAILURE;
+                default: bos_shim_bad_option (w, *p, "uniq"); return EXECUTION_FAILURE;
             }
         }
         list = list->next;

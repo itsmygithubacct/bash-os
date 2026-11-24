@@ -13,7 +13,8 @@
     "Repeated redirected stdin in one persistent shell",
     "Duplicate-row folding and -v output",
     "Unknown-option error status and diagnostic presence",
-    "Zero counts across default, shortcut, custom and skip modes; empty inputs; missing arguments; invalid counts; repeated dash operands."
+    "Zero counts across default, shortcut, custom and skip modes; empty inputs; missing arguments; invalid counts; repeated dash operands.",
+    "Pass 8 (G120, G123): bundled short options (-Cv, -vC, -ve FMT, -Cn1), long options by prefix, and GNU option errors."
   ],
   "exclusions": [
     "No real device, host path, network input, or unbounded stream is opened.",
@@ -176,6 +177,83 @@
       ],
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-bundled-ve",
+      "kind": "parity",
+      "purpose": "G123: -ve FMT is -v -e FMT.",
+      "requires": [
+        "hexdump"
+      ],
+      "script": "printf AB > f\nrc=0\nhexdump -ve '1/1 \"%02x\"' f || rc=$?\necho \"rc=$rc\"\nrc=0\necho || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-bundled-cv",
+      "kind": "parity",
+      "purpose": "G123: -Cv and -vC are -C -v.",
+      "requires": [
+        "hexdump"
+      ],
+      "script": "printf AB > f\nrc=0\nhexdump -Cv f || rc=$?\necho \"rc=$rc\"\nrc=0\nhexdump -vC f || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-bundled-argument",
+      "kind": "parity",
+      "purpose": "G123: an attached argument ends the cluster.",
+      "requires": [
+        "hexdump"
+      ],
+      "script": "printf AB > f\nrc=0\nhexdump -Cn1 f || rc=$?\necho \"rc=$rc\"\nrc=0\nhexdump -vn 1 -C f || rc=$?\necho \"rc=$rc\"\nrc=0\nhexdump -s1 -C f || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-long-options",
+      "kind": "parity",
+      "purpose": "G123: long options by unambiguous prefix.",
+      "requires": [
+        "hexdump"
+      ],
+      "script": "printf AB > f\nrc=0\nhexdump --len=1 -C f || rc=$?\necho \"rc=$rc\"\nrc=0\nhexdump --canon f || rc=$?\necho \"rc=$rc\"\nrc=0\nhexdump --no-squeezing -C f || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-argument",
+      "kind": "parity",
+      "purpose": "G120: an option missing its argument.",
+      "requires": [
+        "hexdump"
+      ],
+      "script": "printf AB > f\nrc=0\nhexdump -n || rc=$?\necho \"rc=$rc\"\nrc=0\nhexdump --length || rc=$?\necho \"rc=$rc\"\nrc=0\nhexdump -Ce || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-no-argument",
+      "kind": "parity",
+      "purpose": "G120: a flag given =VALUE.",
+      "requires": [
+        "hexdump"
+      ],
+      "script": "printf AB > f\nrc=0\nhexdump --canonical=x f || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-option",
+      "kind": "parity",
+      "purpose": "G120: unknown options in GNU form, also inside a cluster.",
+      "requires": [
+        "hexdump"
+      ],
+      "script": "printf AB > f\nrc=0\nhexdump --bogus || rc=$?\necho \"rc=$rc\"\nrc=0\nhexdump -Y || rc=$?\necho \"rc=$rc\"\nrc=0\nhexdump -vY f || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

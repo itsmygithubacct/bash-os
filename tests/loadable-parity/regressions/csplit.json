@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "loadable": "csplit",
+  "reference": "GNU coreutils csplit, run by the harness with Bash as the reference shell, LC_ALL=C and the same fixture files; status (recorded on stdout), stdout, stderr bytes and the resulting files are compared with the candidate.",
+  "coverage": [
+    "Pass 8 (G119, G120): usage and pattern errors exit 1 in GNU form; long options and clustered short options."
+  ],
+  "exclusions": [],
+  "cases": [
+    {
+      "id": "pass8-operands",
+      "kind": "parity",
+      "purpose": "G119: missing operands are usage errors with status 1.",
+      "requires": [
+        "csplit"
+      ],
+      "script": "printf 'a\\nb\\n' > cf\nrc=0\ncsplit || rc=$?\necho \"rc=$rc\"\nrc=0\ncsplit cf || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-argument",
+      "kind": "parity",
+      "purpose": "G119: an option missing its argument.",
+      "requires": [
+        "csplit"
+      ],
+      "script": "printf 'a\\nb\\n' > cf\nrc=0\ncsplit -n || rc=$?\necho \"rc=$rc\"\nrc=0\ncsplit -f || rc=$?\necho \"rc=$rc\"\nrc=0\ncsplit -b || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-invalid-number",
+      "kind": "parity",
+      "purpose": "G119: an invalid -n or --digits value.",
+      "requires": [
+        "csplit"
+      ],
+      "script": "printf 'a\\nb\\n' > cf\nrc=0\ncsplit -n x cf 1 || rc=$?\necho \"rc=$rc\"\nrc=0\ncsplit --digits=x cf 1 || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-patterns",
+      "kind": "parity",
+      "purpose": "G119: invalid patterns and a missing closing delimiter.",
+      "requires": [
+        "csplit"
+      ],
+      "script": "printf 'a\\nb\\n' > cf\nrc=0\ncsplit cf \"{3}\" || rc=$?\necho \"rc=$rc\"\nrc=0\ncsplit cf \"/a\" || rc=$?\necho \"rc=$rc\"\nrc=0\ncsplit cf foo || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-clusters",
+      "kind": "parity",
+      "purpose": "G119: clustered short options with an attached argument.",
+      "requires": [
+        "csplit",
+        "ls"
+      ],
+      "script": "printf 'a\\nb\\n' > cf\nrc=0\ncsplit -sk cf 1 || rc=$?\necho \"rc=$rc\"\nrc=0\ncsplit -sn1 cf 1 || rc=$?\necho \"rc=$rc\"\nrc=0\nls xx* || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-option",
+      "kind": "parity",
+      "purpose": "G120: unknown options name only csplit, status 1.",
+      "requires": [
+        "csplit"
+      ],
+      "script": "printf 'a\\nb\\n' > cf\nrc=0\ncsplit -Y || rc=$?\necho \"rc=$rc\"\nrc=0\ncsplit --bogus || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    }
+  ]
+}

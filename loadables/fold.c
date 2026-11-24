@@ -33,6 +33,7 @@
 #include <inttypes.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 #include "bl-output.h"
 
 typedef struct { int64_t width; int bflag; int sflag; int cflag; } bf_opts;
@@ -343,7 +344,7 @@ fold_builtin (WORD_LIST *list)
             return EXECUTION_SUCCESS;
         }
         if (strcmp (w, "--version") == 0) {
-            puts ("bashfold 1.0 (bash-loadable)");
+            puts ("fold 1.0 (bash-loadable)");
             free (files.v);
             return EXECUTION_SUCCESS;
         }
@@ -358,8 +359,7 @@ fold_builtin (WORD_LIST *list)
         }
         if (strcmp (w, "--width") == 0) {
             if (!p->next) {
-                builtin_error ("--width needs WIDTH");
-                builtin_usage ();
+                bos_shim_missing_arg (w, 'w', "fold");
                 free (files.v);
                 return EXECUTION_FAILURE;
             }
@@ -406,8 +406,7 @@ fold_builtin (WORD_LIST *list)
         if (w[0] == '-' && w[1] && strcmp (w, "-") != 0) {
             /* Reject long-option-style --foo as unknown flag. */
             if (w[1] == '-' && w[2] != '\0') {
-                builtin_error ("unknown flag: %s", w);
-                builtin_usage ();
+                bos_shim_bad_option (w, 0, "fold");
                 free (files.v);
                 return EXECUTION_FAILURE;
             }
@@ -436,8 +435,7 @@ fold_builtin (WORD_LIST *list)
                         }
                     } else {
                         if (!p->next) {
-                            builtin_error ("-w needs WIDTH");
-                            builtin_usage ();
+                            bos_shim_missing_arg ("-w", 'w', "fold");
                             free (files.v);
                             return EXECUTION_FAILURE;
                         }
@@ -452,8 +450,7 @@ fold_builtin (WORD_LIST *list)
                     i = (int) strlen (w) - 1;
                     break;
                 default:
-                    builtin_error ("unknown flag: -%c", w[i]);
-                    builtin_usage ();
+                    bos_shim_bad_option (w, w[i], "fold");
                     free (files.v);
                     return EXECUTION_FAILURE;
                 }

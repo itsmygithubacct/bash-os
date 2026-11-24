@@ -124,6 +124,43 @@ bos_quoteaf (const char *name)
     return out;
 }
 
+/* A file name at the start of a "NAME: message" diagnostic, quoted as
+   bos_quoteaf does only when a shell (or a reader splitting at ": ") needs
+   it, as GNU's diagnostics that start with a file name do: an empty name,
+   white space, shell metacharacters, a colon, a leading '#' or '~', a lone
+   brace, or an unprintable character. */
+static inline char *
+bos_quotef (const char *name)
+{
+    size_t len = strlen (name), i;
+    int need = len == 0;
+    mbstate_t st;
+
+    memset (&st, 0, sizeof st);
+    for (i = 0; i < len && !need;) {
+        unsigned char c = (unsigned char) name[i];
+
+        if (c < 0x80) {
+            if (c < 0x20 || c == 0x7f || strchr (" !\"$&'()*;<=>?[\\^`|:", c))
+                need = 1;
+            else if ((c == '#' || c == '~') && i == 0)
+                need = 1;
+            else if ((c == '{' || c == '}') && len == 1)
+                need = 1;
+            i++;
+        } else {
+            wchar_t w;
+            size_t n = mbrtowc (&w, name + i, len - i, &st);
+
+            if (n == 0 || n == (size_t) -1 || n == (size_t) -2 || !iswprint ((wint_t) w))
+                need = 1;
+            else
+                i += n;
+        }
+    }
+    return need ? bos_quoteaf (name) : strdup (name);
+}
+
 /* A word between the locale's quotation marks: U+2018 and U+2019 under a
    UTF-8 character set, apostrophes otherwise. */
 static inline char *

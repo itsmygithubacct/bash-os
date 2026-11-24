@@ -32,6 +32,8 @@
 #include <stdint.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
+#include "tablist.h"
 
 /* Bash executes this builtin in one thread. Keep its input buffering, but
    avoid locking it for every byte. */
@@ -40,53 +42,15 @@
 #endif
 
 typedef struct {
-    uintmax_t *stops;
-    size_t n_stops, allocated;
-    uintmax_t every, extend_size, increment_size;
+    bos_tabs tabs;          /* -t stops and extensions (tablist.h) */
+    uintmax_t every;
     int initial_only;
 } bx_opts;
 
-/* Successive -t arguments append explicit stops. Extension flags persist
-   within one argument (GNU's separator grammar), but reset between arguments.
-   Zero extensions are inert; a plain zero stop is invalid. */
 static int
 bx_parse_tablist (const char *s, bx_opts *o)
 {
-    int kind = 0;
-    while (*s) {
-        if (*s == ',' || *s == ' ' || *s == '\t') { s++; continue; }
-        if (*s == '/' || *s == '+') { kind = *s++; continue; }
-        if (*s < '0' || *s > '9') goto invalid;
-        uintmax_t value = 0;
-        do {
-            unsigned int digit = *s++ - '0';
-            /* GNU limits tab distances to the signed allocation range. */
-            if (value > ((uintmax_t) PTRDIFF_MAX - digit) / 10)
-                goto invalid;
-            value = value * 10 + digit;
-        } while (*s >= '0' && *s <= '9');
-        if (*s && *s != ',' && *s != ' ' && *s != '\t') goto invalid;
-        if (kind) {
-            uintmax_t *extension = kind == '/' ? &o->extend_size : &o->increment_size;
-            if (*extension) goto invalid;
-            *extension = value;
-        } else {
-            if (!value || (o->n_stops && value <= o->stops[o->n_stops - 1]))
-                goto invalid;
-            if (o->n_stops == o->allocated) {
-                size_t capacity = o->allocated ? o->allocated * 2 : 16;
-                if (capacity < o->allocated || capacity > SIZE_MAX / sizeof *o->stops)
-                    goto invalid;
-                o->stops = xrealloc (o->stops, capacity * sizeof *o->stops);
-                o->allocated = capacity;
-            }
-            o->stops[o->n_stops++] = value;
-        }
-    }
-    return 0;
-invalid:
-    builtin_error ("invalid tab list: %s", s);
-    return -1;
+    return bos_tabs_parse (&o->tabs, s);
 }
 
 /* Return the padding, without overflowing when forming the next column. */
@@ -96,15 +60,15 @@ bx_padding (uintmax_t col, const bx_opts *o)
     if (o->every > 0)
         return o->every - col % o->every;
     /* Explicit list: first stop > col. */
-    for (size_t i = 0; i < o->n_stops; i++)
-        if ((uintmax_t) o->stops[i] > col) return o->stops[i] - col;
+    for (size_t i = 0; i < o->tabs.n_stops; i++)
+        if ((uintmax_t) o->tabs.stops[i] > col) return o->tabs.stops[i] - col;
     /* Past the last explicit stop: /N gives multiples of N, +N gives a
        repeat every N relative to the last stop (GNU get_next_tab_column). */
-    if (o->extend_size > 0)
-        return o->extend_size - col % o->extend_size;
-    if (o->increment_size > 0) {
-        uintmax_t end_tab = o->n_stops > 0 ? o->stops[o->n_stops - 1] : 0;
-        return o->increment_size - ((col - end_tab) % o->increment_size);
+    if (o->tabs.extend_size > 0)
+        return o->tabs.extend_size - col % o->tabs.extend_size;
+    if (o->tabs.increment_size > 0) {
+        uintmax_t end_tab = o->tabs.n_stops > 0 ? o->tabs.stops[o->tabs.n_stops - 1] : 0;
+        return o->tabs.increment_size - ((col - end_tab) % o->tabs.increment_size);
     }
     return 1;
 }
@@ -227,7 +191,7 @@ extern char *expand_doc[];
 static int
 bx_options (WORD_LIST *list, bx_opts *o, const char **files, size_t *n_files)
 {
-    int operands_only = 0;
+    int operands_only = 0, badc = 0;
     for (; list; list = list->next) {
         const char *w = list->word->word;
         if (operands_only || w[0] != '-' || !w[1]) {
@@ -248,8 +212,14 @@ bx_options (WORD_LIST *list, bx_opts *o, const char **files, size_t *n_files)
                     value = list->word->word;
                 }
                 if (bx_parse_tablist (value, o) < 0) return -1;
-            } else if (!eq && bx_long_option (name, "initial", length))
+            } else if (bx_long_option (name, "initial", length)) {
+                if (eq) {
+                    builtin_error ("option '--initial' doesn't allow an argument");
+                    bos_shim_try_help ("expand");
+                    return -1;
+                }
                 o->initial_only = 1;
+            }
             else if (!eq && bx_long_option (name, "help", length)) {
                 for (char **line = expand_doc; *line; line++) puts (*line);
                 return 1;
@@ -273,24 +243,22 @@ bx_options (WORD_LIST *list, bx_opts *o, const char **files, size_t *n_files)
             } else if (*cp >= '0' && *cp <= '9') {
                 if (bx_parse_tablist (cp, o) < 0) return -1;
                 break;
-            } else goto unknown;
+            } else { badc = (unsigned char) *cp; goto unknown; }
         }
         continue;
 missing:
-        builtin_error ("%s needs TABLIST", w);
+        bos_shim_missing_arg (w[1] == '-' ? "--tabs" : w, 't', "expand");
         return -1;
 unknown:
-        builtin_error ("unknown flag: %s", w);
+        bos_shim_bad_option (w, badc, "expand");
         return -1;
     }
-    if (o->extend_size && o->increment_size) {
-        builtin_error ("'/' and '+' specifiers are mutually exclusive");
+    if (bos_tabs_finish (&o->tabs) < 0)
         return -1;
-    }
-    if (!o->n_stops)
-        o->every = o->extend_size ? o->extend_size : o->increment_size ? o->increment_size : 8;
-    else if (o->n_stops == 1 && !o->extend_size && !o->increment_size)
-        o->every = o->stops[0];
+    if (!o->tabs.n_stops)
+        o->every = o->tabs.extend_size ? o->tabs.extend_size : o->tabs.increment_size ? o->tabs.increment_size : 8;
+    else if (o->tabs.n_stops == 1 && !o->tabs.extend_size && !o->tabs.increment_size)
+        o->every = o->tabs.stops[0];
     return 0;
 }
 
@@ -303,9 +271,9 @@ expand_builtin (WORD_LIST *list)
     const char **files = xmalloc ((argc + 1) * sizeof *files);
     int parsed = bx_options (list, &o, files, &n_files);
     if (parsed) {
-        free (o.stops);
+        free (o.tabs.stops);
         free (files);
-        if (parsed < 0) { builtin_usage (); return EXECUTION_FAILURE; }
+        if (parsed < 0) return EXECUTION_FAILURE;
         return fflush (stdout) == EOF || ferror (stdout) ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
     }
 
@@ -357,7 +325,7 @@ expand_builtin (WORD_LIST *list)
         builtin_error ("write error: %s", strerror (output.error));
         rc = EXECUTION_FAILURE;
     }
-    free (o.stops);
+    free (o.tabs.stops);
     free (files);
     return rc;
 }

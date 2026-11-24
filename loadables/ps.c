@@ -44,6 +44,7 @@
 #include <time.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 #define BPS_BUF 4096
 #define BPS_MAX_COLS 32
@@ -1096,6 +1097,20 @@ bps_compare (const void *x, const void *y)
     return c ? c : bps_cmp_long (a->lwp, b->lwp);
 }
 
+/* procps ps's usage error: "error: WHY" with no command prefix, then its
+   usage block, all on stderr; the caller returns 1. */
+static void
+bps_usage_error (const char *why)
+{
+    const char *name = bos_shim_prog_name ("ps");
+    fflush (stdout);
+    fprintf (stderr, "error: %s\n\nUsage:\n %s [options]\n\n"
+             " Try '%s --help <simple|list|output|threads|misc|all>'\n"
+             "  or '%s --help <s|l|o|t|m|a>'\n"
+             " for additional help text.\n\n"
+             "For more details see ps(1).\n", why, name, name, name);
+}
+
 int
 ps_builtin (WORD_LIST *list)
 {
@@ -1179,8 +1194,7 @@ ps_builtin (WORD_LIST *list)
             continue;
         }
         if (w[1] == '-') {
-            builtin_error ("unknown flag: %s", w);
-            builtin_usage ();
+            bps_usage_error ("unknown gnu long option");
             return EXECUTION_FAILURE;
         }
         for (const char *c = w + 1; *c; c++) {
@@ -1229,16 +1243,14 @@ ps_builtin (WORD_LIST *list)
                     goto next_word;
                 }
                 case 'V':
-                    if (c[1] != '\0') {
-                        builtin_error ("unknown flag: -%c", c[1]);
-                        builtin_usage ();
+                    if (c[1] != '\0' || c != w + 1) {
+                        bps_usage_error ("the option is exclusive: -V");
                         return EXECUTION_FAILURE;
                     }
-                    puts ("bashps 1.0 (bash-loadable, procps-compatible)");
+                    puts ("ps 1.0 (bash-loadable, procps-compatible)");
                     return EXECUTION_SUCCESS;
                 default:
-                    builtin_error ("unknown flag: -%c", *c);
-                    builtin_usage ();
+                    bps_usage_error ("unsupported SysV option");
                     return EXECUTION_FAILURE;
             }
         }

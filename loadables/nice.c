@@ -23,6 +23,7 @@
 #include <sys/wait.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 #include "child-wait.h"
 #include "command-run.h"
 
@@ -63,12 +64,12 @@ nice_builtin (WORD_LIST *list)
 	        return EXECUTION_SUCCESS;
 	    }
 	    if (!strcmp (w, "--version")) {
-	        puts ("bashnice 1.0 (bash-loadable, coreutils-compatible)");
+	        puts ("nice 1.0 (bash-loadable, coreutils-compatible)");
 	        return EXECUTION_SUCCESS;
 	    }
 	    if (!strcmp (w, "--")) { list = list->next; break; }
 	    if (!strcmp (w, "-n") || !strcmp (w, "--adjustment")) {
-	        if (!list->next) { builtin_error ("option '%s' requires an argument", w); builtin_usage (); return BNICE_CANCELED; }
+	        if (!list->next) { bos_shim_missing_arg (w, 'n', "nice"); return BNICE_CANCELED; }
 	        list = list->next;
 	        if (bnice_parse_adj (list->word->word, &incr) < 0)
 	            { builtin_error ("invalid adjustment '%s'", list->word->word); return BNICE_CANCELED; }
@@ -91,8 +92,7 @@ nice_builtin (WORD_LIST *list)
 	        continue;
 	    }
 	    if (w[1] == '-') {
-	        builtin_error ("unknown flag: %s", w);
-	        builtin_usage ();
+	        bos_shim_bad_option (w, 0, "nice");
 	        return BNICE_CANCELED;
 	    }
 	    /* POSIX/obsolete shorthand: -N (e.g. nice -10 CMD). */
@@ -103,15 +103,14 @@ nice_builtin (WORD_LIST *list)
 	        list = list->next;
             continue;
 	    }
-	    builtin_error ("unknown flag: %s", w);
-	    builtin_usage ();
+	    bos_shim_bad_option (w, w[1], "nice");
 	    return BNICE_CANCELED;
 	}
     if (!list) {
         /* GNU: an adjustment without a command is an error. */
         if (adjustment_given) {
             builtin_error ("a command must be given with an adjustment");
-            builtin_usage ();
+            bos_shim_try_help ("nice");
             return BNICE_CANCELED;
         }
         /* POSIX: with no CMD, print current niceness. */

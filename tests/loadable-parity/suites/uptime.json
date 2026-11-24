@@ -100,18 +100,18 @@
     {
       "id": "unknown-option",
       "kind": "contract",
-      "purpose": "Check the documented usage failure for an unrecognized option.",
+      "purpose": "Check the documented usage failure for an unrecognized option. procps uptime exits 1 for a usage error (pass 8, G119).",
       "script": "uptime --not-an-option",
-      "expected_status": 2,
+      "expected_status": 1,
       "stdout": "",
       "stderr": "nonempty"
     },
     {
       "id": "unexpected-operand",
       "kind": "contract",
-      "purpose": "Check the documented usage failure when an operand follows the supported options.",
+      "purpose": "Check the documented usage failure when an operand follows the supported options. procps uptime exits 1 for a usage error (pass 8, G119).",
       "script": "uptime extra",
-      "expected_status": 2,
+      "expected_status": 1,
       "stdout": "",
       "stderr": "nonempty"
     },

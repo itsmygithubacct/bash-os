@@ -96,6 +96,7 @@
 #include <sys/wait.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 #include "error.h"
 
 /* Use the shell's checked allocation convention throughout the interpreter.
@@ -4356,6 +4357,20 @@ bawk_stdout_restore (void *unused)
     }
 }
 
+/* An option error as GNU getopt words it (none when WORD is NULL), then
+   the usage line on stderr, as awk implementations print it; status 1. */
+static void
+bawk_bad_option (const char *word, int c)
+{
+    fflush (stdout);
+    if (word && word[1] == '-')
+        builtin_error ("unrecognized option '%s'", word);
+    else if (word)
+        builtin_error ("invalid option -- '%c'", c);
+    fprintf (stderr, "Usage: %s [-F SEP] [-v VAR=VAL] [-e SCRIPT] [-f FILE] [SCRIPT] [FILE...]\n",
+             bos_shim_prog_name ("awk"));
+}
+
 int
 awk_builtin (WORD_LIST *list)
 {
@@ -4465,8 +4480,7 @@ bawk_main (WORD_LIST *list)
 	                return EXECUTION_SUCCESS;
 	            }
 	            if (w[1] == '-') {
-	                builtin_error ("unknown flag: %s", w);
-	                builtin_usage ();
+	                bawk_bad_option (w, 0);
 	                goto err_usage;
 	            }
 	            for (const char *cc = w + 1; *cc; cc++) {
@@ -4532,8 +4546,7 @@ bawk_main (WORD_LIST *list)
                         goto next_word;
 	                    }
 	                    default:
-	                        builtin_error ("unknown flag: -%c", *cc);
-	                        builtin_usage ();
+	                        bawk_bad_option (w, *cc);
 	                        goto err_usage;
 	                }
 	            }
@@ -4556,7 +4569,7 @@ bawk_main (WORD_LIST *list)
         p = p ? p->next : NULL;
     }
 
-    if (!script_seen) { builtin_usage (); goto err_usage; }
+    if (!script_seen) { bawk_bad_option (NULL, 0); goto err_usage; }
 
     if (fs_override) {
         free (ctx.FS); ctx.FS = fs_override; ctx.FSlen = fs_override_len; fs_override = NULL;

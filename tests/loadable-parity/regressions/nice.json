@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "loadable": "nice",
+  "reference": "GNU coreutils nice, run by the harness with Bash as the reference shell and LC_ALL=C; status (recorded on stdout) and stderr bytes of option errors are compared.",
+  "coverage": [
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
+  ],
+  "exclusions": [],
+  "cases": [
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option is reported as nice reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "nice"
+      ],
+      "script": "rc=0\nnice --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option is reported as nice reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "nice"
+      ],
+      "script": "rc=0\nnice -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-argument",
+      "kind": "parity",
+      "purpose": "G120: -n and --adjustment without an argument.",
+      "requires": [
+        "nice"
+      ],
+      "script": "rc=0\nnice -n || rc=$?\necho \"rc=$rc\"\nrc=0\nnice --adjustment || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-no-command",
+      "kind": "parity",
+      "purpose": "G120: an adjustment needs a command.",
+      "requires": [
+        "nice"
+      ],
+      "script": "rc=0\nnice -n 1 || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    }
+  ]
+}

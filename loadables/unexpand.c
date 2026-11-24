@@ -31,57 +31,21 @@
 #include <fcntl.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
+#include "tablist.h"
 #include "unwind_prot.h"
 #include "bl-output.h"
 
-#define BU_MAX_STOPS 64
-
 typedef struct {
-    int stops[BU_MAX_STOPS];
-    int n_stops;
-    int every;
-    int extend_size, increment_size;
+    bos_tabs tabs;          /* -t stops and extensions (tablist.h) */
+    uintmax_t every;
     int all, first_only;
 } bu_opts;
 
-/* Keep explicit stops until option parsing finishes. Extension markers apply
-   to subsequent values in one argument, but reset at the next -t argument.
-   A zero extension is inert; a nonzero extension may only be assigned once. */
 static int
 bu_parse_tablist (const char *s, bu_opts *o)
 {
-    int extension = 0;
-    while (*s) {
-        while (*s == ',' || *s == ' ' || *s == '\t') s++;
-        if (!*s) break;
-        if (*s == '/' || *s == '+') { extension = *s++; continue; }
-        char *end;
-        errno = 0;
-        long n = strtol (s, &end, 10);
-        if (!isdigit ((unsigned char) *s) || errno == ERANGE || n > INT_MAX ||
-            n < 0 || (n == 0 && !extension) || end == s ||
-            (*end && *end != ',' && *end != ' ' && *end != '\t')) {
-            builtin_error ("invalid tab size: %s", s);
-            return -1;
-        }
-        if (extension) {
-            int *size = extension == '/' ? &o->extend_size : &o->increment_size;
-            if (*size) {
-                builtin_error ("tab extension must be last");
-                return -1;
-            }
-            *size = (int) n;
-        } else {
-            if ((o->n_stops && n <= o->stops[o->n_stops - 1]) ||
-                o->n_stops == BU_MAX_STOPS) {
-                builtin_error ("tab stops must increase (maximum %d stops)", BU_MAX_STOPS);
-                return -1;
-            }
-            o->stops[o->n_stops++] = (int) n;
-        }
-        s = end;
-    }
-    return 0;
+    return bos_tabs_parse (&o->tabs, s);
 }
 
 /* First stop strictly past COL, also after a backspace. /N aligns to the
@@ -95,14 +59,14 @@ bu_next_stop (uintmax_t col, const bu_opts *o, int *last_tab)
                             ? col & (o->every - 1) : col % o->every;
         return col + (o->every - offset);
     }
-    for (int i = 0; i < o->n_stops; i++)
-        if ((uintmax_t) o->stops[i] > col)
-            return o->stops[i];
-    if (o->extend_size)
-        return col + o->extend_size - col % o->extend_size;
-    if (o->increment_size) {
-        int base = o->n_stops ? o->stops[o->n_stops - 1] : 0;
-        return col + o->increment_size - (col - base) % o->increment_size;
+    for (size_t i = 0; i < o->tabs.n_stops; i++)
+        if ((uintmax_t) o->tabs.stops[i] > col)
+            return o->tabs.stops[i];
+    if (o->tabs.extend_size)
+        return col + o->tabs.extend_size - col % o->tabs.extend_size;
+    if (o->tabs.increment_size) {
+        uintmax_t base = o->tabs.n_stops ? o->tabs.stops[o->tabs.n_stops - 1] : 0;
+        return col + o->tabs.increment_size - (col - base) % o->tabs.increment_size;
     }
     *last_tab = 1;
     return col + 1;
@@ -433,13 +397,11 @@ unexpand_builtin (WORD_LIST *list)
         if (!strcmp (w, "--first-only")) { o.first_only = 1; list = list->next; continue; }
         if (!strcmp (w, "-t") || !strcmp (w, "--tabs")) {
             if (!list->next) {
-                builtin_error ("%s needs TABLIST", w);
-                builtin_usage ();
+                bos_shim_missing_arg (w, 't', "unexpand");
                 return EXECUTION_FAILURE;
             }
             list = list->next;
             if (bu_parse_tablist (list->word->word, &o) < 0) {
-                builtin_usage ();
                 return EXECUTION_FAILURE;
             }
             /* POSIX: -t implies -a. */
@@ -449,7 +411,6 @@ unexpand_builtin (WORD_LIST *list)
         }
         if (!strncmp (w, "--tabs=", 7)) {
             if (bu_parse_tablist (w + 7, &o) < 0) {
-                builtin_usage ();
                 return EXECUTION_FAILURE;
             }
             o.all = 1;
@@ -487,19 +448,18 @@ unexpand_builtin (WORD_LIST *list)
                 if (*arg == 't') {
                     arg++;
                     if (!*arg && list->next) { list = list->next; arg = list->word->word; }
-                    else if (!*arg) { builtin_error ("-t needs TABLIST"); return EXECUTION_FAILURE; }
+                    else if (!*arg) { bos_shim_missing_arg ("-t", 't', "unexpand"); return EXECUTION_FAILURE; }
                     o.all = 1;
                     if (bu_parse_tablist (arg, &o) < 0) return EXECUTION_FAILURE;
                     break;
                 }
-                builtin_error ("unknown flag: -%c", *arg);
+                bos_shim_bad_option (w, *arg, "unexpand");
                 return EXECUTION_FAILURE;
             }
             list = list->next;
             continue;
         }
-        builtin_error ("unknown flag: %s", w);
-        builtin_usage ();
+        bos_shim_bad_option (w, 0, "unexpand");
         return EXECUTION_FAILURE;
     }
     if (legacy_seen) {
@@ -507,19 +467,21 @@ unexpand_builtin (WORD_LIST *list)
         snprintf (number, sizeof number, "%u", legacy_size);
         if (bu_parse_tablist (number, &o) < 0) return EXECUTION_FAILURE;
     }
-    if (o.extend_size && o.increment_size) {
-        builtin_error ("'/' and '+' specifiers are mutually exclusive");
+    if (bos_tabs_finish (&o.tabs) < 0) {
+        free (o.tabs.stops);
         return EXECUTION_FAILURE;
     }
-    if (!o.n_stops) {
-        o.every = o.extend_size ? o.extend_size : o.increment_size ? o.increment_size : 8;
-        o.extend_size = o.increment_size = 0;
-    } else if (o.n_stops == 1 && !o.extend_size && !o.increment_size) {
-        o.every = o.stops[0];
-        o.n_stops = 0;
+    if (!o.tabs.n_stops) {
+        o.every = o.tabs.extend_size ? o.tabs.extend_size : o.tabs.increment_size ? o.tabs.increment_size : 8;
+        o.tabs.extend_size = o.tabs.increment_size = 0;
+    } else if (o.tabs.n_stops == 1 && !o.tabs.extend_size && !o.tabs.increment_size) {
+        o.every = o.tabs.stops[0];
+        o.tabs.n_stops = 0;
     } else o.every = 0;
     if (o.first_only) o.all = 0;
-    return bu_process (list, &o);
+    int rc = bu_process (list, &o);
+    free (o.tabs.stops);
+    return rc;
 }
 
 char *unexpand_doc[] = {

@@ -11,7 +11,8 @@
     "NUL-separated filename lists with a space in a name, an unterminated final name, and an empty list.",
     "Missing-file and invalid-option exit behavior.",
     "Bash builtin type and help metadata against the documented wc help entry.",
-    "Reject stdin data entries when --files0-from reads stdin, retain totals and continue valid files, while allowing stdin data for named lists."
+    "Reject stdin data entries when --files0-from reads stdin, retain totals and continue valid files, while allowing stdin data for named lists.",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "Only the harness-provided GNU wc version and C/C.UTF-8 locales are compared; other GNU versions, locales, and libc behavior are not qualified.",
@@ -224,6 +225,39 @@
       "script": "export LC_ALL=C\nprintf 'one two\\n' > a\nprintf -- '-\\0a\\0' > names\nwc --files0-from=- < names",
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option is reported as wc reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "wc"
+      ],
+      "script": "rc=0\nwc --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option is reported as wc reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "wc"
+      ],
+      "script": "rc=0\nwc -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-argument",
+      "kind": "parity",
+      "purpose": "G120: --files0-from without its argument.",
+      "requires": [
+        "wc"
+      ],
+      "script": "rc=0\nwc --files0-from || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

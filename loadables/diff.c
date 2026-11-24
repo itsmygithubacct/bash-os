@@ -68,6 +68,7 @@
 #include <locale.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 #include "bl-output.h"
 
 enum { BD_NORMAL, BD_UNIFIED, BD_CONTEXT, BD_SBS, BD_ED, BD_IFDEF, BD_RCS };
@@ -2453,12 +2454,13 @@ diff_builtin (WORD_LIST *list)
     }
     switches[0] = '\0';
 #define BD_SW(word) bd_switch (switches, (word))
-#define BD_USAGE_FAIL do { builtin_usage (); rc = EX_USAGE; goto done; } while (0)
+/* diffutils' usage error: its Try line carries the "diff: " prefix too. */
+#define BD_USAGE_FAIL do { fflush (stdout); builtin_error ("Try '%s --help' for more information.", bos_shim_prog_name ("diff")); rc = EX_USAGE; goto done; } while (0)
     for (WORD_LIST *p = list; p; p = p->next) {
         const char *w = p->word->word;
         if (strcmp (w, "--help") == 0) { builtin_usage (); rc = EXECUTION_SUCCESS; goto done; }
         if (strcmp (w, "--version") == 0 || strcmp (w, "-v") == 0) {
-            puts ("bashdiff 1.0 (bash-loadable)");
+            puts ("diff 1.0 (bash-loadable)");
             rc = EXECUTION_SUCCESS;
             goto done;
         }
@@ -2583,7 +2585,7 @@ diff_builtin (WORD_LIST *list)
         BD_USAGE_FAIL;
     }
     if (!from_file && !to_file && npos != 2) {
-        if (npos) builtin_error ("missing operand after '%s'", paths[npos - 1]);
+        builtin_error ("missing operand after '%s'", npos ? paths[npos - 1] : bos_shim_prog_name ("diff"));
         BD_USAGE_FAIL;
     }
     if (ps.ignore_pat && !(o.ignore_re = bd_compile (ps.ignore_pat))) { rc = 2; goto done; }

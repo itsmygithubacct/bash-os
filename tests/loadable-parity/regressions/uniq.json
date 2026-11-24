@@ -14,7 +14,8 @@
     "Relative input and output operands, including replacement of an existing output file.",
     "Invalid numeric option argument status and diagnostic presence.",
     "Bash builtin type and help metadata contract.",
-    "Signed nonnegative decimal counts, saturation beyond integer limits, and legacy skip-count overflow."
+    "Signed nonnegative decimal counts, saturation beyond integer limits, and legacy skip-count overflow.",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "Version text and exact diagnostic wording are not compared.",
@@ -168,6 +169,39 @@
       ],
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option is reported as uniq reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "uniq"
+      ],
+      "script": "rc=0\nuniq --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option is reported as uniq reports it, with no internal builtin name and the GNU status.",
+      "requires": [
+        "uniq"
+      ],
+      "script": "rc=0\nuniq -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-argument",
+      "kind": "parity",
+      "purpose": "G120: -f and --skip-fields without an argument.",
+      "requires": [
+        "uniq"
+      ],
+      "script": "rc=0\nuniq -f || rc=$?\necho \"rc=$rc\"\nrc=0\nuniq --skip-fields || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

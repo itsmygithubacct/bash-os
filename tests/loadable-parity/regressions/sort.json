@@ -8,7 +8,8 @@
     "External sort: spilled runs, multi-level merge, keys, -u, -s, -z, -o onto an input, standard input, failure to create a run",
     "Exit status 2 for trouble and 1 for -c disorder",
     "G68: --debug annotations and key warnings (C locale).",
-    "Guest pass 6: G93 sort -R in O(n log n) with grouping, last-resort ties and a reproducible --random-source; G90 GNU 9.7 file diagnostics (cannot read, open failed, read failed, quoting)."
+    "Guest pass 6: G93 sort -R in O(n log n) with grouping, last-resort ties and a reproducible --random-source; G90 GNU 9.7 file diagnostics (cannot read, open failed, read failed, quoting).",
+    "Pass 8 (G120, G121): -t diagnostics (multi-character, empty, incompatible), option errors in GNU form with status 2."
   ],
   "exclusions": [
     "Address-space limits (ulimit -v) are not set inside the runner; the default budget derived from RLIMIT_AS is checked in the guest qualification instead."
@@ -253,6 +254,61 @@
       "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\nprintf '2 b\\n1 a\\n' > in2\ns 'sort -k x </dev/null'\ns 'sort -k 0 </dev/null'\ns 'sort -k 1.x </dev/null'\ns 'sort -k 1.0 </dev/null'\ns 'sort -k 1,x </dev/null'\ns 'sort -k 1,1x </dev/null'\ns 'sort -k ,2 </dev/null'\ns 'sort -k 1,0 </dev/null'\ns 'sort -k '\"'\"''\"'\"' </dev/null'\ns 'sort -k 1.2.3 </dev/null'\ns 'sort -k '\"'\"' 1'\"'\"' in2'\ns 'sort -k +2 in2'\ns 'sort -k 99999999999999999999 in2'\n",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass8-multi-character-tab",
+      "kind": "parity",
+      "purpose": "G121: a multi-character -t separator is rejected with status 2.",
+      "requires": [
+        "sort"
+      ],
+      "script": "rc=0\nsort -t ab /dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nsort --field-separator=ab /dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-empty-tab",
+      "kind": "parity",
+      "purpose": "G121: an empty -t separator is rejected with status 2.",
+      "requires": [
+        "sort"
+      ],
+      "script": "rc=0\nsort -t '' /dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-incompatible-tabs",
+      "kind": "parity",
+      "purpose": "G121: two different -t separators are incompatible; the same one twice is fine.",
+      "requires": [
+        "sort"
+      ],
+      "script": "rc=0\nsort -t : -t : /dev/null || rc=$?\necho \"rc=$rc\"\nrc=0\nsort -t : -t , /dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-missing-argument",
+      "kind": "parity",
+      "purpose": "G120: an option missing its argument in GNU form.",
+      "requires": [
+        "sort"
+      ],
+      "script": "rc=0\nsort -k || rc=$?\necho \"rc=$rc\"\nrc=0\nsort --key || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass8-unknown-option",
+      "kind": "parity",
+      "purpose": "G120: unknown options in GNU form, status 2.",
+      "requires": [
+        "sort"
+      ],
+      "script": "rc=0\nsort --bogus || rc=$?\necho \"rc=$rc\"\nrc=0\nsort -nY || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

@@ -8,7 +8,8 @@
     "Detailed builtin help retains documented matching and selector descriptions.",
     "Deferred operation coverage specifies useful procfs and isolated-child comparisons against GNU procps-ng pgrep.",
     "Synthetic read-only operation contracts: ERE/exact/inverse matching, cmdline formatting, effective/real IDs, combined selectors, ages/ties and self-exclusion; GNU parser parity.",
-    "Genuine procps parity for one private naturally exiting Bash child, parent restriction, command-line matching, no-match count/status and self-exclusion."
+    "Genuine procps parity for one private naturally exiting Bash child, parent restriction, command-line matching, no-match count/status and self-exclusion.",
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
   ],
   "exclusions": [
     "No signal-delivery command is invoked. Only private synthetic proc records are read by candidate operation fixtures.",
@@ -168,6 +169,30 @@
       "script": "mkdir proc\nexport BASHOS_PROC_ROOT=proc\npgrep -P 1, -x zqfixture827",
       "purpose": "A trailing parent-selector comma is accepted by procps. Use an existing empty synthetic proc directory for the candidate and a fixed absent name in the reference private PID namespace; both report no match without a diagnostic.",
       "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-long-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown long option: the pgrep diagnostic and the start of its usage text, and the status.",
+      "requires": [
+        "pgrep",
+        "sed"
+      ],
+      "script": "rc=0\nout=$(pgrep --bogus </dev/null 2>&1) || rc=$?\nprintf '%s\\n' \"$out\" | sed -n '1,4p'\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass8-unknown-short-option",
+      "kind": "parity",
+      "purpose": "G120: an unknown short option: the pgrep diagnostic and the start of its usage text, and the status.",
+      "requires": [
+        "pgrep",
+        "sed"
+      ],
+      "script": "rc=0\nout=$(pgrep -Y </dev/null 2>&1) || rc=$?\nprintf '%s\\n' \"$out\" | sed -n '1,4p'\necho \"rc=$rc\"",
+      "expected_status": 0,
       "stderr": "empty"
     }
   ]

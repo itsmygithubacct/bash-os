@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 static int
 br_process (FILE *f)
@@ -144,12 +145,11 @@ rev_builtin (WORD_LIST *list)
             return EXECUTION_SUCCESS;
         }
         if (!strcmp (w, "-V") || !strcmp (w, "--version")) {
-            puts ("bashrev 1.0 (bash-loadable)");
+            puts ("rev 1.0 (bash-loadable)");
             return EXECUTION_SUCCESS;
         }
         if (w[0] == '-' && w[1] != '\0' && strcmp (w, "-")) {
-            builtin_error ("invalid option: %s", w);
-            builtin_usage ();
+            bos_shim_bad_option (w, w[1], "rev");
             return EXECUTION_FAILURE;
         }
         operands++;

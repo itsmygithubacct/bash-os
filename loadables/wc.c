@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 typedef struct {
     long long lines;
@@ -403,7 +404,7 @@ wc_builtin (WORD_LIST *list)
         if (!strcmp (w, "--chars")) { mflag = 1; list = list->next; continue; }
         if (!strcmp (w, "--max-line-length")) { Lflag = 1; list = list->next; continue; }
         if (!strcmp (w, "--files0-from")) {
-            if (!list->next) { builtin_error ("%s needs FILE", w); return EXECUTION_FAILURE; }
+            if (!list->next) { bos_shim_missing_arg (w, 0, "wc"); return EXECUTION_FAILURE; }
             list = list->next;
             files_from = list->word->word;
             list = list->next;
@@ -415,8 +416,7 @@ wc_builtin (WORD_LIST *list)
             continue;
         }
         if (!strncmp (w, "--", 2)) {
-            builtin_error ("unknown flag: %s", w);
-            builtin_usage ();
+            bos_shim_bad_option (w, 0, "wc");
             return EXECUTION_FAILURE;
         }
         for (const char *p = w + 1; *p; p++) {
@@ -426,7 +426,7 @@ wc_builtin (WORD_LIST *list)
                 case 'c': cflag = 1; break;
                 case 'm': mflag = 1; break;
                 case 'L': Lflag = 1; break;
-                default: builtin_error ("unknown flag: -%c", *p); builtin_usage (); return EXECUTION_FAILURE;
+                default: bos_shim_bad_option (w, *p, "wc"); return EXECUTION_FAILURE;
             }
         }
         list = list->next;
