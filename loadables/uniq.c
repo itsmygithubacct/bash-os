@@ -26,6 +26,7 @@
 
 #include "loadables.h"
 #include "shim-prog-name.h"
+#include "gnu-longopt.h"
 #include "bl-output.h"
 
 /* Keep embedded NULs and batch records without changing the shell's stdio. */
@@ -90,27 +91,12 @@ typedef enum {
     BU_ALL_PREPEND
 } bu_all_mode;
 
-static int
-bu_parse_group_mode (const char *s, bu_group_mode *mode)
-{
-    if (!s || !*s || !strcmp (s, "separate")) {
-        *mode = BU_GROUP_SEPARATE;
-        return 0;
-    }
-    if (!strcmp (s, "prepend")) {
-        *mode = BU_GROUP_PREPEND;
-        return 0;
-    }
-    if (!strcmp (s, "append")) {
-        *mode = BU_GROUP_APPEND;
-        return 0;
-    }
-    if (!strcmp (s, "both")) {
-        *mode = BU_GROUP_BOTH;
-        return 0;
-    }
-    return -1;
-}
+/* GNU's keyword lists for --all-repeated=METHOD and --group=METHOD,
+   matched as argmatch does (exact, or an unambiguous prefix). */
+static const char *const bu_all_names[] = { "none", "prepend", "separate", NULL };
+static const int bu_all_vals[] = { BU_ALL_NONE, BU_ALL_PREPEND, BU_ALL_SEPARATE };
+static const char *const bu_group_names[] = { "prepend", "append", "separate", "both", NULL };
+static const int bu_group_vals[] = { BU_GROUP_PREPEND, BU_GROUP_APPEND, BU_GROUP_SEPARATE, BU_GROUP_BOTH };
 
 static ssize_t
 bu_get_record (char **line, size_t *cap, FILE *f, char delimiter)
@@ -292,22 +278,13 @@ uniq_builtin (WORD_LIST *list)
             continue;
         }
         if (!strncmp (w, "--all-repeated=", 15)) {
-            const char *method = w + 15;
-            if (!strcmp (method, "separate")) {
-                all_repeated = 1;
-                all_mode = BU_ALL_SEPARATE;
-                list = list->next;
-                continue;
-            }
-            if (!strcmp (method, "prepend")) {
-                all_repeated = 1;
-                all_mode = BU_ALL_PREPEND;
-                list = list->next;
-                continue;
-            }
-            builtin_error ("invalid argument '%s' for '--all-repeated'", method);
-            builtin_usage ();
-            return EXECUTION_FAILURE;
+            int m = bos_argmatch (bos_shim_prog_name ("uniq"), "--all-repeated", w + 15,
+                                  bu_all_names, bu_all_vals);
+            if (m < 0) return EXECUTION_FAILURE;
+            all_repeated = 1;
+            all_mode = (bu_all_mode) m;
+            list = list->next;
+            continue;
         }
         if (!strcmp (w, "--group")) {
             grouping = BU_GROUP_SEPARATE;
@@ -315,11 +292,10 @@ uniq_builtin (WORD_LIST *list)
             continue;
         }
         if (!strncmp (w, "--group=", 8)) {
-            if (bu_parse_group_mode (w + 8, &grouping) < 0) {
-                builtin_error ("invalid argument '%s' for '--group'", w + 8);
-                builtin_usage ();
-                return EXECUTION_FAILURE;
-            }
+            int m = bos_argmatch (bos_shim_prog_name ("uniq"), "--group", w + 8,
+                                  bu_group_names, bu_group_vals);
+            if (m < 0) return EXECUTION_FAILURE;
+            grouping = (bu_group_mode) m;
             list = list->next;
             continue;
         }
@@ -431,12 +407,20 @@ uniq_builtin (WORD_LIST *list)
     }
     if (cflag && all_repeated) {
         builtin_error ("printing all duplicated lines and repeat counts is meaningless");
-        builtin_usage ();
+        bos_shim_try_help ("uniq");
         return EXECUTION_FAILURE;
     }
     if (grouping != BU_GROUP_NONE && (cflag || dflag || all_repeated || uflag)) {
         builtin_error ("--group is mutually exclusive with -c/-d/-D/-u");
-        builtin_usage ();
+        bos_shim_try_help ("uniq");
+        return EXECUTION_FAILURE;
+    }
+    if (list && list->next && list->next->next) {
+        /* GNU checks the operand count before opening anything. */
+        char *q = bos_quote (list->next->next->word->word);
+        builtin_error ("extra operand %s", q ? q : list->next->next->word->word);
+        free (q);
+        bos_shim_try_help ("uniq");
         return EXECUTION_FAILURE;
     }
     FILE *f = stdin;
@@ -457,12 +441,6 @@ uniq_builtin (WORD_LIST *list)
         if (list) {
             const char *output = list->word->word;
             list = list->next;
-            if (list) {
-                builtin_error ("extra operand '%s'", list->word->word);
-                builtin_usage ();
-                if (fopened) fclose (fopened);
-                return EXECUTION_FAILURE;
-            }
             if (strcmp (output, "-") != 0) {
                 outopened = fopen (output, "w");
                 if (!outopened) {

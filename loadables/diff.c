@@ -2004,19 +2004,24 @@ static int
 bd_compare_paths (const char *p0, const char *p1, const bd_opts *o, int top)
 {
     struct stat s0, s1;
-    int d0 = 0, d1 = 0, missing = 0;
+    int d0 = 0, d1 = 0, missing = 0, e0 = 0, e1 = 0;
     int (*stat_fn) (const char *, struct stat *) = o->no_deref ? lstat : stat;
     if (!bd_is_stdin (p0)) {
-        if (stat_fn (p0, &s0) < 0) {
-            if (errno != ENOENT || !o->nflag) { builtin_error ("%s: %s", p0, strerror (errno)); return 2; }
-            missing |= 1;
-        } else d0 = S_ISDIR (s0.st_mode);
+        if (stat_fn (p0, &s0) < 0) e0 = errno;
+        else d0 = S_ISDIR (s0.st_mode);
     }
     if (!bd_is_stdin (p1)) {
-        if (stat_fn (p1, &s1) < 0) {
-            if (errno != ENOENT || !o->nflag || missing) { builtin_error ("%s: %s", missing ? p0 : p1, strerror (ENOENT)); return 2; }
-            missing |= 2;
-        } else d1 = S_ISDIR (s1.st_mode);
+        if (stat_fn (p1, &s1) < 0) e1 = errno;
+        else d1 = S_ISDIR (s1.st_mode);
+    }
+    /* -N stands in only for an absent operand whose partner exists. As
+       GNU, every operand that cannot be accessed is then reported. */
+    if (o->nflag && e0 == ENOENT && !e1) { missing |= 1; e0 = 0; }
+    else if (o->nflag && e1 == ENOENT && !e0) { missing |= 2; e1 = 0; }
+    if (e0 || e1) {
+        if (e0) builtin_error ("%s: %s", p0, strerror (e0));
+        if (e1) builtin_error ("%s: %s", p1, strerror (e1));
+        return 2;
     }
     /* -N: a missing operand is an empty file, or an empty directory when
        the other side is a directory. */

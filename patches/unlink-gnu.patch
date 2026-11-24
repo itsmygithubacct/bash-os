@@ -1,14 +1,15 @@
 --- builtins/unlink.c
 +++ builtins/unlink.c
-@@ -33,6 +33,7 @@
+@@ -33,6 +33,8 @@
  #include "../builtins.h"
  #include "../shell.h"
  #include "common.h"
 +#include "gnu-quote.h"
++#include "shim-prog-name.h"
  
  #ifndef errno
  extern int errno;
-@@ -41,25 +42,56 @@
+@@ -41,25 +43,75 @@
  int
  unlink_builtin (WORD_LIST *list)
  {
@@ -27,14 +28,26 @@
 +      if (options && STREQ (arg, "--")) { options = 0; continue; }
 +      if (options && arg[0] == '-' && arg[1])
 +        {
-+          length = strlen (arg + 2);
++          const char *name = 0;
++
++          length = strcspn (arg + 2, "=");
 +          if (arg[1] == '-' && length && length <= 4 &&
 +              strncmp ("help", arg + 2, length) == 0)
-+            { builtin_help (); return sh_chkwrite (EXECUTION_SUCCESS); }
++            name = "help";
 +          if (arg[1] == '-' && length && length <= 7 &&
 +              strncmp ("version", arg + 2, length) == 0)
++            name = "version";
++          if (name && arg[2 + length])
++            {
++              builtin_error ("option '--%s' doesn't allow an argument", name);
++              bos_shim_try_help ("unlink");
++              return EXECUTION_FAILURE;
++            }
++          if (name && *name == 'h')
++            { builtin_help (); return sh_chkwrite (EXECUTION_SUCCESS); }
++          if (name)
 +            { printf ("unlink (bash-os builtin)\n"); return sh_chkwrite (EXECUTION_SUCCESS); }
-+          builtin_error ("invalid option: %s", arg);
++          bos_shim_bad_option (arg, (unsigned char) arg[1], "unlink");
 +          return EXECUTION_FAILURE;
 +        }
 +      if (file) extra = arg;
@@ -43,13 +56,20 @@
      }
 -
 -  if (unlink (list->word->word) != 0)
-+  /* Validate every operand before removing anything. */
++  /* Validate every operand before removing anything; coreutils'
++     wording, then its Try line. */
 +  if (file == 0 || extra)
      {
 -      builtin_error ("%s: cannot unlink: %s", list->word->word, strerror (errno));
 -      return (EXECUTION_FAILURE);
-+      if (extra) builtin_error ("extra operand: %s", extra);
++      if (extra)
++        {
++          char *quoted = bos_quote (extra);
++          builtin_error ("extra operand %s", quoted ? quoted : extra);
++          free (quoted);
++        }
 +      else builtin_error ("missing operand");
++      bos_shim_try_help ("unlink");
 +      return EXECUTION_FAILURE;
      }
 +  if (unlink (file) != 0)

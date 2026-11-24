@@ -375,6 +375,31 @@ bcu_try_help (const char *prog)
   fflush (stderr);
 }
 
+/* bos_shim_bad_option and bos_shim_missing_arg with "PROG: " in place of
+   builtin_error's prefix. A verb run as "coreutils VERB" sets
+   this_command_name to VERB, which the shell does not know as the running
+   builtin, so builtin_error would put the script's "FILE: line N: " in
+   front of the message. The Try line still names the command as invoked. */
+static void
+bcu_bad_option (const char *word, int c, const char *prog)
+{
+  if (word[0] == '-' && word[1] == '-')
+    bcu_err (prog, "unrecognized option '%s'", word);
+  else
+    bcu_err (prog, "invalid option -- '%c'", c);
+  bos_shim_try_help (prog);
+}
+
+static void
+bcu_missing_arg (const char *word, int c, const char *prog)
+{
+  if (word[0] == '-' && word[1] == '-')
+    bcu_err (prog, "option '%.*s' requires an argument", (int) strcspn (word, "="), word);
+  else
+    bcu_err (prog, "option requires an argument -- '%c'", c);
+  bos_shim_try_help (prog);
+}
+
 /* TEXT in the locale's quotation marks; always returns allocated text. */
 static char *
 bcu_quote (const char *text)
@@ -4159,6 +4184,12 @@ bcu_printf_cmd (WORD_LIST *list)
  * nproc — processors available to this process; --all is every configured one
  * =================================================================== */
 
+/* GNU's plain "nproc: message", without the script's "FILE: line N: "
+   (see bcu_bad_option). */
+#define builtin_error(...) bcu_err ("nproc", __VA_ARGS__)
+#define bos_shim_bad_option(word, c, prog) bcu_bad_option (word, c, prog)
+#define bos_shim_missing_arg(word, c, prog) bcu_missing_arg (word, c, prog)
+
 /* Count the current affinity mask; zero requests a sysconf fallback. */
 static unsigned long
 bcu_nproc_available (void)
@@ -4287,6 +4318,9 @@ bcu_nproc_cmd (WORD_LIST *list)
   this_command_name = saved;
   return rc;
 }
+#undef builtin_error
+#undef bos_shim_bad_option
+#undef bos_shim_missing_arg
 
 /* ===================================================================
  * numfmt — reformat numbers to and from human-readable scales.
@@ -4301,6 +4335,11 @@ bcu_nproc_cmd (WORD_LIST *list)
  * =================================================================== */
 
 extern char *this_command_name;
+
+/* numfmt runs as "coreutils numfmt", so the shell does not know the name
+   it reports: builtin_error would put the script's "FILE: line N: " in
+   front. Print GNU's plain "numfmt: message" instead. */
+#define builtin_error(...) bcu_err ("numfmt", __VA_ARGS__)
 
 typedef enum { BCU_SCALE_NONE, BCU_SCALE_AUTO, BCU_SCALE_SI, BCU_SCALE_IEC, BCU_SCALE_IEC_I } bcu_scale_t;
 typedef enum { BCU_ROUND_UP, BCU_ROUND_DOWN, BCU_ROUND_FROM_ZERO, BCU_ROUND_TO_ZERO, BCU_ROUND_NEAREST } bcu_round_t;
@@ -5204,6 +5243,7 @@ bcu_numfmt_cmd (WORD_LIST *list)
   free (nf.fmt_suffix);
   return rc;
 }
+#undef builtin_error
 
 /* ===================================================================
  * shred — overwrite a file N times with random bytes, optionally
@@ -5222,6 +5262,11 @@ bcu_numfmt_cmd (WORD_LIST *list)
  *   -x, --exact            exact size (also the default)
  *   -s SZ, --size=SZ       treat file as SZ bytes long
  * =================================================================== */
+
+/* GNU's plain "shred: message" (see bcu_bad_option). */
+#define builtin_error(...) bcu_err ("shred", __VA_ARGS__)
+#define bos_shim_bad_option(word, c, prog) bcu_bad_option (word, c, prog)
+#define bos_shim_missing_arg(word, c, prog) bcu_missing_arg (word, c, prog)
 
 enum { BCU_RM_NONE, BCU_RM_UNLINK, BCU_RM_WIPE, BCU_RM_WIPESYNC };
 
@@ -5468,10 +5513,14 @@ bcu_shred_cmd (WORD_LIST *list)
   this_command_name = saved;
   return rc;
 }
+#undef builtin_error
 
 /* ===================================================================
  * groups — print groups a user belongs to.
  * =================================================================== */
+
+/* GNU's plain "groups: message" (see bcu_bad_option). */
+#define builtin_error(...) bcu_err ("groups", __VA_ARGS__)
 
 static int
 bcu_groups_print (const char *user)
@@ -5589,6 +5638,9 @@ bcu_groups_cmd (WORD_LIST *list)
   this_command_name = saved;
   return rc;
 }
+#undef builtin_error
+#undef bos_shim_bad_option
+#undef bos_shim_missing_arg
 
 /* ===================================================================
  * install — like `cp` with explicit -m mode and -d/-D for directories.

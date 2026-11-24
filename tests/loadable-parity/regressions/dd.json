@@ -4,7 +4,8 @@
   "reference": "GNU coreutils dd from the runner's read-only /usr tree is the parity oracle; each parity case runs the same script under reference Bash with GNU dd on PATH and under bash-os with PATH empty.",
   "coverage": [
     "conv=sparse to a regular file and to a pipe, including a trailing all-NUL block (guest pass 3).",
-    "Pass 8 (G119, G120): invalid numbers (bs=0), unrecognized operands, invalid flags and options in GNU form with status 1."
+    "Pass 8 (G119, G120): invalid numbers (bs=0), unrecognized operands, invalid flags and options in GNU form with status 1.",
+    "Pass 9 (docker suite AN): pass9-records-and-errors"
   ],
   "exclusions": [
     "Allocation is compared only as 'fewer blocks than bytes'; exact block counts depend on the filesystem."
@@ -74,6 +75,17 @@
         "dd"
       ],
       "script": "rc=0\ndd --bogus || rc=$?\necho \"rc=$rc\"\nrc=0\ndd -x </dev/null || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass9-records-and-errors",
+      "kind": "parity",
+      "purpose": "Docker suite files/dd-records and errors/dd: with bs= each input block is written as read, otherwise output is collected into obs-sized records (conv=ucase included), iflag=count_bytes counts bytes, and a failed open is 'failed to open'.",
+      "requires": [
+        "dd"
+      ],
+      "script": "e() { printf '$ %s\\n' \"$*\"; \"$@\" </dev/null || echo \"rc=$?\"; }\nprintf '%025d' 0 > f\ndd if=f of=o bs=10 2>&1 | head -n 2; wc -c < o\ndd if=f of=o2 ibs=7 obs=3 2>&1 | head -n 2\ndd if=f of=u conv=ucase ibs=7 obs=3 2>&1 | head -n 2; wc -c < u\ndd if=f bs=4 count=2 iflag=count_bytes status=none; echo\ne dd --bogus\ne dd -@\ne dd bs=x\ne dd foo\ne dd if=nosuch\ne dd count=-1\n",
       "expected_status": 0,
       "stderr": "exact"
     }

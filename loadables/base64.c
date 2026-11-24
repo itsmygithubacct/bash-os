@@ -10,6 +10,8 @@
 #include <limits.h>
 #include "loadables.h"
 #include "base64-codec.h"
+#include "shim-prog-name.h"
+#include "gnu-longopt.h"
 
 /* Decode incrementally, including concatenated padded groups. Only LF is
    ignored without -i. Emit each completed byte even if a later byte is bad. */
@@ -60,68 +62,82 @@ static int base64_decode(int fd, int ignore)
     return 0;
 }
 
+/* GNU takes any decimal count; one too large for an int wraps nowhere. */
 static int base64_width(const char *s, int *width)
 {
+    const char *t = s;
     char *end;
-    if (!*s || *s == '-') return -1;
+    while (*t == ' ' || (*t >= '\t' && *t <= '\r')) t++;
+    if (!*s || *t == '-') return -1;
     errno = 0;
-    unsigned long n = strtoul(s, &end, 10);
-    if (errno || *end || n > INT_MAX) return -1;
-    *width = (int)n;
+    unsigned long long n = strtoull(s, &end, 10);
+    if (*end) return -1;
+    *width = errno == ERANGE || n > INT_MAX ? INT_MAX : (int)n;
     return 0;
 }
 
+static const struct bos_longopt base64_longopts[] = {
+    { "decode", BOS_NO_ARG, 'd' },
+    { "wrap", BOS_REQ_ARG, 'w' },
+    { "ignore-garbage", BOS_NO_ARG, 'i' },
+    { "help", BOS_NO_ARG, BOS_OPT_HELP },
+    { "version", BOS_NO_ARG, BOS_OPT_VERSION },
+    { NULL, 0, 0 }
+};
+
 int base64_builtin(WORD_LIST *list)
 {
-    int decode = 0, ignore = 0, wrap = 76, end_options = 0;
-    const char *file = NULL;
-    for (; list; list = list->next) {
-        const char *w = list->word->word, *width = NULL;
-        if (!end_options && !strcmp(w, "--")) { end_options = 1; continue; }
-        if (!end_options && !strcmp(w, "--help")) {
+    int decode = 0, ignore = 0, wrap = 76, c, rc;
+    const char *file = NULL, *prog = bos_shim_prog_name("base64");
+    bos_getopt g;
+
+    /* glibc getopt_long scanning and diagnostics, as GNU base64: every
+       option is read (wherever it is) before the operands are checked. */
+    bos_getopt_init(&g, prog, "diw:", base64_longopts, list);
+    while ((c = bos_getopt_next(&g)) != -1) {
+        switch (c) {
+        case 'd': decode = 1; break;
+        case 'i': ignore = 1; break;
+        case 'w':
+            if (base64_width(g.optarg, &wrap) < 0) {
+                char *q = bos_quote(g.optarg);
+                builtin_error("invalid wrap size: %s", q ? q : g.optarg);
+                free(q);
+                bos_getopt_free(&g);
+                return 1;
+            }
+            break;
+        case BOS_OPT_HELP:
+            bos_getopt_free(&g);
             puts("Usage: base64 [-di] [-w COLS] [FILE]\nEncode or decode FILE, or standard input. Default wrap: 76.\n-d, --decode  -i, --ignore-garbage  -w, --wrap=COLS (0 disables wrapping)");
             return fflush(stdout) ? 1 : 0;
-        }
-        if (!end_options && !strcmp(w, "--version")) {
+        case BOS_OPT_VERSION:
+            bos_getopt_free(&g);
             puts("base64 (bash-os) 0.1.1"); return fflush(stdout) ? 1 : 0;
-        }
-        if (!end_options && !strcmp(w, "--decode")) { decode = 1; continue; }
-        if (!end_options && !strcmp(w, "--ignore-garbage")) { ignore = 1; continue; }
-        if (!end_options && !strncmp(w, "--wrap=", 7)) width = w + 7;
-        else if (!end_options && !strcmp(w, "--wrap")) {
-            if (!(list = list->next)) goto bad_option;
-            width = list->word->word;
-        } else if (!end_options && w[0] == '-' && w[1]) {
-            for (const char *p = w + 1; *p; p++) {
-                if (*p == 'd') decode = 1;
-                else if (*p == 'i') ignore = 1;
-                else if (*p == 'w') {
-                    if (p[1]) width = p + 1;
-                    else {
-                        if (!(list = list->next)) goto bad_option;
-                        width = list->word->word;
-                    }
-                    break;
-                } else goto bad_option;
-            }
-            if (!width) continue;
-        } else {
-            if (file) { builtin_error("extra operand: %s", w); return 1; }
-            file = w;
-            continue;
-        }
-        if (base64_width(width, &wrap) < 0) {
-            builtin_error("invalid wrap size: %s", width); return 1;
+        default:
+            bos_getopt_free(&g);
+            return 1;
         }
     }
+    if (g.noperands > 1) {
+        char *q = bos_quote(g.operands[1]);
+        builtin_error("extra operand %s", q ? q : g.operands[1]);
+        free(q);
+        bos_shim_try_help("base64");
+        bos_getopt_free(&g);
+        return 1;
+    }
+    if (g.noperands) file = g.operands[0];
     int fd = !file || !strcmp(file, "-") ? 0 : open(file, O_RDONLY | O_CLOEXEC);
-    if (fd < 0) { builtin_error("%s: %s", file, strerror(errno)); return 1; }
-    int rc = decode ? base64_decode(fd, ignore) : b64_encode(fd, 1, 0, wrap);
+    if (fd < 0) {
+        builtin_error("%s: %s", file, strerror(errno));
+        bos_getopt_free(&g);
+        return 1;
+    }
+    rc = decode ? base64_decode(fd, ignore) : b64_encode(fd, 1, 0, wrap);
     if (fd != 0 && close(fd) < 0) rc = 1;
+    bos_getopt_free(&g);
     return rc;
-bad_option:
-    builtin_error("invalid option or missing argument; try base64 --help");
-    return 1;
 }
 
 char *base64_doc[] = {

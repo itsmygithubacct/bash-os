@@ -97,7 +97,10 @@ class ProcessWrapperState(unittest.TestCase):
                                     'printf "missing=%s\\n" "$?"; "$@" ./not-executable; '
                                     'printf "denied=%s\\n" "$?"; IFS= read -r line; '
                                     'printf "stdin=%s\\n" "$line"', *wrapper)
-                self.assertEqual(result.stdout, b"missing=127\ndenied=126\nstdin=still open\n", result.stderr)
+                # util-linux flock exits EX_UNAVAILABLE (69) for both.
+                expected = (b"missing=69\ndenied=69\n" if wrapper[0] == "flock"
+                            else b"missing=127\ndenied=126\n")
+                self.assertEqual(result.stdout, expected + b"stdin=still open\n", result.stderr)
 
     def test_closed_stdin_and_parent_descriptors_remain_unchanged(self):
         for wrapper in self.wrappers:
@@ -115,7 +118,8 @@ class ProcessWrapperState(unittest.TestCase):
             'after=(/proc/$$/fd/*); printf "fds=%s:%s\\n" "${#before[@]}" "${#after[@]}"; '
             'flock -n lock /bin/true; printf "retry=%s\\n" "$?"')
         lines = result.stdout.splitlines()
-        self.assertEqual(lines[:3], [b"fail=127"] * 3, result.stderr)
+        # util-linux flock reports a command it cannot run with EX_UNAVAILABLE.
+        self.assertEqual(lines[:3], [b"fail=69"] * 3, result.stderr)
         before, after = lines[3].removeprefix(b"fds=").split(b":")
         self.assertEqual(before, after)
         self.assertEqual(lines[-1], b"retry=0")

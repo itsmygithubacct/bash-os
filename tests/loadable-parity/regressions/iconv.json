@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "loadable": "iconv",
+  "reference": "glibc iconv (Debian), run by system Bash on the reference side; stdout, status and stderr compared byte for byte.",
+  "coverage": [
+    "Docker parity suite errors/iconv: the usage-error Try line."
+  ],
+  "exclusions": [
+    "Only diagnostics are covered here; the reviewed suite in suites/ covers ordinary operation."
+  ],
+  "cases": [
+    {
+      "id": "pass9-try-lines",
+      "kind": "parity",
+      "purpose": "Docker parity errors/iconv: glibc iconv ends each usage error, including a missing option argument, with its \"Try `iconv --help' or `iconv --usage'\" line, not a usage synopsis.",
+      "requires": [
+        "iconv"
+      ],
+      "script": "iconv --bogus </dev/null || echo \"rc=$?\"\niconv -@ </dev/null || echo \"rc=$?\"\niconv -f </dev/null || echo \"rc=$?\"\niconv --from-code </dev/null || echo \"rc=$?\"\niconv -f NOSUCH -t UTF-8 </dev/null || echo \"rc=$?\"\niconv -f UTF-8 -t NOSUCH </dev/null || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    }
+  ]
+}

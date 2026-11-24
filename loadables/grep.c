@@ -102,6 +102,9 @@ typedef struct {
     int delim;                      /* record delimiter: '\n', or NUL with -z */
     int mb;                         /* multibyte locale */
     int used;                       /* something was printed: "--" may be needed (across files, as GNU) */
+    const char *group_sep;          /* --group-separator=SEP; NULL: "--" */
+    int no_group_sep;               /* --no-group-separator */
+    const char *label;              /* --label=LABEL: the name of standard input */
     /* the patterns as given, one arm per -e/-f line or positional pattern */
     bg_str *arms; int n_arms, cap_arms;
     /* the matcher */
@@ -1346,10 +1349,12 @@ bg_select (bg_state *st, size_t ls, size_t le)
             char *q = p - 1 > bp ? memrchr (buf + bp, d, p - 1 - bp) : NULL;
             p = q ? (size_t) (q - buf) + 1 : bp;
         }
-        if (o->ctx && o->used && st->in.off + (off_t) p != st->last_out)
+        if (o->ctx && o->used && st->in.off + (off_t) p != st->last_out
+            && !o->no_group_sep)
         {
+            const char *sep = o->group_sep ? o->group_sep : "--";
             bg_style (o, BG_SE, 1);
-            bg_out (o, "--", 2);
+            bg_out (o, sep, strlen (sep));
             bg_style (o, BG_SE, 0);
             bg_outc (o, '\n');
         }
@@ -1453,7 +1458,7 @@ bg_grep_file (bg_opts *o, const char *path, int n_files, int from_recursion)
     memset (&st, 0, sizeof st);
     st.o = o;
     int is_stdin = path == NULL || (path[0] == '-' && path[1] == '\0');
-    st.name = is_stdin ? "(standard input)" : path;
+    st.name = is_stdin ? (o->label ? o->label : "(standard input)") : path;
     st.prefix = o->Hflag || (!o->hflag && (n_files > 1 || from_recursion));
     int fd = is_stdin ? 0 : open (path, O_RDONLY);
     off_t stdin_start = is_stdin ? lseek (0, 0, SEEK_CUR) : -1;
@@ -2041,6 +2046,7 @@ bg_print_help (void)
     puts ("  -n, --line-number           print line number with output lines");
     puts ("  -H, --with-filename         print file name with output lines");
     puts ("  -h, --no-filename           suppress the file name prefix on output");
+    puts ("      --label=LABEL           use LABEL as the standard input file name prefix");
     puts ("  -o, --only-matching         show only nonempty parts of lines that match");
     puts ("  -q, --quiet, --silent       suppress all normal output");
     puts ("      --binary-files=TYPE     TYPE is 'binary', 'text', or 'without-match'");
@@ -2058,6 +2064,8 @@ bg_print_help (void)
     puts ("  -B, --before-context=NUM    print NUM lines of leading context");
     puts ("  -A, --after-context=NUM     print NUM lines of trailing context");
     puts ("  -C, --context=NUM, -NUM     print NUM lines of output context");
+    puts ("      --group-separator=SEP   print SEP on line between matches with context");
+    puts ("      --no-group-separator    do not print separator for matches with context");
     puts ("      --color[=WHEN]          highlight matches (always, auto, never)");
     puts ("Exit status is 0 if any line is selected, 1 otherwise; 2 on an error.");
 }
@@ -2145,6 +2153,19 @@ grep_builtin (WORD_LIST *list)
             else if (!strcmp (w, "--line-regexp")) o.xflag = 1;
             else if (!strcmp (w, "--text")) o.aflag = 1;
             else if (!strcmp (w, "--null")) o.Zflag = 1;
+            else if (!strcmp (w, "--no-group-separator")) { o.no_group_sep = 1; o.group_sep = NULL; }
+            else if (!strncmp (w, "--group-separator", 17) && (w[17] == '=' || w[17] == '\0'))
+            {
+                if (w[17] == '=') val = w + 18;
+                else { if (!p->next) { builtin_error ("option '--group-separator' requires an argument"); bg_usage (); BG_FAIL (EX_USAGE); } p = p->next; val = p->word->word; }
+                o.group_sep = val; o.no_group_sep = 0;
+            }
+            else if (!strncmp (w, "--label", 7) && (w[7] == '=' || w[7] == '\0'))
+            {
+                if (w[7] == '=') val = w + 8;
+                else { if (!p->next) { builtin_error ("option '--label' requires an argument"); bg_usage (); BG_FAIL (EX_USAGE); } p = p->next; val = p->word->word; }
+                o.label = val;
+            }
             else if (!strncmp (w, "--binary-files=", 15))
             {
                 val = w + 15;
@@ -2156,7 +2177,7 @@ grep_builtin (WORD_LIST *list)
             else if (!strncmp (w, "--max-count", 11) && (w[11] == '=' || w[11] == '\0'))
             {
                 if (w[11] == '=') val = w + 12;
-                else { if (!p->next) { builtin_error ("option '--max-count' requires an argument"); BG_FAIL (EX_USAGE); } p = p->next; val = p->word->word; }
+                else { if (!p->next) { builtin_error ("option '--max-count' requires an argument"); bg_usage (); BG_FAIL (EX_USAGE); } p = p->next; val = p->word->word; }
                 int n;
                 if (bg_parse_count (val, &n) < 0) { builtin_error ("invalid max count"); BG_FAIL (EX_USAGE); }
                 o.mflag = n; o.mflag_set = 1;
@@ -2165,7 +2186,7 @@ grep_builtin (WORD_LIST *list)
             {
                 if (w[8]) val = w + 9;
                 else {
-                    if (!p->next) { builtin_error ("--regexp requires an argument"); BG_FAIL (EX_USAGE); }
+                    if (!p->next) { builtin_error ("option '--regexp' requires an argument"); bg_usage (); BG_FAIL (EX_USAGE); }
                     p = p->next;
                     val = p->word->word;
                 }
@@ -2237,7 +2258,7 @@ grep_builtin (WORD_LIST *list)
                         if (c[1] != '\0') val = c + 1;
                         else
                         {
-                            if (!p->next) { builtin_error ("option requires an argument -- '%c'", which); BG_FAIL (EX_USAGE); }
+                            if (!p->next) { builtin_error ("option requires an argument -- '%c'", which); bg_usage (); BG_FAIL (EX_USAGE); }
                             p = p->next;
                             val = p->word->word;
                         }
@@ -2391,7 +2412,8 @@ char *grep_doc[] = {
     "    -c -l -L -q -s   count, files with/without matches, quiet, no messages",
     "    -n -b -H -h -o   line numbers, byte offsets, file names, only matches",
     "    -m N             stop after N selected lines",
-    "    -A N -B N -C N   context lines (also -NUM)",
+    "    -A N -B N -C N   context lines (also -NUM); --group-separator=SEP,",
+    "                     --no-group-separator; --label=LABEL names stdin",
     "    -r -R            recurse (-R follows symlinks); --include --exclude --exclude-dir",
     "    -a -I -z -Z      binary as text, skip binary, NUL-terminated lines, NUL after names",
     "",

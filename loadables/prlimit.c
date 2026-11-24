@@ -36,6 +36,7 @@
 #include <sys/wait.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 #include "child-wait.h"
 
 typedef struct bpl_res {
@@ -725,6 +726,17 @@ prlimit_builtin (WORD_LIST *list)
           if (bpl_parse_pid (p->word->word, &pid) < 0)
             { builtin_error ("invalid pid: %s", p->word->word); return EXECUTION_FAILURE; }
         }
+      else if (strcmp (w, "--pid") == 0 || strcmp (w, "-p") == 0)
+        {
+          /* util-linux: getopt's wording, the Try line, status 1. */
+          bos_shim_missing_arg (w, 'p', "prlimit");
+          return EXECUTION_FAILURE;
+        }
+      else if (strncmp (w, "-p", 2) == 0 && w[2] != '-')
+        {
+          if (bpl_parse_pid (w + 2, &pid) < 0)
+            { builtin_error ("invalid pid: %s", w + 2); return EXECUTION_FAILURE; }
+        }
       else if (strncmp (w, "--pid=", 6) == 0)
         {
           if (bpl_parse_pid (w + 6, &pid) < 0)
@@ -737,6 +749,8 @@ prlimit_builtin (WORD_LIST *list)
                                    p->word->word, NULL) != EXECUTION_SUCCESS)
             return EX_USAGE;
         }
+      else if (strcmp (w, "-r") == 0 || strcmp (w, "--resource") == 0)
+        { bos_shim_missing_arg (w, 'r', "prlimit"); return EXECUTION_FAILURE; }
       else if (strncmp (w, "--resource=", 11) == 0)
         {
           if (bpl_select_resource (&res_name, &set_spec, selected, &nselected,
@@ -749,20 +763,22 @@ prlimit_builtin (WORD_LIST *list)
           const char *eq = strchr (name, '=');
           const bpl_alias *a = bpl_find_long_alias (name, eq ? (size_t)(eq - name) : strlen (name));
           if (!a)
-            { builtin_error ("unknown option: %s", w); return EX_USAGE; }
+            { bos_shim_bad_option (w, 0, "prlimit"); return EXECUTION_FAILURE; }
           if (bpl_select_resource (&res_name, &set_spec, selected, &nselected,
                                    a->resource_name,
                                    eq ? eq + 1 : NULL) != EXECUTION_SUCCESS)
             return EX_USAGE;
         }
-      else if (w[0] == '-' && w[1] != '\0' && w[2] == '\0')
+      else if (w[0] == '-' && w[1] != '\0' && w[1] != '-')
         {
+          /* -X or -XLIMITS: a resource option takes its optional value
+             only attached, as getopt's "X::" does. */
           const bpl_alias *a = bpl_find_short_alias (w[1]);
           if (!a)
-            { builtin_error ("unknown option: %s", w); return EX_USAGE; }
+            { bos_shim_bad_option (w, (unsigned char) w[1], "prlimit"); return EXECUTION_FAILURE; }
           if (bpl_select_resource (&res_name, &set_spec, selected, &nselected,
                                    a->resource_name,
-                                   NULL) != EXECUTION_SUCCESS)
+                                   w[2] ? w + 2 : NULL) != EXECUTION_SUCCESS)
             return EX_USAGE;
         }
       else if (!set_spec)

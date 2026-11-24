@@ -109,8 +109,89 @@ enum bck_alg {
     BCK_ALG_SHA256,
     BCK_ALG_SHA384,
     BCK_ALG_SHA512,
-    BCK_ALG_BLAKE2B
+    BCK_ALG_BLAKE2B,
+    /* GNU cksum's legacy algorithms: like crc, a number and a size. */
+    BCK_ALG_BSD,
+    BCK_ALG_SYSV,
+    BCK_ALG_CRC32B,
+    BCK_ALG_SM3
 };
+
+/* crc, bsd, sysv and crc32b print a checksum and a size, not a digest. */
+static int
+bck_legacy (enum bck_alg alg)
+{
+    return alg == BCK_ALG_CRC || alg == BCK_ALG_BSD || alg == BCK_ALG_SYSV || alg == BCK_ALG_CRC32B;
+}
+
+/* The BSD sum (16-bit rotate-and-add, 1024-byte blocks), the System V
+   sum (byte sum folded to 16 bits, 512-byte blocks) and the reflected
+   CRC-32 of zlib/ISO-HDLC (crc32b), as documented for GNU sum/cksum. */
+static int
+bck_compute_legacy_fd (int fd, enum bck_alg alg, uint32_t *value, uint64_t *bytes_out)
+{
+    static uint32_t table[256];
+    static int table_ready;
+    uint32_t bsd = 0, sum = 0, crc = 0xFFFFFFFFU;
+    uint64_t bytes = 0;
+    unsigned char buf[8192];
+    ssize_t n;
+
+    if (alg == BCK_ALG_CRC)
+        return bck_compute_fd (fd, value, bytes_out);
+    if (alg == BCK_ALG_CRC32B && !table_ready) {
+        for (uint32_t i = 0; i < 256; i++) {
+            uint32_t c = i;
+            for (int j = 0; j < 8; j++)
+                c = (c & 1) ? (c >> 1) ^ 0xEDB88320U : c >> 1;
+            table[i] = c;
+        }
+        table_ready = 1;
+    }
+    while ((n = read (fd, buf, sizeof buf)) > 0) {
+        for (ssize_t i = 0; i < n; i++) {
+            if (alg == BCK_ALG_BSD) {
+                bsd = (bsd >> 1) + ((bsd & 1) << 15);
+                bsd = (bsd + buf[i]) & 0xFFFF;
+            } else if (alg == BCK_ALG_SYSV) {
+                sum += buf[i];
+            } else {
+                crc = table[(crc ^ buf[i]) & 0xFF] ^ (crc >> 8);
+            }
+        }
+        bytes += (uint64_t) n;
+    }
+    if (n < 0) return -1;
+    if (alg == BCK_ALG_BSD) *value = bsd;
+    else if (alg == BCK_ALG_SYSV) {
+        uint32_t r = (sum & 0xFFFF) + (sum >> 16);
+        *value = (r & 0xFFFF) + (r >> 16);
+    } else *value = ~crc;
+    *bytes_out = bytes;
+    return 0;
+}
+
+/* One legacy result line (NAME NULL for unnamed stdin). */
+static void
+bck_print_legacy (enum bck_alg alg, uint32_t value, uint64_t bytes, const char *name, int delim, int raw)
+{
+    if (raw) {
+        unsigned char b[4] = { (unsigned char) (value >> 24), (unsigned char) (value >> 16),
+                               (unsigned char) (value >> 8), (unsigned char) value };
+        int wide = alg == BCK_ALG_CRC || alg == BCK_ALG_CRC32B;
+        fwrite (wide ? b : b + 2, 1, wide ? 4 : 2, stdout);
+        return;
+    }
+    if (alg == BCK_ALG_BSD)
+        printf ("%05" PRIu32 " %5" PRIu64, value, (bytes + 1023) / 1024);
+    else if (alg == BCK_ALG_SYSV)
+        printf ("%" PRIu32 " %" PRIu64, value, (bytes + 511) / 512);
+    else
+        printf ("%" PRIu32 " %" PRIu64, value, bytes);
+    if (name)
+        printf (" %s", name);
+    putchar (delim);
+}
 
 static enum bck_alg
 bck_parse_alg (const char *alg)
@@ -123,6 +204,10 @@ bck_parse_alg (const char *alg)
     if (!strcmp (alg, "sha384")) return BCK_ALG_SHA384;
     if (!strcmp (alg, "sha512")) return BCK_ALG_SHA512;
     if (!strcmp (alg, "blake2b")) return BCK_ALG_BLAKE2B;
+    if (!strcmp (alg, "bsd")) return BCK_ALG_BSD;
+    if (!strcmp (alg, "sysv")) return BCK_ALG_SYSV;
+    if (!strcmp (alg, "crc32b")) return BCK_ALG_CRC32B;
+    if (!strcmp (alg, "sm3")) return BCK_ALG_SM3;
     return (enum bck_alg) -1;
 }
 
@@ -137,6 +222,7 @@ bck_alg_tag (enum bck_alg alg)
     case BCK_ALG_SHA384: return "SHA384";
     case BCK_ALG_SHA512: return "SHA512";
     case BCK_ALG_BLAKE2B: return "BLAKE2b";
+    case BCK_ALG_SM3: return "SM3";
     case BCK_ALG_CRC:
     default: return "CRC";
     }
@@ -157,6 +243,7 @@ bck_alg_digest_len (enum bck_alg alg)
     case BCK_ALG_SHA384: return 48;
     case BCK_ALG_SHA512: return 64;
     case BCK_ALG_BLAKE2B: return bck_b2_len;
+    case BCK_ALG_SM3: return 32;
     case BCK_ALG_CRC:
     default: return 0;
     }
@@ -239,6 +326,77 @@ bck_digest_to_hex (const char *text, size_t len, char *out)
     return 0;
 }
 
+/* SM3 (GB/T 32905-2016; the published description in
+   draft-shen-sm3-hash): SHA-256-style padding, 64-word expansion and a
+   64-round compression with the T, FF, GG, P0 and P1 functions. */
+#define BCK_ROTL(x, n) ((uint32_t) (((x) << ((n) & 31)) | ((x) >> ((32 - ((n) & 31)) & 31))))
+typedef struct { uint32_t v[8]; unsigned char buf[64]; size_t used; uint64_t bytes; } bck_sm3;
+
+static void
+bck_sm3_block (bck_sm3 *c, const unsigned char *b)
+{
+    uint32_t w[68], w1[64];
+    for (int j = 0; j < 16; j++)
+        w[j] = (uint32_t) b[4 * j] << 24 | (uint32_t) b[4 * j + 1] << 16 | (uint32_t) b[4 * j + 2] << 8 | b[4 * j + 3];
+    for (int j = 16; j < 68; j++) {
+        uint32_t x = w[j - 16] ^ w[j - 9] ^ BCK_ROTL (w[j - 3], 15);
+        w[j] = (x ^ BCK_ROTL (x, 15) ^ BCK_ROTL (x, 23)) ^ BCK_ROTL (w[j - 13], 7) ^ w[j - 6];
+    }
+    for (int j = 0; j < 64; j++) w1[j] = w[j] ^ w[j + 4];
+    uint32_t a = c->v[0], bb = c->v[1], cc = c->v[2], d = c->v[3];
+    uint32_t e = c->v[4], f = c->v[5], g = c->v[6], h = c->v[7];
+    for (int j = 0; j < 64; j++) {
+        uint32_t t = j < 16 ? 0x79cc4519u : 0x7a879d8au;
+        uint32_t ss1 = BCK_ROTL (BCK_ROTL (a, 12) + e + BCK_ROTL (t, j), 7);
+        uint32_t ss2 = ss1 ^ BCK_ROTL (a, 12);
+        uint32_t ff = j < 16 ? a ^ bb ^ cc : (a & bb) | (a & cc) | (bb & cc);
+        uint32_t gg = j < 16 ? e ^ f ^ g : (e & f) | (~e & g);
+        uint32_t tt1 = ff + d + ss2 + w1[j];
+        uint32_t tt2 = gg + h + ss1 + w[j];
+        d = cc; cc = BCK_ROTL (bb, 9); bb = a; a = tt1;
+        h = g; g = BCK_ROTL (f, 19); f = e; e = tt2 ^ BCK_ROTL (tt2, 9) ^ BCK_ROTL (tt2, 17);
+    }
+    c->v[0] ^= a; c->v[1] ^= bb; c->v[2] ^= cc; c->v[3] ^= d;
+    c->v[4] ^= e; c->v[5] ^= f; c->v[6] ^= g; c->v[7] ^= h;
+}
+
+static void
+bck_sm3_init (bck_sm3 *c)
+{
+    static const uint32_t iv[8] = { 0x7380166f, 0x4914b2b9, 0x172442d7, 0xda8a0600,
+                                    0xa96f30bc, 0x163138aa, 0xe38dee4d, 0xb0fb0e4e };
+    memcpy (c->v, iv, sizeof iv);
+    c->used = 0;
+    c->bytes = 0;
+}
+
+static void
+bck_sm3_update (bck_sm3 *c, const unsigned char *p, size_t n)
+{
+    c->bytes += n;
+    while (n) {
+        size_t take = 64 - c->used < n ? 64 - c->used : n;
+        memcpy (c->buf + c->used, p, take);
+        c->used += take; p += take; n -= take;
+        if (c->used == 64) { bck_sm3_block (c, c->buf); c->used = 0; }
+    }
+}
+
+static void
+bck_sm3_final (bck_sm3 *c, unsigned char out[32])
+{
+    uint64_t bits = c->bytes * 8;
+    unsigned char pad = 0x80, zero = 0, len[8];
+    bck_sm3_update (c, &pad, 1);
+    while (c->used != 56) bck_sm3_update (c, &zero, 1);
+    for (int i = 0; i < 8; i++) len[i] = (unsigned char) (bits >> (56 - 8 * i));
+    bck_sm3_update (c, len, 8);
+    for (int i = 0; i < 8; i++) {
+        out[4 * i] = (unsigned char) (c->v[i] >> 24); out[4 * i + 1] = (unsigned char) (c->v[i] >> 16);
+        out[4 * i + 2] = (unsigned char) (c->v[i] >> 8); out[4 * i + 3] = (unsigned char) c->v[i];
+    }
+}
+
 static int
 bck_compute_digest_fd (int fd, enum bck_alg alg, unsigned char digest[64])
 {
@@ -300,6 +458,15 @@ bck_compute_digest_fd (int fd, enum bck_alg alg, unsigned char digest[64])
             crypto_blake2b_update (&ctx, buf, (size_t) n);
         if (n < 0) return -1;
         crypto_blake2b_final (&ctx, digest);
+        return 0;
+    }
+    case BCK_ALG_SM3: {
+        bck_sm3 ctx;
+        bck_sm3_init (&ctx);
+        while ((n = read (fd, buf, sizeof buf)) > 0)
+            bck_sm3_update (&ctx, buf, (size_t) n);
+        if (n < 0) return -1;
+        bck_sm3_final (&ctx, digest);
         return 0;
     }
     case BCK_ALG_CRC:
@@ -400,7 +567,7 @@ bck_verify (const char *file, const struct bck_check *o)
 {
     static const enum bck_alg tagged[] = {
         BCK_ALG_MD5, BCK_ALG_SHA1, BCK_ALG_SHA224, BCK_ALG_SHA256,
-        BCK_ALG_SHA384, BCK_ALG_SHA512, BCK_ALG_BLAKE2B
+        BCK_ALG_SHA384, BCK_ALG_SHA512, BCK_ALG_BLAKE2B, BCK_ALG_SM3
     };
     int from_stdin = !strcmp (file, "-");
     FILE *f = from_stdin ? fdopen (dup (STDIN_FILENO), "r") : fopen (file, "r");
@@ -547,15 +714,6 @@ bck_print_digest (enum bck_alg alg, const char *name,
         printf ("%s (%s) = %s%c", bck_alg_tag (alg), name, hex, delim);
 }
 
-/* --raw CRC: the four bytes of the CRC, most significant first. */
-static void
-bck_put_crc_raw (uint32_t crc)
-{
-    unsigned char b[4] = { (unsigned char) (crc >> 24), (unsigned char) (crc >> 16),
-                           (unsigned char) (crc >> 8), (unsigned char) crc };
-    fwrite (b, 1, sizeof b, stdout);
-}
-
 int
 cksum_builtin (WORD_LIST *list)
 {
@@ -630,10 +788,17 @@ cksum_builtin (WORD_LIST *list)
         if (alg_name) {
             enum bck_alg parsed = bck_parse_alg (alg_name);
             if ((int) parsed < 0) {
-                builtin_error ("unsupported algorithm: %s "
-                               "(supported: crc, md5, sha1, sha224, sha256, sha384, sha512, blake2b)", alg_name);
-                builtin_usage ();
-                return EXECUTION_FAILURE;
+                /* GNU's exact-match keyword error, listing its algorithms. */
+                static const char *const names[] = { "bsd", "sysv", "crc", "crc32b", "md5", "sha1",
+                    "sha224", "sha256", "sha384", "sha512", "blake2b", "sm3", NULL };
+                char *q = bos_quote (alg_name);
+                fflush (stdout);
+                builtin_error ("invalid argument %s for '--algorithm'", q ? q : alg_name);
+                free (q);
+                fputs ("Valid arguments are:\n", stderr);
+                for (int i = 0; names[i]; i++)
+                    fprintf (stderr, "  - '%s'\n", names[i]);
+                return bck_try ();
             }
             selected_alg = parsed;
             co.alg_given = 1;
@@ -685,9 +850,9 @@ cksum_builtin (WORD_LIST *list)
         return bck_try ();
     }
     /* CRC output has no base64 form: GNU ignores --base64 there. */
-    enc = raw ? BCK_ENC_RAW : base64 && selected_alg != BCK_ALG_CRC ? BCK_ENC_BASE64 : BCK_ENC_HEX;
+    enc = raw ? BCK_ENC_RAW : base64 && !bck_legacy (selected_alg) ? BCK_ENC_BASE64 : BCK_ENC_HEX;
     if (check) {
-        if (co.alg_given && selected_alg == BCK_ALG_CRC) {
+        if (co.alg_given && bck_legacy (selected_alg)) {
             builtin_error ("--check is not supported with --algorithm={bsd,sysv,crc,crc32b}");
             return EXECUTION_FAILURE;
         }
@@ -718,7 +883,7 @@ cksum_builtin (WORD_LIST *list)
         return EXECUTION_FAILURE;
     }
     if (!list) {
-        if (selected_alg != BCK_ALG_CRC) {
+        if (!bck_legacy (selected_alg)) {
             unsigned char digest[64];
             if (bck_compute_digest_fd (STDIN_FILENO, selected_alg, digest) < 0) {
                 builtin_error ("read stdin: %s", strerror (errno));
@@ -729,12 +894,11 @@ cksum_builtin (WORD_LIST *list)
         }
         uint32_t crc;
         uint64_t bytes;
-        if (bck_compute_fd (STDIN_FILENO, &crc, &bytes) < 0) {
+        if (bck_compute_legacy_fd (STDIN_FILENO, selected_alg, &crc, &bytes) < 0) {
             builtin_error ("read stdin: %s", strerror (errno));
             return EXECUTION_FAILURE;
         }
-        if (enc == BCK_ENC_RAW) bck_put_crc_raw (crc);
-        else printf ("%" PRIu32 " %" PRIu64 "%c", crc, bytes, delim);
+        bck_print_legacy (selected_alg, crc, bytes, NULL, delim, enc == BCK_ENC_RAW);
         return EXECUTION_SUCCESS;
     }
     for (WORD_LIST *p = list; p; p = p->next) {
@@ -753,7 +917,7 @@ cksum_builtin (WORD_LIST *list)
                 continue;
             }
         }
-        if (selected_alg != BCK_ALG_CRC) {
+        if (!bck_legacy (selected_alg)) {
             unsigned char digest[64];
             if (bck_compute_digest_fd (fd, selected_alg, digest) < 0) {
                 builtin_error ("read %s: %s", path, strerror (errno));
@@ -767,14 +931,13 @@ cksum_builtin (WORD_LIST *list)
         }
         uint32_t crc;
         uint64_t bytes;
-        if (bck_compute_fd (fd, &crc, &bytes) < 0) {
+        if (bck_compute_legacy_fd (fd, selected_alg, &crc, &bytes) < 0) {
             builtin_error ("read %s: %s", path, strerror (errno));
             if (!from_stdin) close (fd);
             rc = EXECUTION_FAILURE;
             continue;
         }
-        if (enc == BCK_ENC_RAW) bck_put_crc_raw (crc);
-        else printf ("%" PRIu32 " %" PRIu64 " %s%c", crc, bytes, path, delim);
+        bck_print_legacy (selected_alg, crc, bytes, path, delim, enc == BCK_ENC_RAW);
         if (!from_stdin) close (fd);
     }
     return rc;
@@ -783,7 +946,7 @@ cksum_builtin (WORD_LIST *list)
 char *cksum_doc[] = {
     "POSIX CRC-32 + byte-count, plus common GNU cksum digest modes.",
     "",
-    "    cksum [-a crc|md5|sha1|sha224|sha256|sha384|sha512|blake2b] [-l BITS] [-z] [--tag|--untagged] [--base64|--raw] [FILE...]",
+    "    cksum [-a bsd|sysv|crc|crc32b|md5|sha1|sha224|sha256|sha384|sha512|blake2b|sm3] [-l BITS] [-z] [--tag|--untagged] [--base64|--raw] [FILE...]",
     "    cksum [-a ALG] -c|--check [--quiet|--status] [--strict] [-w] [--ignore-missing] [FILE...]",
     "    cksum --help | --version",
     "        CRC mode prints '<crc> <bytes> <FILE>'. Digest modes",
@@ -792,7 +955,9 @@ char *cksum_doc[] = {
     "        Without FILE, CRC stdin omits its name; digest stdin is named '-'.",
     "        Use -- before dash-leading filenames.",
     "",
-    "    -a, --algorithm=ALG   crc, md5, sha1, sha224, sha256, sha384, sha512, or blake2b",
+    "    -a, --algorithm=ALG   bsd, sysv, crc, crc32b, md5, sha1, sha224, sha256, sha384,",
+    "                          sha512, blake2b or sm3 (bsd and sysv as GNU sum -r and sum -s;",
+    "                          crc32b is the zlib CRC-32)",
     "    -l, --length=BITS     blake2b digest length: a multiple of 8, at most 512",
     "                          (larger values mean 512); tagged 'BLAKE2b-BITS'",
     "    -c, --check           verify tagged lines (any digest) or, with -a,",
@@ -807,7 +972,7 @@ char *cksum_doc[] = {
     "",
     "Algorithm is POSIX-mandated CRC-32 (polynomial 0x04C11DB7,",
     "non-reflected, with length-byte injection + final XOR).",
-    "Unsupported: sysv, bsd, crc32b, sm3.",
+    "sm3 is the SM3 digest (GB/T 32905-2016).",
     (char *)NULL
 };
 

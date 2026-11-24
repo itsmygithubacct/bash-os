@@ -10,7 +10,8 @@
     "Private-file FD lifetime/unlock, shared and exclusive conflicts, bounded waits, file command effects/status, close/no-fork modes and parser/open errors.",
     "Explicit usage64, bad-descriptor65, open66 and negative-wait71 statuses, with parser/open/timer precedence.",
     "Command arity, numeric filename versus lone descriptor selection, and no unintended creation or child effects after argument errors.",
-    "Same-shell recovery after negative waits and invalid command modes."
+    "Same-shell recovery after negative waits and invalid command modes.",
+    "Guest pass 9 (G131): -F keeps the calling shell, the command holds the lock, --verbose, --fcntl, long-option forms and util-linux wording/statuses."
   ],
   "exclusions": [
     "Only ordinary private regular files, private inherited descriptors, bounded conflicts and short /bin/sh children are qualified. No cross-host locking, host lock files, filesystem stress, process signaling or nonlocal filesystem behavior.",
@@ -261,6 +262,98 @@
       "script": "exec 8>lock\nexec 9>lock\nif flock -w -1 -E 23 8; then rc=0; else rc=$?; fi\n[[ $rc == 71 ]]\nflock -xn 9\nflock -u 9\nif flock -Fo untouched -c 'printf forbidden > marker'; then rc=0; else rc=$?; fi\n[[ $rc == 64 && ! -e untouched && ! -e marker ]]\nflock -n -w 0 lock -c 'printf recovered > result'\nprintf 'recovered\\n'\n",
       "expected_status": 0,
       "stderr": "nonempty"
+    },
+    {
+      "id": "pass9-no-fork-script-continues",
+      "kind": "parity",
+      "purpose": "G131: -F runs the command without a waiting flock process, but the calling script must continue afterwards with the command's status, and the lock is released when the command ends.",
+      "script": "if flock -F lock -c 'printf nofork > direct; exit 9'; then rc=0; else rc=$?; fi\nprintf 'nofork=%s\\n' \"$rc\"\nflock -F lock true\nprintf 'after\\n'\ncat direct; echo\nflock -n lock true\nprintf 'released\\n'\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "flock"
+      ]
+    },
+    {
+      "id": "pass9-no-fork-command-holds-lock",
+      "kind": "parity",
+      "purpose": "G131: with -F the command itself holds the lock: a second non-blocking flock run by the command conflicts, and the shell survives in a command substitution too.",
+      "script": "if flock -F lock flock -n -E 7 lock true; then rc=0; else rc=$?; fi\nprintf 'inner=%s\\n' \"$rc\"\nout=$(flock -F lock true; echo still)\nprintf '%s\\n' \"$out\"\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "flock"
+      ]
+    },
+    {
+      "id": "pass9-verbose-report",
+      "kind": "parity",
+      "purpose": "G131: --verbose reports the lock wait and the command on stdout after the command's own output when stdout is a pipe; the fd form reports the wait; -F prints no report to a pipe.",
+      "script": "flock --verbose lock echo hi | sed -E 's/[0-9]+\\.[0-9]{6}/T/'\nflock --verbose lock -c 'echo c' | sed -E 's/[0-9]+\\.[0-9]{6}/T/'\nexec 9>lock\nflock --verbose 9 | sed -E 's/[0-9]+\\.[0-9]{6}/T/'\nflock -u 9\nflock --verbose -F lock true | wc -c\nflock --verb -u lock echo unlocked | sed -E 's/[0-9]+\\.[0-9]{6}/T/'\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "flock",
+        "sed",
+        "wc",
+        "echo"
+      ]
+    },
+    {
+      "id": "pass9-verbose-conflict",
+      "kind": "parity",
+      "purpose": "G131: --verbose explains a non-blocking conflict and a timed-out wait on stderr; the conflict exit code is unchanged.",
+      "script": "exec 8>lock\nflock 8\nflock --verbose -n lock true || echo rc=$?\nflock --verbose -w 0.01 -E 4 lock true || echo rc=$?\nflock --verbose -w 0 lock true || echo rc=$?\n",
+      "expected_status": 0,
+      "stderr": "exact",
+      "requires": [
+        "flock"
+      ]
+    },
+    {
+      "id": "pass9-usage-wording",
+      "kind": "parity",
+      "purpose": "G131: util-linux flock's usage and argument diagnostics and status 64, word for word.",
+      "script": "flock || echo rc=$?\nflock -x || echo rc=$?\nflock --bogus || echo rc=$?\nflock -Z || echo rc=$?\nflock -w || echo rc=$?\nflock --wait || echo rc=$?\nflock -w x lock true || echo rc=$?\nflock abc || echo rc=$?\nflock -E x lock true || echo rc=$?\nflock -E 300 lock true || echo rc=$?\nflock -o -F lock true || echo rc=$?\nflock -c true lock || echo rc=$?\nflock lock -c || echo rc=$?\nflock 2147483648 || echo rc=$?\n",
+      "expected_status": 0,
+      "stderr": "exact",
+      "requires": [
+        "flock"
+      ]
+    },
+    {
+      "id": "pass9-open-lock-exec-errors",
+      "kind": "parity",
+      "purpose": "G131: util-linux wording and statuses for an unopenable lock file (66), a closed descriptor (65) and a command that cannot be run (69), with and without -F.",
+      "script": "flock missing/x true || echo rc=$?\nexec 7>&-\nflock 7 || echo rc=$?\nflock lock ./nosuch-cmd || echo rc=$?\nflock -F lock ./nosuch-cmd || echo rc=$?\nflock lock -- true || echo rc=$?\nprintf 'after\\n'\n",
+      "expected_status": 0,
+      "stderr": "exact",
+      "requires": [
+        "flock"
+      ]
+    },
+    {
+      "id": "pass9-long-option-forms",
+      "kind": "parity",
+      "purpose": "G131: --opt=value, unambiguous prefixes, --nb, --fcntl, --timeout, -u with a command (it still runs), a directory as lock file, and options ending at FILE.",
+      "script": "flock --timeout=1 lock true && echo timeout\nflock --wait=1 lock true && echo wait\nflock --conflict-exit-code=3 lock true && echo cec\nflock --nb lock true && echo nb\nflock --no-f lock true && echo nofork\nflock --fcntl lock true && echo fcntl\nflock -u lock echo unlock-runs\nmkdir d\nflock d echo dir\nflock -s d echo shared\nflock -n lock -E 5 true || echo rc=$?\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "flock",
+        "echo"
+      ]
+    },
+    {
+      "id": "pass9-fcntl-conflict",
+      "kind": "parity",
+      "purpose": "G131: --fcntl takes an open-file-description lock; a second description conflicts with the conflict exit code.",
+      "script": "exec 8>lock\nflock --fcntl 8\nflock --fcntl -n -E 5 lock true || echo rc=$?\nflock --fcntl -u 8\nflock --fcntl -n lock true && echo free\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "flock"
+      ]
     }
   ]
 }

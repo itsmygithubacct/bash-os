@@ -277,6 +277,17 @@
       "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\ns 'stat -Q'\ns 'stat --bogus'\ns stat\ns 'stat -c'\n",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass9-statx-wording",
+      "kind": "parity",
+      "purpose": "Docker parity errors/stat: coreutils 9.7 reports a missing file as \"cannot statx\", quoting the name as a shell word; file-system mode quotes it the same way.",
+      "requires": [
+        "stat"
+      ],
+      "script": "stat nosuch </dev/null || echo \"rc=$?\"\nstat 'no such' </dev/null || echo \"rc=$?\"\nstat -L nosuch </dev/null || echo \"rc=$?\"\nstat -f 'no such' </dev/null || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

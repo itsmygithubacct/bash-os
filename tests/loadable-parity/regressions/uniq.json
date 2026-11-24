@@ -202,6 +202,17 @@
       "script": "rc=0\nuniq -f || rc=$?\necho \"rc=$rc\"\nrc=0\nuniq --skip-fields || rc=$?\necho \"rc=$rc\"",
       "expected_status": 0,
       "stderr": "exact"
+    },
+    {
+      "id": "pass9-usage-errors",
+      "kind": "parity",
+      "purpose": "Docker parity errors/uniq: an extra operand is reported (before any input is opened) with the Try line, invalid --all-repeated/--group keywords list the valid ones, conflicting modes end with the Try line, and keyword prefixes are accepted.",
+      "requires": [
+        "uniq"
+      ],
+      "script": "uniq a b c </dev/null || echo \"rc=$?\"\nuniq nosuch b c </dev/null || echo \"rc=$?\"\nuniq --all-repeated=x </dev/null || echo \"rc=$?\"\nuniq --all-repeated= </dev/null || echo \"rc=$?\"\nuniq --group=x </dev/null || echo \"rc=$?\"\nuniq -c -D </dev/null || echo \"rc=$?\"\nuniq --group -c </dev/null || echo \"rc=$?\"\nprintf 'a\\na\\nb\\n' | uniq --all-repeated=p </dev/null || echo \"rc=$?\"\nprintf 'a\\na\\nb\\n' | uniq --group=b </dev/null || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

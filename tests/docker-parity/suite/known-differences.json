@@ -15,6 +15,11 @@
     "reason": "--version names the bash-os implementation (for example `sort (bash-os builtin, Bash 5.3)`) and does not claim to be GNU.",
     "differences": ["stdout"]
   },
+  "errors/sed": {
+    "category": "known-partial",
+    "reason": "sed's option errors print GNU's first line and exit status (`invalid option -- '@'`, `option requires an argument -- 'e'`, status 1), then a one-line usage instead of GNU sed's full option summary, which bash-os does not reproduce; the same partial as errors/sed-usage.",
+    "differences": ["stderr"]
+  },
   "errors/sed-usage": {
     "category": "known-partial",
     "reason": "sed prints a one-line usage (`sed: usage: sed [OPTION] SCRIPT [FILE]`, `sed: no script`) instead of GNU sed's full option summary for --bogus and a missing script; the guest review lists `sed --bogus` as a known partial.",

@@ -142,6 +142,19 @@
       "script": "t() { local rc=0; echo x | sed \"$@\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\nt -e p -e k\nt -e p -e s/a\nt -e 'p;p' -e 'y/a/bc/'\nt -e '1{' -e p\nt -n -e p -e '}'\nt --expression=p --expression=k\nt -ne p -e k\nprintf 'p\\nk\\n' > f1.sed; t -f f1.sed\nprintf 'p\\ns/a\\n' > f2.sed; t -f f2.sed\nprintf 'p\\n1{\\n' > f4.sed; t -f f4.sed\nt -e p -f f1.sed\nt -f f1.sed -e k\nprintf 's/a/b/\\n' > ok.sed; t -f ok.sed -e k\nt -e p -f ok.sed -e k\nprintf 'y/a/bc/' > f5.sed; t -f f5.sed\nprintf 'p\\n\\nk' > f6.sed; t -f f6.sed\nprintf '1{\\n' > ob.sed; t -f ob.sed -e p\nprintf 'p\\n}\\n' > cb.sed; t -f cb.sed\nt --file=f1.sed\nprintf 'p\\n' > ok2.sed; t -f ok2.sed -e 'b nolab'\nt -f nosuch\nrc=0; printf 'k\\n' | sed -f - 2>&1 || rc=$?; echo \"rc=$rc\"\nrc=0; printf 's/a/b/\\n' | sed -f - in1 2>&1 || rc=$?; echo \"rc=$rc\"\nprintf 'a\\n' > in1; rc=0; sed in1 -e s/a/b/ 2>&1 || rc=$?; echo \"rc=$rc\"\nt --sandbox 'r x'\nt --sandbox 's/a/b/w x'\nt -s -e k\nt --posix 'F'\n",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass9-option-error-wording",
+      "kind": "parity",
+      "purpose": "Docker parity errors/sed: the first diagnostic line uses glibc getopt wording for an unknown option and for a missing -e/-f/--expression argument. Only the first line is compared: GNU then prints its full usage, a separately recorded known difference (errors/sed-usage).",
+      "requires": [
+        "sed",
+        "head",
+        "rm"
+      ],
+      "script": "{ sed -@ </dev/null || echo \"rc=$?\"; } 2>err\nhead -n 1 err >&2\n{ sed --bogus </dev/null || echo \"rc=$?\"; } 2>err\nhead -n 1 err >&2\n{ sed -e </dev/null || echo \"rc=$?\"; } 2>err\nhead -n 1 err >&2\n{ sed -f </dev/null || echo \"rc=$?\"; } 2>err\nhead -n 1 err >&2\n{ sed --expression </dev/null || echo \"rc=$?\"; } 2>err\nhead -n 1 err >&2\n{ sed -n -f </dev/null || echo \"rc=$?\"; } 2>err\nhead -n 1 err >&2\nrm err",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

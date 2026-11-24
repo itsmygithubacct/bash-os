@@ -91,12 +91,14 @@
     },
     {
       "id": "invalid-format-status",
-      "kind": "contract",
-      "purpose": "A format outside the documented default/value/export set is a Bash builtin usage error; assert the conventional usage status and that no data is printed.",
+      "kind": "parity",
+      "purpose": "An output format blkid does not know is rejected before any probing, as util-linux 2.41 blkid does: 'unsupported output format FORMAT' and status 4 (blkid(8): usage or other errors), with no data printed. Guest pass 9 (G129) replaced the earlier status-2 contract.",
+      "requires": [
+        "blkid"
+      ],
       "script": "blkid -o not-a-format",
-      "expected_status": 2,
-      "stderr": "nonempty",
-      "stdout": ""
+      "expected_status": 4,
+      "stderr": "exact"
     },
     {
       "id": "device-discovery-deferred",

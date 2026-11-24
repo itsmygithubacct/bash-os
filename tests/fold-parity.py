@@ -111,18 +111,25 @@ with tempfile.TemporaryDirectory(prefix='fold-parity-') as directory:
                 compare(['-b', '-w', width], data, loc)
                 compare(['-bs', '-w', width], data, loc)
 
-        # -c is a builtin extension. Default mode uses wcwidth, including NUL=0.
+        # -c is a builtin extension. Default mode counts columns as GNU fold
+        # 9.7 does in every locale: one per byte (NUL included), so a UTF-8
+        # character counts its bytes and a wrap may split it. Each literal
+        # below is real GNU fold 9.7 output in both C and C.UTF-8, and the
+        # host GNU fold is checked as well.
+        gnu_only = {'GNU': [gnu]}
         data = 'é界e\u0301XYZ\n'.encode()
         chars = 'é界e\n\u0301XY\nZ\n'.encode()
-        columns = 'é界\ne\u0301XY\nZ\n'.encode() if loc != 'C' else chars
+        columns = b'\xc3\xa9\xe7\n\x95\x8ce\n\xcc\x81X\nYZ\n'
         contract(['-w3'], data, columns, loc)
+        compare(['-w3'], data, loc, gnu_only)
         for mode in (['-c'], ['--characters'], ['-bc'], ['--bytes', '-c']):
             contract([*mode, '-w3'], data, chars, loc)
         for mode in (['-cb'], ['--characters', '--bytes']):
             contract([*mode, '-w3'], data, b'\xc3\xa9\xe7\n\x95\x8ce\n\xcc\x81X\nYZ\n', loc)
         contract(['-c', '-w3'], b'abc\bD\tE\rFG\n', b'abc\bD\n\t\nE\rFG\n', loc)
         contract(['-cs', '-w5'], 'é ab cd\n'.encode(), 'é ab \ncd\n'.encode(), loc)
-        contract(['-w3'], b'a\0bc\0def\n', b'a\0bc\0\ndef\n', loc)
+        contract(['-w3'], b'a\0bc\0def\n', b'a\0b\nc\0d\nef\n', loc)
+        compare(['-w3'], b'a\0bc\0def\n', loc, gnu_only)
         contract(['-c', '-w3'], b'a\0bc\0def\n', b'a\0b\nc\0d\nef\n', loc)
 
         # Strict scalar decoding: overlong, surrogate and out-of-range
@@ -130,12 +137,16 @@ with tempfile.TemporaryDirectory(prefix='fold-parity-') as directory:
         malformed = b'A\xc0\x80B\xed\xa0\x80C\xf4\x90\x80\x80D\xe2\x82'
         strict = b'A\xc0\x80\nB\xed\xa0\n\x80C\xf4\n\x90\x80\x80\nD\xe2\x82'
         contract(['-w3'], malformed, strict, loc)
+        compare(['-w3'], malformed, loc, gnu_only)
         contract(['-c', '-w3'], malformed, strict, loc)
         for fragment in (b'\xc2', b'\xe2\x82', b'\xf0\x9f\x98', b'\xe2X\x82', b'\xff\x80'):
             contract(['-c', '-w3'], b'abc'+fragment, b'abc\n'+fragment, loc)
-        if loc != 'C':
-            contract(['-w3'], '界\bABC\n'.encode(), '界\bABC\n'.encode(), loc)
-            contract(['-w1'], '界\n'.encode(), '界\n'.encode(), loc)
+        # A wide character is still three one-column bytes, in every locale.
+        contract(['-w3'], '界\bABC\n'.encode(), b'\xe7\x95\x8c\bA\nBC\n', loc)
+        contract(['-w1'], '界\n'.encode(), b'\xe7\n\x95\n\x8c\n', loc)
+        for args, text in ((['-w3'], '界\bABC\n'), (['-w1'], '界\n'), (['-w2'], 'éééé\n'),
+                           (['-sw5'], 'é ab cd\n'), (['-w2'], 'e\u0301\u0301x\n')):
+            compare(args, text.encode(), loc, gnu_only)
 
     # Refills and output buffer boundaries, long word-wrap remainders and
     # long records whose display column repeatedly returns to zero.

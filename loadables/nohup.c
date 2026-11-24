@@ -34,6 +34,7 @@
 #include "loadables.h"
 #include "child-wait.h"
 #include "command-run.h"
+#include "shim-prog-name.h"
 
 extern char *nohup_doc[];
 
@@ -166,37 +167,44 @@ bn_exec_shell_fallback (char **argv, int argc)
 int
 nohup_builtin (WORD_LIST *list)
 {
-	if (!list) {
-	    builtin_usage ();
-	    return BN_USAGE_FAILURE;
-	}
-
-    /* coreutils-shape info flags before the command. The only flags
-       coreutils nohup itself recognizes are --help and --version; any
-       other leading argument is treated as the command name. A literal
-       `--` terminates option parsing so e.g. `bashnohup -- --help`
-       still execs a program named `--help`. */
-    {
+    /* GNU nohup reads options as getopt_long does in "+" mode, knowing
+       only --help and --version (any unambiguous prefix): the first
+       non-option word is the command, `--` ends the options (so
+       `nohup -- --help` runs a program named --help), and every other
+       option word is a usage error. Usage errors give glibc's wording,
+       the coreutils Try line and status 125. */
+    while (list) {
         const char *w = list->word->word;
-        if (!strcmp (w, "--help") || !strcmp (w, "-h")) {
+        size_t n = strlen (w);
+        if (w[0] != '-' || w[1] == '\0')
+            break;
+        if (!strcmp (w, "--")) { list = list->next; break; }
+        if (w[1] == '-' && n - 2 <= 4 && !strncmp (w + 2, "help", n - 2)) {
             for (char **lp = nohup_doc; *lp; lp++) puts (*lp);
             return EXECUTION_SUCCESS;
         }
-        if (!strcmp (w, "--version") || !strcmp (w, "-V")) {
+        if (w[1] == '-' && n - 2 <= 7 && !strncmp (w + 2, "version", n - 2)) {
             puts ("bashnohup 1.0 (bash-loadable, coreutils-compatible)");
             return EXECUTION_SUCCESS;
         }
-        if (!strcmp (w, "--")) {
-            list = list->next;
-            if (!list) {
-                builtin_usage ();
-                return BN_USAGE_FAILURE;
-            }
-        } else if (w[0] == '-' && w[1] != '\0') {
-            builtin_error ("invalid option: %s", w);
-            builtin_usage ();
+        if (w[1] == '-' && strchr (w, '=')) {
+            size_t k = (size_t) (strchr (w, '=') - w);
+            if (k > 2 && k - 2 <= 4 && !strncmp (w + 2, "help", k - 2))
+                builtin_error ("option '--help' doesn't allow an argument");
+            else if (k > 2 && k - 2 <= 7 && !strncmp (w + 2, "version", k - 2))
+                builtin_error ("option '--version' doesn't allow an argument");
+            else
+                builtin_error ("unrecognized option '%s'", w);
+            bos_shim_try_help ("nohup");
             return BN_USAGE_FAILURE;
         }
+        bos_shim_bad_option (w, (unsigned char) w[1], "nohup");
+        return BN_USAGE_FAILURE;
+    }
+    if (!list) {
+        builtin_error ("missing operand");
+        bos_shim_try_help ("nohup");
+        return BN_USAGE_FAILURE;
     }
 
     /* Build argv. */

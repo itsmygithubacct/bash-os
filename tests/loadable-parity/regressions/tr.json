@@ -225,6 +225,39 @@
         "tr",
         "sed"
       ]
+    },
+    {
+      "id": "pass9-reverse-range",
+      "kind": "parity",
+      "purpose": "G133: a range whose end sorts before its start is GNU's \"range-endpoints of 'c-a' are in reverse collating sequence order\" (nonprinting endpoints as \\\\ooo), status 1, in either string and with -d or -s.",
+      "requires": [
+        "tr"
+      ],
+      "script": "for a in 'c-a x' 'a c-a' '-d c-a' '-s c-a' 'z-\\n x' '\\177-a x' 'a-[:upper:] x'; do echo abc | eval \"tr $a\" || echo \"rc=$?\"; done\necho abc | tr a-a x",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass9-empty-string2",
+      "kind": "parity",
+      "purpose": "G133: translating with an empty string2 is GNU's \"when not truncating set1, string2 must be non-empty\", status 1 (also with -s and -c); -t, an empty string1 and -d do not need one.",
+      "requires": [
+        "tr"
+      ],
+      "script": "for a in \"a ''\" \"-s a ''\" \"-c a ''\" \"-c '' ''\" \"-t a ''\" \"'' ''\" \"'' x\"; do echo abc | eval \"tr $a\" || echo \"rc=$?\"; done",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass9-repeat-constructs",
+      "kind": "parity",
+      "purpose": "G133: GNU's repeat-construct diagnostics: [c*] (or [c*0]) in string1, more than one [c*] in string2, [c*] when not translating; a counted [c*N] is allowed in string1.",
+      "requires": [
+        "tr"
+      ],
+      "script": "echo abc | tr '[a*]' x || echo \"rc=$?\"\necho abc | tr '[a*0]' x || echo \"rc=$?\"\necho abc | tr -d '[a*]' || echo \"rc=$?\"\necho abc | tr a '[b*][c*]' || echo \"rc=$?\"\necho abc | tr -ds a '[b*]' || echo \"rc=$?\"\necho '[a*2]' | tr '[a*2]' xyzuv\necho '[a*2]' | tr -d '[a*2]'\necho abc | tr a '[b*3]'",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

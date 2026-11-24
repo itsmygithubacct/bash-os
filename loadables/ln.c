@@ -43,6 +43,8 @@
 #include <sys/types.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
+#include "gnu-longopt.h"
 
 #ifndef PATH_MAX
 #  define PATH_MAX 4096
@@ -73,18 +75,31 @@ ln_hint (void)
     fputs ("Try 'ln --help' for more information.\n", stderr);
 }
 
+/* GNU's backup-type keywords (synonyms adjacent) and argument matching:
+   an exact keyword or an unambiguous prefix; otherwise the "invalid" or
+   "ambiguous argument" line, the keyword list and the Try line. */
+static const char *const ln_backup_names[] = {
+    "none", "off", "simple", "never", "existing", "nil", "numbered", "t", NULL
+};
+static const int ln_backup_vals[] = {
+    LN_BK_NONE, LN_BK_NONE, LN_BK_SIMPLE, LN_BK_SIMPLE,
+    LN_BK_EXISTING, LN_BK_EXISTING, LN_BK_NUMBERED, LN_BK_NUMBERED
+};
+
 static int
 ln_backup_kind (const char *v, int *kind)
 {
-    if (!v || !*v) v = getenv ("VERSION_CONTROL");
-    if (!v || !*v || !strcmp (v, "existing") || !strcmp (v, "nil")) *kind = LN_BK_EXISTING;
-    else if (!strcmp (v, "simple") || !strcmp (v, "never")) *kind = LN_BK_SIMPLE;
-    else if (!strcmp (v, "numbered") || !strcmp (v, "t")) *kind = LN_BK_NUMBERED;
-    else if (!strcmp (v, "none") || !strcmp (v, "off")) *kind = LN_BK_NONE;
-    else {
-        ln_err ("invalid argument '%s' for 'backup type'", v);
-        return -1;
+    const char *context = "backup type";
+    int k;
+
+    if (!v || !*v) {
+        v = getenv ("VERSION_CONTROL");
+        context = "$VERSION_CONTROL";
     }
+    if (!v || !*v) { *kind = LN_BK_EXISTING; return 0; }
+    k = bos_argmatch (bos_shim_prog_name ("ln"), context, v, ln_backup_names, ln_backup_vals);
+    if (k < 0) return -1;
+    *kind = k;
     return 0;
 }
 
@@ -343,7 +358,7 @@ ln_builtin (WORD_LIST *list)
             else if (LN_IS ("--verbose")) o.verbose = 1;
             else if (LN_IS ("--no-target-directory")) o.notarget = 1;
             else if (LN_IS ("--directory")) ;
-            else if (LN_IS ("--backup")) { if (ln_backup_kind (v, &o.backup) < 0) { ln_hint (); free (ops); return EXECUTION_FAILURE; } }
+            else if (LN_IS ("--backup")) { if (ln_backup_kind (v, &o.backup) < 0) { free (ops); return EXECUTION_FAILURE; } }
             else if (LN_IS ("--suffix") || LN_IS ("--target-directory")) {
                 if (!v) {
                     if (!p->next) { ln_err ("option '%s' requires an argument", w); ln_hint (); free (ops); return EXECUTION_FAILURE; }

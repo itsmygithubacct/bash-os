@@ -169,6 +169,18 @@
       ],
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass9-usage-errors",
+      "kind": "parity",
+      "purpose": "G132: missing and extra operands and unknown options use coreutils wording and end with the Try line; --help takes no argument.",
+      "requires": [
+        "unlink",
+        "touch"
+      ],
+      "script": "touch a b </dev/null || echo \"rc=$?\"\nunlink </dev/null || echo \"rc=$?\"\nunlink --bogus </dev/null || echo \"rc=$?\"\nunlink -@ </dev/null || echo \"rc=$?\"\nunlink a b </dev/null || echo \"rc=$?\"\nunlink -- a b </dev/null || echo \"rc=$?\"\nunlink a --bogus </dev/null || echo \"rc=$?\"\nunlink --help=1 </dev/null || echo \"rc=$?\"\nunlink a </dev/null || echo \"rc=$?\"\nunlink a </dev/null || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

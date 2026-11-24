@@ -58,6 +58,7 @@
 #include <time.h>
 
 #include "loadables.h"
+#include "gnu-quote.h"
 
 typedef struct { char *text; size_t len; char kind; int nonl; } bp_line;
 
@@ -1312,12 +1313,40 @@ bp_slurp_fd (int fd, char **out, size_t *len)
 static int
 bp_number (const char *s, int *out)
 {
-    char *end;
+    /* As GNU patch: an optional sign and decimal digits only; a negative
+       count is its own error (-2) and a huge one saturates. */
+    const char *t = s + (*s == '+' || *s == '-');
+    if (!*t) return -1;
+    for (const char *u = t; *u; u++) if (*u < '0' || *u > '9') return -1;
     errno = 0;
-    long v = strtol (s, &end, 10);
-    if (!*s || *end || errno || v < 0 || v > INT_MAX) return -1;
-    *out = (int) v;
+    long long v = strtoll (s, NULL, 10);
+    if (v < 0) return -2;
+    *out = errno == ERANGE || v > INT_MAX ? INT_MAX : (int) v;
     return 0;
+}
+
+/* GNU patch's fatal "**** strip count X is not a number" (or "is
+   negative"), X shell-quoted when it needs it. Returns patch's status 2. */
+static int
+bp_number_error (const char *what, const char *val, int r)
+{
+    char *q = bos_quotef (val);
+    builtin_error ("**** %s %s is %s", what, q ? q : val, r == -2 ? "negative" : "not a number");
+    free (q);
+    return 2;
+}
+
+/* glibc getopt's missing-argument line, then GNU patch's Try line (which
+   patch, unlike coreutils, prefixes with its name). */
+static int
+bp_missing_arg (const char *word, int c)
+{
+    if (word)
+        builtin_error ("option '%s' requires an argument", word);
+    else
+        builtin_error ("option requires an argument -- '%c'", c);
+    builtin_error ("Try 'patch --help' for more information.");
+    return 2;
 }
 
 /* --- -e: the patch is an ed script --- */
@@ -1642,18 +1671,18 @@ patch_builtin (WORD_LIST *list)
             int takes = 0;
             for (int i = 0; with_arg[i]; i++) if (strlen (with_arg[i]) == nl && !strncmp (w, with_arg[i], nl)) takes = 1;
             if (takes && !val) {
-                if (!p->next) { builtin_error ("option '%s' requires an argument", w); return 2; }
+                if (!p->next) return bp_missing_arg (w, 0);
                 p = p->next;
                 val = p->word->word;
             }
 #define BP_IS(s) (strlen (s) == nl && !strncmp (w, s, nl))
-            if (BP_IS ("--strip")) { if (bp_number (val, &o.strip) < 0) { builtin_error ("strip count %s is not a number", val); return 2; } }
+            if (BP_IS ("--strip")) { int r = bp_number (val, &o.strip); if (r < 0) return bp_number_error ("strip count", val, r); }
             else if (BP_IS ("--input")) input = val;
             else if (BP_IS ("--output")) o.output = val;
             else if (BP_IS ("--reject-file")) o.reject = val;
             else if (BP_IS ("--directory")) dir = val;
             else if (BP_IS ("--suffix")) o.suffix = val;
-            else if (BP_IS ("--fuzz")) { if (bp_number (val, &o.maxfuzz) < 0) { builtin_error ("fuzz factor %s is not a number", val); return 2; } }
+            else if (BP_IS ("--fuzz")) { int r = bp_number (val, &o.maxfuzz); if (r < 0) return bp_number_error ("fuzz factor", val, r); }
             else if (BP_IS ("--reverse")) o.reverse = 1;
             else if (BP_IS ("--forward")) o.forward = 1;
             else if (BP_IS ("--force")) o.force = 1;
@@ -1678,12 +1707,12 @@ patch_builtin (WORD_LIST *list)
                 if (strchr ("pioFrdz", c)) {
                     const char *val = w[i + 1] ? &w[i + 1] : NULL;
                     if (!val) {
-                        if (!p->next) { builtin_error ("option requires an argument -- '%c'", c); return 2; }
+                        if (!p->next) return bp_missing_arg (NULL, c);
                         p = p->next;
                         val = p->word->word;
                     }
-                    if (c == 'p') { if (bp_number (val, &o.strip) < 0) { builtin_error ("strip count %s is not a number", val); return 2; } }
-                    else if (c == 'F') { if (bp_number (val, &o.maxfuzz) < 0) { builtin_error ("fuzz factor %s is not a number", val); return 2; } }
+                    if (c == 'p') { int r = bp_number (val, &o.strip); if (r < 0) return bp_number_error ("strip count", val, r); }
+                    else if (c == 'F') { int r = bp_number (val, &o.maxfuzz); if (r < 0) return bp_number_error ("fuzz factor", val, r); }
                     else if (c == 'i') input = val;
                     else if (c == 'o') o.output = val;
                     else if (c == 'r') o.reject = val;

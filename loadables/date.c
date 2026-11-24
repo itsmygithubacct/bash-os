@@ -294,18 +294,25 @@ bd_expand_gnu_tz_formats (const char *fmt, const struct tm *tm, time_t t, long n
         }
 
         /* (b) Case-fold flags %^X / %#X on textual specs: musl strftime
-           ignores '^'/'#', so render the bare spec then transform here. */
+           ignores '^'/'#', so render the bare spec then transform here.
+           '^' is uppercase. '#' is GNU's "opposite case": uppercase for
+           the names %a %A %b %B %h, lowercase for %p and %Z ("pm",
+           "utc"), no change elsewhere; %P stays lowercase under either.
+           %Z under -u is "UTC" as in (a3). */
         if (casefold && spec) {
             char tbuf[256];
-            bd_strftime_one (spec, tm, tbuf, sizeof tbuf);
+            if (spec == 'Z' && utc)
+                snprintf (tbuf, sizeof tbuf, "UTC");
+            else
+                bd_strftime_one (spec == 'P' ? 'p' : spec, tm, tbuf, sizeof tbuf);   /* musl lacks %P */
+            int mode = spec == 'P' ? 'L'          /* GNU: %^P and %#P are "pm" */
+                     : casefold == '^' ? 'U'
+                     : strchr ("aAbBh", spec) ? 'U'
+                     : strchr ("pPZ", spec) ? 'L' : 0;
             for (char *p = tbuf; *p; p++) {
                 unsigned char c = (unsigned char) *p;
-                if (casefold == '^') {
-                    if (c >= 'a' && c <= 'z') *p = (char) (c - 32);
-                } else { /* '#' swapcase */
-                    if (c >= 'a' && c <= 'z') *p = (char) (c - 32);
-                    else if (c >= 'A' && c <= 'Z') *p = (char) (c + 32);
-                }
+                if (mode == 'U' && c >= 'a' && c <= 'z') *p = (char) (c - 32);
+                else if (mode == 'L' && c >= 'A' && c <= 'Z') *p = (char) (c + 32);
             }
             if (bd_buf_append_literal (&out, &cap, &j, tbuf) < 0) {
                 free (out);

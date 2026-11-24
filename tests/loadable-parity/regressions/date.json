@@ -297,6 +297,17 @@
       "script": "rc=0\ndate -d || rc=$?\necho \"rc=$rc\"",
       "expected_status": 0,
       "stderr": "exact"
+    },
+    {
+      "id": "pass9-hash-flag",
+      "kind": "parity",
+      "purpose": "Docker parity numbers/date-hash-flag: %#X is GNU's opposite case: uppercase names for %a %A %b %B %h, lowercase %p and %Z (\"utc\" under -u); %P stays lowercase under ^ and #.",
+      "requires": [
+        "date"
+      ],
+      "script": "date -u -d @1700000000 '+%#b %#a %#Z %#p'\ndate -u -d @1700000000 '+%#B %#A %#h %^a %Z %#P %^P %^p %^Z %^b'",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

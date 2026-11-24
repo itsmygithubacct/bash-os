@@ -610,6 +610,40 @@ tail_builtin (WORD_LIST *list)
     int quiet = 0;
     int verbose = 0;
     char delim = '\n';     /* -z/--zero-terminated switches this to NUL */
+    /* The obsolete usage GNU tail still accepts: a first argument
+       [+-][N][b|c|l][f] followed by at most one file. "+N" starts at line
+       (or byte) N, "-N" keeps the last N; N defaults to 10; b counts
+       512-byte blocks, c bytes, l (the default) lines; f follows. A "-"
+       form needs a digit ("-c", "-f" stay options). */
+    if (list && (!list->next || !list->next->next)) {
+        const char *w = list->word->word, *p = w + 1;
+        long long n = 0;
+        int digits = 0, unit = 'l', fol = 0, over = 0;
+        if (w[0] == '+' || w[0] == '-') {
+            while (*p >= '0' && *p <= '9') {
+                if (n > (LLONG_MAX - 9) / 10) over = 1; else n = n * 10 + (*p - '0');
+                p++; digits++;
+            }
+            if (*p == 'b' || *p == 'c' || *p == 'l') unit = *p++;
+            if (*p == 'f') { fol = 1; p++; }
+        }
+        if ((w[0] == '+' || (w[0] == '-' && digits)) && !*p && !over) {
+            if (!digits) n = 10;
+            if (unit == 'b') n = n > LLONG_MAX / 512 ? LLONG_MAX : n * 512;
+            if (w[0] == '+') {
+                from_start = 1;
+                start_count = n;
+                n_bytes = unit == 'l' ? -1 : 0;
+            } else if (unit == 'l') {
+                n_lines = n > INT_MAX ? INT_MAX : (int) n;
+                n_bytes = -1;
+            } else
+                n_bytes = n;
+            follow = fol;
+            list = list->next;
+            goto operands;
+        }
+    }
     /* Parse flags. */
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
@@ -747,6 +781,7 @@ tail_builtin (WORD_LIST *list)
         return EXECUTION_FAILURE;
     }
 
+operands:;
     int n_files = 0;
     for (WORD_LIST *p = list; p; p = p->next) n_files++;
     int rc = EXECUTION_SUCCESS;
@@ -844,6 +879,9 @@ char *tail_doc[] = {
     "    -N         POSIX shorthand for -n N",
     "    -c BYTES   last BYTES bytes",
     "    -c +BYTES  start at byte BYTES (1-based)",
+    "    +N, -N     obsolete forms, alone before at most one FILE: +N[bcl][f]",
+    "               starts at line N (b: 512-byte blocks, c: bytes), -N[bcl][f]",
+    "               keeps the last N; N defaults to 10",
     "    -f         follow: after the initial tail, watch each FILE via",
     "               inotify(7) and emit appended bytes until interrupted",
     "    -F         follow by name: retry missing files and reopen after",

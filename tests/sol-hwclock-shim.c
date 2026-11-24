@@ -189,6 +189,11 @@ void builtin_error (const char *fmt, ...)
   va_list ap; va_start (ap, fmt); vfprintf (stderr, fmt, ap); fputc ('\n', stderr); va_end (ap);
 }
 void builtin_usage (void) { fputs ("hwclock usage error\n", stderr); }
+/* The shell state shim-prog-name.h reads. The harness is not a shell and
+   has no variables, so diagnostics use the command's own name, as outside
+   the /bin shim. */
+char *this_command_name;
+SHELL_VAR *find_variable (const char *name) { (void) name; return 0; }
 /* Tab separated commands on stdin, preserving empty arguments. Same test
    protocol as Bash, with no fork/exec or privileged operation underneath. */
 int main (void)

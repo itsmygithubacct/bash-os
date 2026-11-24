@@ -38,6 +38,7 @@
 #include <langinfo.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 enum { CS_UTF8, CS_ASCII, CS_LATIN1, CS_LATIN9, CS_CP1252, CS_UTF16, CS_UTF16LE,
        CS_UTF16BE, CS_UCS2, CS_UCS2LE, CS_UCS2BE, CS_UTF32, CS_UTF32LE, CS_UTF32BE };
@@ -401,6 +402,15 @@ bic_list (void)
         printf ("%s//\n", bic_names[i].name);
 }
 
+/* glibc iconv's (argp's) usage-error tail, naming the command as invoked. */
+static void
+iconv_try_help (void)
+{
+    const char *name = bos_shim_prog_name ("iconv");
+    fflush (stdout);
+    fprintf (stderr, "Try `%s --help' or `%s --usage' for more information.\n", name, name);
+}
+
 int
 iconv_builtin (WORD_LIST *list)
 {
@@ -419,7 +429,7 @@ iconv_builtin (WORD_LIST *list)
             else if (!strncmp (w, "--to-code=", 10)) { slot = &to; v = w + 10; }
             else if (!strncmp (w, "--output=", 9)) { slot = &output; v = w + 9; }
             else if (!strcmp (w, "--from-code") || !strcmp (w, "--to-code") || !strcmp (w, "--output")) {
-                if (!p->next) { builtin_error ("option '%s' requires an argument", w); return 64; }
+                if (!p->next) { builtin_error ("option '%s' requires an argument", w); iconv_try_help (); return 64; }
                 slot = w[2] == 'f' ? &from : w[2] == 't' ? &to : &output;
                 p = p->next;
                 v = p->word->word;
@@ -428,7 +438,7 @@ iconv_builtin (WORD_LIST *list)
             else if (!strcmp (w, "--silent")) continue;   /* glibc still reports errors */
             else if (!strcmp (w, "--help")) { builtin_usage (); return EXECUTION_SUCCESS; }
             else if (!strcmp (w, "--version")) { puts ("iconv (bash-os) 0.1.5"); return EXECUTION_SUCCESS; }
-            else { builtin_error ("unrecognized option '%s'", w); builtin_usage (); return 64; }
+            else { builtin_error ("unrecognized option '%s'", w); iconv_try_help (); return 64; }
             *slot = v;
             continue;
         }
@@ -441,7 +451,7 @@ iconv_builtin (WORD_LIST *list)
                 else if (c == 'f' || c == 't' || c == 'o') {
                     const char *v = w[i + 1] ? &w[i + 1] : NULL;
                     if (!v) {
-                        if (!p->next) { builtin_error ("option requires an argument -- '%c'", c); return 64; }
+                        if (!p->next) { builtin_error ("option requires an argument -- '%c'", c); iconv_try_help (); return 64; }
                         p = p->next;
                         v = p->word->word;
                     }
@@ -449,7 +459,7 @@ iconv_builtin (WORD_LIST *list)
                     break;
                 } else {
                     builtin_error ("invalid option -- '%c'", c);
-                    builtin_usage ();
+                    iconv_try_help ();
                     return 64;
                 }
             }
@@ -472,7 +482,7 @@ iconv_builtin (WORD_LIST *list)
             builtin_error ("conversion from `%.*s' is not supported", (int) strcspn (from, "/"), from);
         else
             builtin_error ("conversion to `%.*s' is not supported", (int) strcspn (to, "/"), to);
-        fputs ("Try `iconv --help' or `iconv --usage' for more information.\n", stderr);
+        iconv_try_help ();
         return 1;
     }
     st.omit = omit;

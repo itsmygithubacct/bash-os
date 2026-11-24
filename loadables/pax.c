@@ -1965,7 +1965,10 @@ static int emit_ext(FILE *out, int fmt, const char *name, int long_name, const c
 static int write_member_follow(FILE *out, const char *path, struct bashos_pax_write_context *ctx, int follow){
     struct stat st;
     if(member_excluded(ctx, path)) return 0;
-    if((follow ? stat : lstat)(path, &st) < 0){ builtin_error("%s: %s", path, strerror(errno)); return 1; }
+    if((follow ? stat : lstat)(path, &st) < 0){
+        builtin_error(ctx->tar_words ? "%s: Cannot stat: %s" : "%s: %s", path, strerror(errno));
+        return 1;
+    }
     char *arc = archive_name(ctx, path, XF_REG);
     if(!arc){ builtin_error("out of memory"); return 1; }
     int rc = write_member_named(out, path, arc, &st, ctx);

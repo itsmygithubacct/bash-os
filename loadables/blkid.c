@@ -46,6 +46,7 @@
 #include <sys/types.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 #define BBLK_PROBE_LEN (128 * 1024)
 #define BBLK_LABEL_MAX 128
@@ -1094,15 +1095,31 @@ bblk_command(WORD_LIST *list, const char **paths, const char **tags)
         const char *w = p->word->word;
         if (end || w[0] != '-' || !w[1]) { paths[count++] = w; continue; }
         if (!strcmp(w, "--")) { end = 1; continue; }
-        const char *opts = w + 1, *attached = NULL;
+        const char *opts = w + 1, *attached = NULL, *long_name = NULL;
         char single[2] = {0};
         if (*opts == '-') {
             const char *name = opts + 1;
             size_t len = strcspn(name, "=");
+            /* getopt_long matching: an exact name, else a unique prefix. */
+            size_t hits = 0, which = 0;
             for (size_t i = 0; i < sizeof long_opts / sizeof long_opts[0]; i++)
-                if (len == strlen(long_opts[i].name) && !strncmp(name, long_opts[i].name, len))
-                    single[0] = long_opts[i].option;
-            if (!single[0]) { builtin_error("unknown flag: %s", w); return low.probe || low.topology ? 1 : EX_USAGE; }
+                if (!strncmp(name, long_opts[i].name, len)) {
+                    if (len == strlen(long_opts[i].name)) { hits = 1; which = i; break; }
+                    if (!hits++) which = i;
+                }
+            if (hits > 1 && len) {
+                fflush(stdout);
+                fprintf(stderr, "%s: option '%.*s' is ambiguous; possibilities:",
+                        bos_shim_prog_name("blkid"), (int) (len + 2), w);
+                for (size_t i = 0; i < sizeof long_opts / sizeof long_opts[0]; i++)
+                    if (!strncmp(name, long_opts[i].name, len)) fprintf(stderr, " '--%s'", long_opts[i].name);
+                fputc('\n', stderr);
+                bos_shim_try_help("blkid");
+                return 1;
+            }
+            if (hits != 1 || !len) { bos_shim_bad_option(w, 0, "blkid"); return 1; }
+            single[0] = long_opts[which].option;
+            long_name = long_opts[which].name;
             if (name[len]) attached = name + len + 1;
             opts = single;
         }
@@ -1113,9 +1130,17 @@ bblk_command(WORD_LIST *list, const char **paths, const char **tags)
                 if (attached) arg = attached;
                 else if (*opts) arg = opts;
                 else if (p->next) { p = p->next; arg = p->word->word; }
-                else { builtin_error("-%c requires an argument", c); return low.probe || low.topology ? 1 : EX_USAGE; }
+                else if (long_name) {
+                    builtin_error("option '--%s' requires an argument", long_name);
+                    bos_shim_try_help("blkid");
+                    return 1;
+                } else { bos_shim_missing_arg("-", c, "blkid"); return 1; }
                 opts = "";
-            } else if (attached) { builtin_error("option does not take a value: %s", w); return low.probe || low.topology ? 1 : EX_USAGE; }
+            } else if (attached) {
+                builtin_error("option '--%s' doesn't allow an argument", long_name);
+                bos_shim_try_help("blkid");
+                return 1;
+            }
             switch (c) {
             case 'h': builtin_usage(); return EXECUTION_SUCCESS;
             case 'p': low.probe = 1; break;
@@ -1143,7 +1168,8 @@ bblk_command(WORD_LIST *list, const char **paths, const char **tags)
                 low_options = 1;
                 break;
             }
-            default: builtin_error("unknown flag: %s", w); return low.probe || low.topology ? 1 : EX_USAGE;
+            /* util-linux blkid: getopt's wording, the Try line, status 1. */
+            default: bos_shim_bad_option("-", c, "blkid"); return 1;
             }
         }
     }
@@ -1160,8 +1186,8 @@ bblk_command(WORD_LIST *list, const char **paths, const char **tags)
             else fprintf(stderr, "blkid: unsupported output format %s\n", opt.fmt);
             return 4;
         }
-        builtin_error("unknown -o format: %s (want default/value/export/udev)", opt.fmt);
-        return EX_USAGE;
+        fprintf(stderr, "blkid: unsupported output format %s\n", opt.fmt);
+        return 4;
     }
     if (probe) return bblk_low_command(&low, &opt, count, paths);
     if (low_options) { builtin_error("low-level options require -p or -i"); return EX_USAGE; }

@@ -7,16 +7,19 @@ from pathlib import Path
 import pty
 import random
 import select
+import shutil
 import subprocess
 import tempfile
 import termios
-import unicodedata
 
 
 def oracle(data, width=40, mode='columns', spaces=False, loc='C.UTF-8'):
-    # Python's strict UTF-8 codec with surrogateescape preserves each rejected
-    # byte separately. This is independent of the production decoder.
-    text = ''.join(map(chr, data)) if mode == 'bytes' else data.decode('utf-8', 'surrogateescape')
+    # Columns follow GNU fold 9.7 in every locale (LOC does not matter):
+    # each byte is one column, except that BS, CR and TAB move the column.
+    # For -c, Python's strict UTF-8 codec with surrogateescape preserves each
+    # rejected byte separately, independently of the production decoder.
+    text = (data.decode('utf-8', 'surrogateescape') if mode == 'characters'
+            else ''.join(map(chr, data)))
 
     def advance(column, last, char):
         if mode == 'bytes':
@@ -27,19 +30,7 @@ def oracle(data, width=40, mode='columns', spaces=False, loc='C.UTF-8'):
             return 0, last
         if char == '\t':
             return (column // 8 + 1) * 8, last
-        if mode == 'characters':
-            size = 1
-        elif char == '\0':
-            size = 0
-        elif loc == 'C' or 0xDC80 <= ord(char) <= 0xDCFF:
-            size = 1
-        elif unicodedata.category(char) in ('Mn', 'Me', 'Cf'):
-            size = 0
-        elif unicodedata.category(char).startswith('C'):
-            size = 1
-        else:
-            size = 2 if unicodedata.east_asian_width(char) in ('W', 'F') else 1
-        return column + size, size
+        return column + 1, 1
 
     output, pending = [], []
     column, last = 0, 1
@@ -65,7 +56,7 @@ def oracle(data, width=40, mode='columns', spaces=False, loc='C.UTF-8'):
         column, last = new_column, new_last
     output.extend(pending)
     text = ''.join(output)
-    return bytes(map(ord, text)) if mode == 'bytes' else text.encode('utf-8', 'surrogateescape')
+    return text.encode('utf-8', 'surrogateescape') if mode == 'characters' else bytes(map(ord, text))
 
 
 def main():
@@ -78,7 +69,11 @@ def main():
     for key in ('BASH_ENV', 'ENV', 'SHELLOPTS', 'BASHOPTS'):
         env.pop(key, None)
     prefix = 'if [[ -n ${FOLD_MODULE:-} ]]; then enable -f "$FOLD_MODULE" fold || exit; fi; '
-    checks = 0
+    checks = gnu_checks = 0
+    # GNU fold has no -c; where present it validates the byte/column model.
+    gnu = shutil.which('fold', path='/usr/bin:/bin')
+    if gnu and b'GNU coreutils' not in subprocess.run([gnu, '--version'], capture_output=True).stdout:
+        gnu = None
     if args.only != 'stream':
         rng = random.Random(20261019)
         malformed = [b'\xc0\x80', b'\xc0\x88', b'\xc0\x89', b'\xc0\x8a', b'\xc0\x8d',
@@ -118,6 +113,16 @@ def main():
                             body = 'for file; do ' + ' '.join(command) + ' < "$file" || exit; done'
                             proc = subprocess.run([binary, '-c', prefix + body, '_', *paths],
                                                   env=dict(env, LC_ALL=loc), capture_output=True, timeout=30)
+                            if gnu and mode != 'characters':
+                                # The model itself must agree with GNU fold.
+                                for path, want in zip(paths, expected):
+                                    with open(path, 'rb') as stdin:
+                                        ref = subprocess.run([gnu, *command[1:]], stdin=stdin,
+                                                             env=dict(env, LC_ALL=loc),
+                                                             capture_output=True, timeout=30)
+                                    assert ref.returncode == 0 and ref.stdout == want, (
+                                        loc, command, path, 'oracle disagrees with GNU fold')
+                                    gnu_checks += 1
                             assert proc.returncode == 0 and not proc.stderr, (loc, command, proc.stderr)
                             assert proc.stdout == b''.join(expected), (loc, command, 'oracle mismatch')
                             checks += len(fixtures)
@@ -212,7 +217,8 @@ def main():
             if proc.poll() is None:
                 proc.kill(); proc.wait()
             os.close(master); os.close(slave)
-    print(f'sol-fold: {checks} independent-oracle cases and open-producer checks passed')
+    print(f'sol-fold: {checks} independent-oracle cases and open-producer checks passed'
+          f' ({gnu_checks} oracle cases confirmed by GNU fold)')
 
 
 if __name__ == '__main__':

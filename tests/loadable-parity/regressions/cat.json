@@ -22,6 +22,29 @@
       ],
       "expected_status": 0,
       "stderr": "exact"
+    },
+    {
+      "id": "pass9-option-errors",
+      "kind": "parity",
+      "purpose": "Docker parity errors/cat: glibc getopt wording plus the coreutils Try line for an unknown long option, an unknown option letter inside a cluster, an argument given to a flag, and an ambiguous abbreviation (listed in GNU order); a unique abbreviation is accepted.",
+      "requires": [
+        "cat"
+      ],
+      "script": "cat --bogus </dev/null || echo \"rc=$?\"\ncat -n@ </dev/null || echo \"rc=$?\"\ncat --number=3 </dev/null || echo \"rc=$?\"\ncat --num </dev/null || echo \"rc=$?\"\ncat a --bogus </dev/null || echo \"rc=$?\"\nprintf 'x\\ty\\n' | cat --show-t </dev/null || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass9-show-ends-crlf",
+      "kind": "parity",
+      "purpose": "Docker parity files/cat-e-crlf: -E shows the CR of a CRLF line end as ^M (GNU 9.x), keeps other CRs, and carries a CR at the end of one file over to the next.",
+      "requires": [
+        "cat",
+        "od"
+      ],
+      "script": "printf 'a\\r\\nb\\rc\\n' > f; cat -E f | od -An -c; cat -A f; cat -vE f | od -An -c\nprintf 'a\\r\\nb\\r\\r\\nc\\r' | cat -E | od -An -c\nprintf 'x\\r' > p1; printf '\\ny\\n' > p2; cat -E p1 p2 | od -An -c\nprintf '\\r\\n\\r\\n' | cat -nsE | od -An -c; printf 'a\\r\\n' | cat -ET | od -An -c",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

@@ -5,12 +5,13 @@
  *   bashfold [-bcs] [-w WIDTH] [FILE...]
  *
  *   -w WIDTH   wrap at WIDTH columns (default 80)
- *   -b         count bytes, not display columns (treat each byte as 1)
+ *   -b         count bytes (TAB, BS and CR count one each too)
  *   -c         count UTF-8 scalars (invalid bytes count one each)
  *   -s         break at last space/tab ≤ WIDTH (word-wrap), if any
  *
- * No FILE or "-" reads stdin. Default mode counts display columns,
- * with TAB advancing to next multiple of 8, BS rewinding by one,
+ * No FILE or "-" reads stdin. Default mode counts columns as GNU fold
+ * 9.7 does: one per byte (a multibyte character counts its bytes, in any
+ * locale), with TAB advancing to next multiple of 8, BS rewinding by one,
  * CR resetting to column 0.
  *
  * --- LICENSE ---
@@ -49,8 +50,8 @@ bf_decode (const unsigned char *bytes, size_t avail, const bf_opts *o,
 {
     unsigned int c = bytes[0];
     *cp = c;
-    if (o->bflag || c < 0x80)
-        return 1;
+    if (!o->cflag || c < 0x80)
+        return 1;                       /* bytes, the default and -b units */
     *cp = BF_INVALID;
     int length;
     unsigned int code;
@@ -88,17 +89,11 @@ bf_advance (int64_t col, unsigned int cp, int len, int *last_w, const bf_opts *o
         return 0;
     if (cp == '\t')
         return col + (8 - (col % 8));
-    if (o->cflag) {
-        *last_w = 1;                            /* characters: one per char */
-        return col + 1;
-    }
-    /* Printable ASCII has width one in every supported locale. */
-    int w = cp == BF_INVALID || (cp >= 0x20 && cp < 0x7f)
-        ? 1 : wcwidth ((wchar_t) cp);
-    if (w < 0)
-        w = 1;                                  /* invalid char defaults to 1 */
-    *last_w = w;
-    return col + w;
+    /* GNU fold 9.7: every other byte is one column (a UTF-8 character
+       counts its bytes, in any locale); under -c one per character. */
+    (void) len;
+    *last_w = 1;
+    return col + 1;
 }
 
 typedef struct {
@@ -505,13 +500,15 @@ char *fold_doc[] = {
     "    bashfold --help | --version",
     "",
     "    -w WIDTH   wrap at WIDTH columns (default 80)",
-    "    -b         count bytes, not display columns",
+    "    -b         count bytes, TAB, BS and CR included",
     "    -c         count characters: a UTF-8 scalar is one unit and a",
-    "               wrap never splits a multibyte sequence",
+    "               wrap never splits a multibyte sequence (an extension)",
     "    -s         break at last space/tab ≤ WIDTH (word-wrap)",
     "    --help | --version",
     "               show usage or version",
     "",
+    "Columns are counted as in GNU fold 9.7: one per byte, so a UTF-8",
+    "character counts its bytes in any locale and may be split by a wrap;",
     "TAB → next multiple of 8; BS rewinds; CR resets column to 0",
     "(unless -b is set). -b and -c are mutually exclusive (last wins).",
     "Malformed UTF-8 bytes are preserved and each counts as one.",

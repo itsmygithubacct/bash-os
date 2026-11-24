@@ -15,7 +15,8 @@
     "Observe GNU-compatible late hardlink binding after an ordinary archive-name collision; this does not qualify preservation of source topology or data across collisions.",
     "--same-owner/--no-same-owner/--numeric-owner owner restoration against GNU tar in the same unprivileged sandbox (H2); delayed directory times.",
     "G39-G41: leading '/' removal and -P, uname/gname in headers, --exclude/--wildcards on extract, -S sparse members, --acls, --transform, --delete and --to-command, against GNU tar.",
-    "G111: -g/--listed-incremental level-0 and increments (GNU snapshot format 2, dumpdir members, renamed and swapped directories, deletion on -g /dev/null extraction), GNU-made incremental archives, -N/--newer/--after-date/--newer-mtime on create and list, and the incremental option diagnostics."
+    "G111: -g/--listed-incremental level-0 and increments (GNU snapshot format 2, dumpdir members, renamed and swapped directories, deletion on -g /dev/null extraction), GNU-made incremental archives, -N/--newer/--after-date/--newer-mtime on create and list, and the incremental option diagnostics.",
+    "Pass 9 (docker suite AN): pass9-ustar-record-bytes; pass9-errors"
   ],
   "exclusions": [
     "Append/update, sparse formats, unsafe or absolute member/link paths, device nodes, and exact archive/compression bytes are not asserted.",
@@ -548,6 +549,28 @@
       "expected_status": 0,
       "stdout": "tar builtin and documented help available\n",
       "stderr": "empty"
+    },
+    {
+      "id": "pass9-ustar-record-bytes",
+      "kind": "parity",
+      "purpose": "Docker suite archive/tar-ustar-bytes: GNU tar pads an archive to whole 10240-byte records (20 blocks); -b N and --record-size set other record sizes, and a size that is not a multiple of 512 is an error.",
+      "requires": [
+        "tar"
+      ],
+      "script": "mkdir -p src/sub; printf 'alpha\\n' > src/a; printf 'beta\\n' > src/sub/b; chmod 640 src/a; chmod 750 src/sub\ntouch -h -d @1700000000 src/a src/sub/b src/sub src\ntar --format=ustar -cf u.tar --owner=0 --group=0 --numeric-owner --mtime=@1700000000 --sort=name src/a src/sub/b; wc -c < u.tar; head -c 2048 u.tar | md5sum; md5sum < u.tar; od -An -c -j 257 -N 8 u.tar\ntar -cf - src/a | wc -c\ntar -b 1 -cf - src/a | wc -c\ntar --record-size=1024 -cf - src/a | wc -c\ntar --record-size=1000 -cf - src/a || echo \"rc=$?\"\n",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass9-errors",
+      "kind": "parity",
+      "purpose": "Docker suite archive/tar-errors and errors/tar: GNU tar's diagnostics and statuses for a missing member, a bad archive, a missing archive, unknown and argument-less options, conflicting operations, an empty create and an invalid --sort.",
+      "requires": [
+        "tar"
+      ],
+      "script": "e() { printf '$ %s\\n' \"$*\"; \"$@\" </dev/null || echo \"rc=$?\"; }\ne tar -cf x.tar nosuch\nprintf 'junk' > bad.tar; e tar -tf bad.tar\ne tar -xf nosuch.tar\ne tar --bogus\ne tar -@\ne tar\ne tar -f\ne tar -c\ne tar -cf o.tar\ne tar -tf nosuch\ne tar -x -t\ne tar --sort=bogus -cf o.tar .\n",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "loadable": "hwclock",
+  "reference": "util-linux 2.41 hwclock, run by system Bash on the reference side; only option errors, which both sides report before any device access.",
+  "coverage": [
+    "Guest pass 9 (G129): option-error wording and status.",
+    "Coordinator follow-up: conflicting options and --noadjfile without a mode, util-linux wording and status 1."
+  ],
+  "exclusions": [
+    "Only diagnostics are covered here; the reviewed suite in suites/ covers ordinary operation."
+  ],
+  "cases": [
+    {
+      "id": "pass9-option-errors",
+      "kind": "parity",
+      "purpose": "G129: util-linux hwclock reports unknown options and a missing -f/--rtc argument with getopt wording and the Try line, status 1, before touching any clock device.",
+      "requires": [
+        "hwclock"
+      ],
+      "script": "hwclock --bogus </dev/null || echo \"rc=$?\"\nhwclock -@ </dev/null || echo \"rc=$?\"\nhwclock -@x </dev/null || echo \"rc=$?\"\nhwclock --bogus=1 </dev/null || echo \"rc=$?\"\nhwclock -f </dev/null || echo \"rc=$?\"\nhwclock --rtc </dev/null || echo \"rc=$?\"\nhwclock -u@ </dev/null || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "followup-option-conflicts",
+      "kind": "parity",
+      "purpose": "util-linux hwclock rejects conflicting modes, two different actions, --adjfile with --noadjfile, and --noadjfile without --utc or --localtime with its own one-line diagnostic and status 1; an operand is reported after the options (getopt permutes it) with the Try line. Each fails before touching any clock device or adjtime file.",
+      "requires": [
+        "hwclock"
+      ],
+      "script": "hwclock --utc --localtime </dev/null || echo \"rc=$?\"\nhwclock -l -u </dev/null || echo \"rc=$?\"\nhwclock -ul </dev/null || echo \"rc=$?\"\nhwclock -r -s </dev/null || echo \"rc=$?\"\nhwclock -a -w </dev/null || echo \"rc=$?\"\nhwclock --show --systohc </dev/null || echo \"rc=$?\"\nhwclock -rs </dev/null || echo \"rc=$?\"\nhwclock --adjfile=adj --noadjfile </dev/null || echo \"rc=$?\"\nhwclock --noadjfile --adjfile= </dev/null || echo \"rc=$?\"\nhwclock --noadjfile </dev/null || echo \"rc=$?\"\nhwclock -a --noadjfile </dev/null || echo \"rc=$?\"\nhwclock --noadjfile -r </dev/null || echo \"rc=$?\"\nhwclock --noadjfile --rtc= </dev/null || echo \"rc=$?\"\nhwclock operand -r -s </dev/null || echo \"rc=$?\"\nhwclock --noadjfile operand </dev/null || echo \"rc=$?\"\nhwclock -r -s --bogus </dev/null || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    }
+  ]
+}

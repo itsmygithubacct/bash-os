@@ -39,6 +39,7 @@
 #include "loadables.h"
 #include "bashgetopt.h"
 #include "shim-prog-name.h"
+#include "gnu-quote.h"
 
 /* coreutils 9.x layouts */
 #define STAT_FMT_DEFAULT \
@@ -559,9 +560,12 @@ stat_builtin (WORD_LIST *list)
             { builtin_error ("-A cannot be combined with -f"); return EX_USAGE; }
           if (statfs (f.name, &f.fs) < 0)
             {
+              int e = errno;
+              char *q = bos_quoteaf (f.name);
               fflush (stdout);
-              fprintf (stderr, "stat: cannot read file system information for '%s': %s\n",
-                       f.name, strerror (errno));
+              fprintf (stderr, "stat: cannot read file system information for %s: %s\n",
+                       q ? q : f.name, strerror (e));
+              free (q);
               status = EXECUTION_FAILURE;
               continue;
             }
@@ -574,7 +578,11 @@ stat_builtin (WORD_LIST *list)
       r = follow ? stat (f.name, &f.st) : lstat (f.name, &f.st);
       if (r < 0)
         {
-          builtin_error ("cannot stat '%s': %s", f.name, strerror (errno));
+          /* coreutils 9.7 (statx-based) words it so, quoting the name. */
+          int e = errno;
+          char *q = bos_quoteaf (f.name);
+          builtin_error ("cannot statx %s: %s", q ? q : f.name, strerror (e));
+          free (q);
           status = EXECUTION_FAILURE;
           continue;
         }

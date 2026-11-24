@@ -16,7 +16,8 @@
     "Reject a valid zlib wrapper under the gzip-only contract.",
     "Small stored gzip members exercise both split and exact input-buffer boundaries.",
     "G30: zcat -f/--force copies input that is not gzip through unchanged, alongside gzip members.",
-    "Pass 8 (G120): option errors in GNU getopt form naming zcat, status 1 (contract: gzip names itself)."
+    "Pass 8 (G120): option errors in GNU getopt form naming zcat, status 1 (contract: gzip names itself).",
+    "Pass 9 (docker suite AN): pass9-errors-and-suffix"
   ],
   "exclusions": [
     "GNU gzip option compatibility beyond the documented zcat [FILE...] interface is not asserted.",
@@ -376,6 +377,17 @@
       "stdout": "rc=1\n",
       "stderr": "exact",
       "stderr_text": "zcat: invalid option -- 'Y'\nTry 'zcat --help' for more information.\n"
+    },
+    {
+      "id": "pass9-errors-and-suffix",
+      "kind": "parity",
+      "purpose": "Docker suite archive/zcat-errors: zcat reports as gzip, puts a blank line before a data error, tries NAME.gz for a missing NAME, and stops at trailing garbage with a warning.",
+      "requires": [
+        "zcat"
+      ],
+      "script": "e() { printf '$ %s\\n' \"$*\"; \"$@\" </dev/null || echo \"rc=$?\"; }\nprintf 'not gzip' > bad.gz\ne zcat bad.gz\ne zcat nosuch.gz\ne zcat nosuch\nprintf 'H4sIAAAAAAAAA8tIzcnJBwCGphA2BQAAAA==' | base64 -d > h.gz; cp h.gz k.gz; printf 'garbage' >> h.gz\ne zcat h.gz; echo\ne zcat k; echo\n",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

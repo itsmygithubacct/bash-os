@@ -162,6 +162,18 @@
       "script": "rc=0\nfold -w || rc=$?\necho \"rc=$rc\"\nrc=0\nfold --width || rc=$?\necho \"rc=$rc\"",
       "expected_status": 0,
       "stderr": "exact"
+    },
+    {
+      "id": "pass9-columns-are-bytes",
+      "kind": "parity",
+      "purpose": "Docker parity text/fold-utf8: fold counts one column per byte as GNU fold 9.7 does, so a two-byte UTF-8 character takes two columns and -w 2 and -b -w 2 agree; TAB, BS and CR keep their column rules.",
+      "requires": [
+        "fold",
+        "od"
+      ],
+      "script": "printf '\\303\\251\\303\\251\\303\\251\\303\\251\\n' | fold -w 2 | od -An -c\nprintf '\\303\\251\\303\\251\\303\\251\\303\\251\\n' | fold -b -w 2 | od -An -c\nprintf '\\303\\251\\303\\251\\303\\251\\n' | fold -w 3 | od -An -c\nprintf '\\303\\251\\303\\251 \\303\\251\\303\\251\\n' | fold -s -w 5 | od -An -c\nprintf 'ab\\tcdefghij\\bkl\\rmnopqrstuvwxyz\\n' | fold -w 5 | od -An -c",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

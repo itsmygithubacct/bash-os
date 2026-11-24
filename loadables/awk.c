@@ -76,6 +76,7 @@
 #include <stdio_ext.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <errno.h>
 #include <limits.h>
 /* Records may hold NUL bytes, so matching needs REG_STARTEND and GNU syntax
@@ -94,6 +95,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 
 #include "loadables.h"
 #include "shim-prog-name.h"
@@ -524,7 +526,7 @@ bawk_lex_string (bawk_lex *L, const char *src)
                        && t.kind != T_NUMBER && t.kind != T_STRING
                        && t.kind != T_IDENT  && t.kind != T_DOLLAR);
     }
-    bawk_token eof = { .kind = T_EOF };
+    bawk_token eof = { .kind = T_EOF, .off = (size_t) (p - src) };
     bawk_addtok (L, eof);
     return 0;
 }
@@ -718,6 +720,8 @@ typedef struct {
     int         depth;   /* recursion depth in parse_expr / parse_stmt */
     int         print_arg_stop_depth;
     int         const_div_errors;  /* x/0, x%0 with a constant zero divisor */
+    int         err_set;   /* a syntax error was found at token err_tok */
+    int         err_tok;
 } bawk_parser;
 
 /* Where each piece of the program text came from, for gawk-style source
@@ -810,9 +814,48 @@ static int bawk_accept (bawk_parser *P, bawk_tok t) {
     if (bawk_peek(P)->kind == t) { bawk_advance(P); return 1; }
     return 0;
 }
+/* Note a syntax error at the current token. The parse may still recover
+   (a probe that backtracks clears it); the last one noted is reported by
+   bawk_syntax_report when the parse fails. */
+static void bawk_syntax_error (bawk_parser *P) {
+    P->err_set = 1;
+    P->err_tok = P->L->pos;
+}
 static int bawk_expect (bawk_parser *P, bawk_tok t, const char *msg) {
-    if (bawk_peek(P)->kind != t) { builtin_error("parse: %s (got tok %d at pos %d)", msg, bawk_peek(P)->kind, P->L->pos); return -1; }
+    (void) msg;
+    if (bawk_peek(P)->kind != t) { bawk_syntax_error (P); return -1; }
     bawk_advance(P); return 0;
+}
+
+/* gawk's report of a syntax error: the source line holding the offending
+   token, then a caret under it, both prefixed "LOC: " (cmd. line:N or
+   FILE:N). At the end of a line or of the program the caret follows the
+   line's last character (the line of the last token, for the end of the
+   program) and the message is "unexpected newline or end of string";
+   otherwise it is "syntax error". */
+static void
+bawk_syntax_report (bawk_parser *P)
+{
+    if (!P->err_set || !bawk_src) return;
+    bawk_lex *L = P->L;
+    int i = P->err_tok < L->n ? P->err_tok : L->n - 1;
+    bawk_token *t = &L->toks[i];
+    int at_end = t->kind == T_EOF || t->kind == T_NEWLINE;
+    size_t off = t->off;
+    if (t->kind == T_EOF) {
+        while (i > 0 && L->toks[i - 1].kind == T_NEWLINE) i--;
+        off = i > 0 ? L->toks[i - 1].off : 0;
+    }
+    size_t ls = off, le = off;
+    while (ls > 0 && bawk_src[ls - 1] != '\n') ls--;
+    while (bawk_src[le] && bawk_src[le] != '\n') le++;
+    size_t col = at_end ? le - ls : off - ls;
+    char loc[512];
+    bawk_srcloc (off, loc, sizeof loc);
+    fflush (stdout);
+    builtin_error ("%s: %.*s", loc, (int) (le - ls), bawk_src + ls);
+    builtin_error ("%s: %*s^ %s", loc, (int) col, "",
+                   at_end ? "unexpected newline or end of string" : "syntax error");
 }
 static void bawk_skip_nl (bawk_parser *P) {
     while (bawk_peek(P)->kind == T_NEWLINE || bawk_peek(P)->kind == T_SEMI) bawk_advance(P);
@@ -1162,7 +1205,7 @@ bawk_parse_primary (bawk_parser *P)
     }
     /* Unary minus / logical-not are handled one precedence level up, in
        bawk_parse_unary (above ^), so that -2^2 parses as -(2^2). */
-    builtin_error ("parse: unexpected token (kind %d) at pos %d", t->kind, P->L->pos);
+    bawk_syntax_error (P);
     return NULL;
 }
 
@@ -1459,6 +1502,7 @@ bawk_parse_stmt (bawk_parser *P)
                               && after != T_EOF && after != T_GT && after != T_APPEND
                               && after != T_PIPE)) {
                 P->L->pos = save_pos;
+                P->err_set = 0;
                 head = tail = NULL;
             }
             nt = bawk_peek (P);
@@ -1557,6 +1601,7 @@ bawk_parse_stmt (bawk_parser *P)
                 return n;
             }
             P->L->pos = save;
+            P->err_set = 0;
         }
         /* C-style for (init; cond; step) body */
         bawk_node *init = NULL, *cond = NULL, *step = NULL;
@@ -1621,10 +1666,12 @@ bawk_parse_block (bawk_parser *P)
     while (1) {
         bawk_skip_nl (P);
         if (bawk_peek(P)->kind == T_RBRACE) break;
-        if (bawk_peek(P)->kind == T_EOF) { builtin_error("unterminated {"); return NULL; }
+        if (bawk_peek(P)->kind == T_EOF) { bawk_syntax_error (P); return NULL; }
+        size_t stmt_off = bawk_peek(P)->off;
         bawk_node *s = bawk_parse_stmt (P); if (!s) return NULL;
         bawk_node *cell = bawk_new (P, N_LIST);
         cell->A = s;
+        cell->src_off = stmt_off;   /* where the statement starts, for diagnostics */
         if (!head) head = cell;
         if (tail) tail->next = cell;
         tail = cell;
@@ -1722,6 +1769,7 @@ bawk_parse_program (bawk_parser *P)
             continue;
         }
         bawk_node *r = bawk_new (P, N_RULE);
+        r->src_off = bawk_peek(P)->off;
         if (bawk_peek(P)->kind == T_KW_BEGIN) { bawk_advance(P); r->nval = 1; }
         else if (bawk_peek(P)->kind == T_KW_END) { bawk_advance(P); r->nval = 2; }
         else if (bawk_peek(P)->kind != T_LBRACE) {
@@ -1866,12 +1914,48 @@ static void bawk_val_read (bawk_val *r, const bawk_val *v) {
     else { bawk_val_set_str (r, ""); r->strnum = BAWK_UNINIT; }
 }
 
+/* A string's numeric value as gawk reads input and string data: leading
+   blanks, then the longest decimal number (sign, digits, fraction,
+   exponent). Hexadecimal ("0x1A" is 0), and inf/nan without a sign, are
+   not numbers; "+inf", "-inf", "+nan" and "-nan" (any case, alone or
+   before blanks) are the special values. *END is where the number
+   ends, S when there is none. */
+static double
+bawk_strtod (const char *s, const char **end)
+{
+    const char *p = s;
+    while (isspace ((unsigned char) *p)) p++;
+    const char *q = p;
+    if (*q == '+' || *q == '-') {
+        q++;
+        if ((!strncasecmp (q, "inf", 3) || !strncasecmp (q, "nan", 3))
+            && (q[3] == '\0' || isspace ((unsigned char) q[3]))) {
+            if (end) *end = q + 3;
+            double v = tolower ((unsigned char) *q) == 'i' ? INFINITY : NAN;
+            return *p == '-' ? -v : v;
+        }
+    }
+    if (!(isdigit ((unsigned char) *q) || (*q == '.' && isdigit ((unsigned char) q[1])))) {
+        if (end) *end = s;
+        return 0;
+    }
+    if (q[0] == '0' && (q[1] == 'x' || q[1] == 'X')) {
+        /* strtod would read hexadecimal: the number is the "0". */
+        if (end) *end = q + 1;
+        return *p == '-' ? -0.0 : 0.0;
+    }
+    char *e = NULL;
+    double v = strtod (p, &e);
+    if (end) *end = e;
+    return v;
+}
+
 static double
 bawk_val_to_num (bawk_val *v)
 {
     if (v->have_n) return v->n;
     if (!v->s) return 0;
-    return strtod (v->s, NULL);
+    return bawk_strtod (v->s, NULL);
 }
 
 /* Counter reads copy the scalar value so assignment preserves strings until
@@ -1915,10 +1999,49 @@ static const char *bawk_ofmt    = "%.6g";
 static const char *
 bawk_num_to_str (double n, const char *fmt, char *buf, size_t bufsz)
 {
-    if (isfinite (n) && n >= -0x1p63 && n < 0x1p63 && n == trunc (n))
+    if (isfinite (n) && n >= -0x1p63 && n < 0x1p63 && n == trunc (n)) {
         snprintf (buf, bufsz, "%lld", (long long) n);
-    else
-        snprintf (buf, bufsz, fmt ? fmt : "%.6g", n);
+        return buf;
+    }
+    if (!fmt) fmt = "%.6g";
+    /* An integer conversion (CONVFMT = "%d", OFMT = "%x", ...) takes the
+       value truncated toward zero, as in gawk: rebuild the format with a
+       long long length modifier rather than hand snprintf a double. The
+       format was checked by bawk_safe_numfmt (one conversion). */
+    const char *pct = NULL, *conv = NULL;
+    for (const char *p = fmt; *p; p++) {
+        if (*p != '%') continue;
+        if (p[1] == '%') { p++; continue; }
+        const char *q = p + 1;
+        while (*q && !strchr ("eEfgGdiouxXc", *q)) q++;
+        if (*q) { pct = p; conv = q; }
+        break;
+    }
+    if (conv && strchr ("diouxXc", *conv) && (!isfinite (n) || strlen (fmt) > 200)) {
+        snprintf (buf, bufsz, "%g", n);
+        return buf;
+    }
+    if (conv && strchr ("diouxXc", *conv)) {
+        char f2[256];
+        size_t k = 0;
+        for (const char *p = fmt; p < conv && k + 4 < sizeof f2; p++)
+            if (p <= pct || !strchr ("hlLjzt", *p))   /* drop the old length modifier */
+                f2[k++] = *p;
+        if (*conv != 'c') { f2[k++] = 'l'; f2[k++] = 'l'; }
+        f2[k++] = *conv;
+        size_t rest = strlen (conv + 1);
+        if (k + rest >= sizeof f2) { snprintf (buf, bufsz, "%.6g", n); return buf; }
+        memcpy (f2 + k, conv + 1, rest + 1);
+        double t = trunc (n);
+        if (t < -0x1p63) t = -0x1p63;
+        if (t >= 0x1p63) t = 0x1p63 - 1024;
+        long long iv = (long long) t;
+        if (*conv == 'c') snprintf (buf, bufsz, f2, (int) (unsigned char) iv);
+        else if (*conv == 'd' || *conv == 'i') snprintf (buf, bufsz, f2, iv);
+        else snprintf (buf, bufsz, f2, (unsigned long long) iv);
+        return buf;
+    }
+    snprintf (buf, bufsz, fmt, n);
     return buf;
 }
 
@@ -2186,6 +2309,21 @@ typedef struct {
     /* Output: usually stdout. */
     FILE     *out;
     int       out_tty;            /* stdout is a terminal: flush before tty reads */
+    /* Main input, shared by the rules' record loop and plain `getline
+       [VAR]`: the file operands in turn, applying VAR=VALUE operands as
+       the walk reaches them, or standard input when no operand names a
+       file (POSIX awk OPERANDS). */
+    const char **in_files;
+    int       in_nfiles;
+    int       in_next;            /* next operand to examine */
+    int       in_real;            /* operands that name files */
+    FILE     *in_fp;              /* current input file; NULL between files */
+    int       in_is_stdin;
+    int       in_done;            /* the operands are used up */
+    /* Source offset of the statement running, for gawk's "LOC: fatal:"
+       prefix; cur_off_set once any rule or statement has run. */
+    size_t    cur_off;
+    int       cur_off_set;
     /* Stage B: open output streams for `print > FILE`, `print >> FILE`,
        `print | "cmd"` and input streams for `"cmd" | getline`.
        Linear lookup; closed in bawk_free_all. For pipe-style streams
@@ -2634,6 +2772,7 @@ bawk_popen_guarded (const char *cmd, int read_mode, pid_t *pid_out)
     sigemptyset (&sa_dfl.sa_mask);
     sigaction (SIGCHLD, &sa_dfl, &sa_save);
 
+    maybe_make_export_env ();    /* the child gets the shell's exports, as ENVIRON shows */
     pid_t pid = fork ();
     if (pid < 0) {
         sigaction (SIGCHLD, &sa_save, NULL);
@@ -2655,7 +2794,8 @@ bawk_popen_guarded (const char *cmd, int read_mode, pid_t *pid_out)
             close (pfd[0]);
         }
         sigprocmask (SIG_SETMASK, &oldmask, NULL);
-        execl ("/bin/sh", "sh", "-c", cmd, (char *) NULL);
+        char *sh_argv[] = { "sh", "-c", (char *) cmd, NULL };
+        execve ("/bin/sh", sh_argv, export_env);
         _exit (127);
     }
 
@@ -2841,6 +2981,107 @@ bawk_apply_assignment (bawk_ctx *c, const char *w)
     free (name);
 }
 
+/* gawk's fatal error for a main-input operand that cannot be opened:
+   "fatal: cannot open file `F' for reading: ERR", after the location of
+   the statement running ("LOC: ") once any has run. Status 2; END rules
+   are skipped. */
+static void
+bawk_input_open_fatal (bawk_ctx *c, const char *name, int err)
+{
+    if (c->out) fflush (c->out);
+    fflush (stdout);
+    if (c->cur_off_set) {
+        char loc[512];
+        bawk_srcloc (c->cur_off, loc, sizeof loc);
+        builtin_error ("%s: fatal: cannot open file `%s' for reading: %s", loc, name, strerror (err));
+    } else
+        builtin_error ("fatal: cannot open file `%s' for reading: %s", name, strerror (err));
+    c->exit_code = 2;
+    c->fatal_flag = c->exit_flag = 1;
+}
+
+/* Open the next main input. Returns 1 with c->in_fp set, 0 when the
+   operands are used up (or a VAR=VALUE operand ran into exit), -1 after a
+   fatal open error. A directory operand is skipped with gawk's warning. */
+static int
+bawk_input_open_next (bawk_ctx *c)
+{
+    if (c->in_real == 0) {
+        /* No file operands: the assignments, then standard input once. */
+        if (c->in_next > c->in_nfiles) return 0;
+        for (; c->in_next < c->in_nfiles; c->in_next++) {
+            bawk_apply_assignment (c, c->in_files[c->in_next]);
+            if (c->exit_flag) return 0;
+        }
+        c->in_next = c->in_nfiles + 1;
+        c->in_fp = stdin;
+        c->in_is_stdin = 1;
+        free (c->FILENAME);
+        c->FILENAME = bawk_strdup ("-");    /* gawk and mawk name it "-" */
+        return 1;   /* FNR carries on from BEGIN (gawk resets it per operand) */
+    }
+    while (c->in_next < c->in_nfiles) {
+        const char *w = c->in_files[c->in_next++];
+        if (bawk_operand_assignment (w)) {
+            bawk_apply_assignment (c, w);
+            if (c->exit_flag) return 0;
+            continue;
+        }
+        int is_stdin = !strcmp (w, "-");
+        FILE *f = is_stdin ? stdin : fopen (w, "r");
+        if (!f) { bawk_input_open_fatal (c, w, errno); return -1; }
+        struct stat st;
+        if (!is_stdin && fstat (fileno (f), &st) == 0 && S_ISDIR (st.st_mode)) {
+            fclose (f);
+            if (c->out) fflush (c->out);
+            fflush (stdout);
+            builtin_warning ("command line argument `%s' is a directory: skipped", w);
+            continue;
+        }
+        c->in_fp = f;
+        c->in_is_stdin = is_stdin;
+        free (c->FILENAME);
+        c->FILENAME = bawk_strdup (w);
+        bawk_val_set_num (&c->FNR, 0);   /* gawk: FNR resets to 0 at each new input file */
+        return 1;
+    }
+    return 0;
+}
+
+/* Finish the current main input file (at its end, or for `nextfile`). */
+static void
+bawk_input_close (bawk_ctx *c)
+{
+    if (!c->in_fp) return;
+    bawk_rs_forget (c->in_fp);
+    if (c->in_is_stdin) clearerr (c->in_fp);
+    else fclose (c->in_fp);
+    c->in_fp = NULL;
+    c->in_is_stdin = 0;
+}
+
+/* The next main-input record, moving on through the operands; NR and FNR
+   count it. Returns its length, or -1 at the end of the input or after a
+   fatal open error. */
+static ssize_t
+bawk_input_record (bawk_ctx *c, char **line, size_t *cap)
+{
+    while (!c->in_done) {
+        if (!c->in_fp && bawk_input_open_next (c) <= 0) {
+            c->in_done = 1;
+            break;
+        }
+        ssize_t rd = bawk_read_record (c, c->in_fp, line, cap);
+        if (rd >= 0) {
+            bawk_counter_advance (&c->NR);
+            bawk_counter_advance (&c->FNR);
+            return rd;
+        }
+        bawk_input_close (c);
+    }
+    return -1;
+}
+
 static bawk_val
 bawk_eval_getline (bawk_ctx *c, bawk_node *n)
 {
@@ -2868,33 +3109,23 @@ bawk_eval_getline (bawk_ctx *c, bawk_node *n)
 
     char *line = NULL;
     size_t cap = 0;
-    ssize_t rd = bawk_read_record (c, src, &line, &cap);
+    /* Plain `getline [VAR]` reads the main input: the next record of the
+       current operand, moving on to the next operands (and in BEGIN
+       opening the first) as the rules' record loop does. Only this form
+       counts NR and FNR; `getline < FILE` and `CMD | getline` leave both
+       alone (gawk, mawk). */
+    ssize_t rd = source == BAWK_GETLINE_MAIN ? bawk_input_record (c, &line, &cap)
+                                             : bawk_read_record (c, src, &line, &cap);
     if (rd < 0) {
         free (line);
-        bawk_val_set_num (&r, 0);
+        bawk_val_set_num (&r, c->fatal_flag ? -1 : 0);
         return r;
     }
 
-    if (source != BAWK_GETLINE_PIPE) {
-        bawk_counter_advance (&c->NR);
-        /* Retain the existing subset rule: main-input getline advances
-           both counters; getline from an explicit file advances
-           NR only and leaves the current input file's FNR alone. */
-        if (source == BAWK_GETLINE_MAIN) bawk_counter_advance (&c->FNR);
-    }
-
-    if (target == BAWK_GETLINE_TARGET_SCALAR) {
+    if (target == BAWK_GETLINE_TARGET_SCALAR)
         bawk_set_scalar_from_getline (c, n->sval, line, (size_t) rd);
-    } else {
+    else
         bawk_set_record (c, line, (size_t) rd);
-        if (source == BAWK_GETLINE_PIPE) {
-            /* Preserve awk's existing measured divergence: record-form
-               command-pipe getline advances both counters; scalar target
-               command-pipe getline does not. */
-            bawk_counter_advance (&c->NR);
-            bawk_counter_advance (&c->FNR);
-        }
-    }
 
     free (line);
     bawk_val_set_num (&r, 1);
@@ -3094,8 +3325,8 @@ bawk_str_looks_numeric (const char *s, size_t len)
     const char *lim = s + len;
     while (s < lim && (*s==' '||*s=='\t'||*s=='\n')) s++;
     if (s >= lim) return 0;
-    char *end = NULL;
-    strtod (s, &end);
+    const char *end = NULL;
+    bawk_strtod (s, &end);
     if (end == s) return 0;
     while (end < lim && (*end==' '||*end=='\t'||*end=='\n')) end++;
     return end == lim;
@@ -3666,7 +3897,10 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                     if (dlen > 1e15) dlen = 1e15;
                     long long start = (long long) dstart;
                     long long len = (long long) dlen;
-                    if (start < 1) { len += start - 1; start = 1; }
+                    /* gawk (and BWK awk): a start below 1 counts as 1 and
+                       the length is kept, so substr(s, 0, 3) is the first
+                       three characters. Start and length truncate. */
+                    if (start < 1) start = 1;
                     if (len < 0) len = 0;
                     if (start - 1 > sl) { bawk_val_set_str (&r, ""); break; }
                     if (start - 1 + len > sl) len = sl - (start - 1);
@@ -3811,7 +4045,14 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                     } else {
                         char b[64]; const char *cmd = bawk_val_to_str (&args[0], b, sizeof b);
                         fflush (NULL);      /* gawk/mawk: output precedes the command's */
-                        bawk_val_set_num (&r, (double) system (cmd));
+                        /* The command gets the shell's exports, as ENVIRON shows. */
+                        extern char **environ;
+                        char **saved_env = environ;
+                        maybe_make_export_env ();
+                        environ = export_env;
+                        int st = system (cmd);
+                        environ = saved_env;
+                        bawk_val_set_num (&r, (double) st);
                     }
                     break;
                 }
@@ -4232,6 +4473,8 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
         }
         case N_BLOCK: {
             for (bawk_node *p = n->A; p; p = p->next) {
+                c->cur_off = p->src_off;
+                c->cur_off_set = 1;
                 bawk_val v = bawk_eval (c, p->A);
                 bawk_val_free (&v);
                 if (c->brk_flag || c->cont_flag || c->exit_flag || c->next_flag || c->nextfile_flag || c->return_flag) break;
@@ -4278,6 +4521,7 @@ bawk_free_all (bawk_parser *P, bawk_ctx *c)
             free (v);
             v = nx;
         }
+        bawk_input_close (c);
         bawk_val_free (&c->NR); bawk_val_free (&c->FNR);
         /* Regex-RS buffers are per run: the builtin runs in the shell. */
         for (size_t i = 0; i < sizeof bawk_rsbufs / sizeof *bawk_rsbufs; i++) {
@@ -4322,6 +4566,8 @@ bawk_run_line (bawk_ctx *c, bawk_node *prog, const char *line, size_t len)
         bawk_node *r = p->A;
         if (r->kind == N_FUNCDEF) continue;   /* skip funcdefs at run time */
         if ((int) r->nval != 0) continue;   /* skip BEGIN/END */
+        c->cur_off = r->src_off;
+        c->cur_off_set = 1;
         int matched = 1;
         if (r->A) {
             bawk_val v = bawk_eval (c, r->A);
@@ -4367,6 +4613,17 @@ bawk_bad_option (const char *word, int c)
         builtin_error ("unrecognized option '%s'", word);
     else if (word)
         builtin_error ("invalid option -- '%c'", c);
+    fprintf (stderr, "Usage: %s [-F SEP] [-v VAR=VAL] [-e SCRIPT] [-f FILE] [SCRIPT] [FILE...]\n",
+             bos_shim_prog_name ("awk"));
+}
+
+/* gawk's getopt wording for an option missing its argument (no quotes
+   round the letter), then the usage line; status 1. */
+static void
+bawk_missing_arg (int c)
+{
+    fflush (stdout);
+    builtin_error ("option requires an argument -- %c", c);
     fprintf (stderr, "Usage: %s [-F SEP] [-v VAR=VAL] [-e SCRIPT] [-f FILE] [SCRIPT] [FILE...]\n",
              bos_shim_prog_name ("awk"));
 }
@@ -4443,12 +4700,15 @@ bawk_main (WORD_LIST *list)
         ctx.max_stack = (int) n;
     }
 
-    /* Populate ENVIRON associative array from the host environment. */
-    extern char **environ;
+    /* Populate ENVIRON from the environment a forked awk would get: bash
+       keeps exported variables, and VAR=VALUE prefixes of this command, in
+       its own table and builds export_env from it on demand (the C
+       `environ` only holds what the shell itself started with). */
+    maybe_make_export_env ();
     bawk_var *envv = bawk_lookup_or_create (&ctx, "ENVIRON");
     envv->is_array = 1;
-    if (environ) {
-        for (char **e = environ; *e; e++) {
+    if (export_env) {
+        for (char **e = export_env; *e; e++) {
             const char *eq = strchr (*e, '=');
             if (!eq) continue;
             char *key = bawk_strndup (*e, (size_t) (eq - *e));
@@ -4479,6 +4739,16 @@ bawk_main (WORD_LIST *list)
 	                free (pre_vars);
 	                return EXECUTION_SUCCESS;
 	            }
+	            /* --version, -V and -W version (gawk's spellings) exit 0. */
+	            if (!strcmp (w, "--version") || !strcmp (w, "-V") || !strcmp (w, "-Wversion")
+	                || (!strcmp (w, "-W") && p->next && !strcmp (p->next->word->word, "version"))) {
+	                puts ("awk 1.0 (bash-loadable)");
+	                bawk_free_all (NULL, &ctx);
+	                free (script); free ((void *) files); free (fs_override);
+	                for (int i = 0; i < n_pre; i++) { free (pre_vars[i].name); free (pre_vars[i].val); }
+	                free (pre_vars);
+	                return EXECUTION_SUCCESS;
+	            }
 	            if (w[1] == '-') {
 	                bawk_bad_option (w, 0);
 	                goto err_usage;
@@ -4489,23 +4759,35 @@ bawk_main (WORD_LIST *list)
                         const char *val;
                         if (cc[1]) { val = cc + 1; cc += strlen (cc) - 1; }
                         else if (p->next) { p = p->next; val = p->word->word; }
-                        else { builtin_error ("-F needs SEP"); goto err; }
+                        else { bawk_missing_arg ('F'); goto err_usage; }
                         free (fs_override); fs_override = bawk_unescape (val, &fs_override_len);
                         goto next_word;
                     }
                     case 'v': {
-                        if (!p->next) { builtin_error ("-v needs VAR=VAL"); goto err; }
-                        p = p->next;
-                        const char *eq = strchr (p->word->word, '=');
-                        if (!eq) { builtin_error ("-v expects VAR=VAL"); goto err; }
+                        const char *vw;
+                        if (cc[1]) { vw = cc + 1; cc += strlen (cc) - 1; }
+                        else if (p->next) { p = p->next; vw = p->word->word; }
+                        else { bawk_missing_arg ('v'); goto err_usage; }
+                        const char *eq = strchr (vw, '=');
+                        if (!eq) {
+                            /* gawk: the message, a blank line, then the usage. */
+                            builtin_error ("`%s' argument to `-v' not in `var=value' form", vw);
+                            fputc ('\n', stderr);
+                            bawk_bad_option (NULL, 0);
+                            goto err;
+                        }
+                        if (!bawk_operand_assignment (vw)) {
+                            builtin_error ("fatal: `%.*s' is not a legal variable name", (int) (eq - vw), vw);
+                            goto err_fatal;
+                        }
                         if (n_pre == cap_pre) { cap_pre = cap_pre ? cap_pre * 2 : 8; pre_vars = xrealloc (pre_vars, (size_t) cap_pre * sizeof *pre_vars); }
-                        pre_vars[n_pre].name = bawk_strndup (p->word->word, (size_t) (eq - p->word->word));
+                        pre_vars[n_pre].name = bawk_strndup (vw, (size_t) (eq - vw));
                         pre_vars[n_pre].val  = bawk_strdup (eq + 1);
                         n_pre++;
                         goto next_word;
                     }
                     case 'e': {
-                        if (!p->next) { builtin_error ("-e needs SCRIPT"); goto err; }
+                        if (!p->next) { bawk_missing_arg ('e'); goto err_usage; }
                         p = p->next;
                         size_t l = strlen (p->word->word);
                         size_t need = script_len + l + 2;
@@ -4519,10 +4801,14 @@ bawk_main (WORD_LIST *list)
                         goto next_word;
                     }
                     case 'f': {
-                        if (!p->next) { builtin_error ("-f needs FILE"); goto err; }
+                        if (!p->next) { bawk_missing_arg ('f'); goto err_usage; }
                         p = p->next;
                         FILE *f = fopen (p->word->word, "r");
-                        if (!f) { builtin_error ("-f %s: %s", p->word->word, strerror (errno)); goto err; }
+                        if (!f) {
+                            builtin_error ("fatal: cannot open source file `%s' for reading: %s",
+                                           p->word->word, strerror (errno));
+                            goto err_fatal;
+                        }
                         if (script_len) {
                             if (script_len + 2 > script_cap) {
                                 script_cap = script_len + 2;
@@ -4539,9 +4825,13 @@ bawk_main (WORD_LIST *list)
                             script_len += rd;
                             script[script_len] = '\0';
                         }
-                        int read_failed = ferror (f);
-                        if (fclose (f) != 0) read_failed = 1;
-                        if (read_failed) { builtin_error ("-f %s: read failed", p->word->word); goto err; }
+                        int read_failed = ferror (f), read_errno = errno;
+                        if (fclose (f) != 0 && !read_failed) { read_failed = 1; read_errno = errno; }
+                        if (read_failed) {
+                            builtin_error ("%s:1: error: cannot read source file `%s': %s",
+                                           p->word->word, p->word->word, strerror (read_errno ? read_errno : EIO));
+                            goto err;
+                        }
                         script_seen = 1;
                         goto next_word;
 	                    }
@@ -4600,6 +4890,7 @@ bawk_main (WORD_LIST *list)
 
     bawk_parser P = { .L = &L };
     bawk_node *prog = bawk_parse_program (&P);
+    if (!prog) bawk_syntax_report (&P);
     if (!prog || P.const_div_errors) { bawk_lex_free (&L); bawk_free_all (&P, NULL); goto err; }
     bawk_lower_program (&P, prog);
 
@@ -4631,19 +4922,27 @@ bawk_main (WORD_LIST *list)
         }
     }
 
+    /* The main input walk (bawk_input_record). */
+    ctx.in_files = files;
+    ctx.in_nfiles = n_files;
+    for (int i = 0; i < n_files; i++)
+        if (!bawk_operand_assignment (files[i])) ctx.in_real++;
+
     /* BEGIN blocks. */
     for (bawk_node *q = prog->A; q && !ctx.exit_flag; q = q->next) {
         bawk_node *r = q->A;
         if (r->kind == N_FUNCDEF) continue;
         if ((int) r->nval == 1 && r->B) {
+            ctx.cur_off = r->src_off;
+            ctx.cur_off_set = 1;
             bawk_val v = bawk_eval (&ctx, r->B);
             bawk_val_free (&v);
         }
     }
 
     /* Only auto-read input when a normal rule or END block can observe it.
-       BEGIN-only programs must return without waiting for stdin; explicit
-       getline inside BEGIN reads stdin directly and is unaffected. */
+       BEGIN-only programs must return without waiting for stdin; a plain
+       getline inside BEGIN reads the main input itself. */
     int needs_input = 0;
     for (bawk_node *q = prog->A; q; q = q->next) {
         bawk_node *r = q->A;
@@ -4655,60 +4954,18 @@ bawk_main (WORD_LIST *list)
         }
     }
 
-    /* Per-line execution. */
-    /* Operands of the form VAR=VALUE are assignments made when the walk
-       reaches them; with no file operands, standard input is read after
-       all of them (POSIX awk OPERANDS). */
-    int n_real_files = 0;
-    for (int i = 0; i < n_files; i++)
-        if (!bawk_operand_assignment (files[i])) n_real_files++;
+    /* Per-line execution: the records of the main input (see
+       bawk_input_record), which BEGIN's plain getline may have started. */
     if (needs_input) {
-        if (n_real_files == 0) {
-            for (int i = 0; i < n_files && !ctx.exit_flag; i++)
-                bawk_apply_assignment (&ctx, files[i]);
-            if (!ctx.exit_flag) {
-                char *line = NULL; size_t cap = 0; ssize_t rd;
-                while ((rd = bawk_read_record (&ctx, stdin, &line, &cap)) != -1) {
-                    bawk_counter_advance (&ctx.NR);
-                    bawk_counter_advance (&ctx.FNR);
-                    bawk_run_line (&ctx, prog, line, (size_t) rd);
-                    if (ctx.exit_flag) break;
-                }
-                free (line);
-            }
+        char *line = NULL; size_t cap = 0; ssize_t rd;
+        while (!ctx.exit_flag && (rd = bawk_input_record (&ctx, &line, &cap)) != -1) {
+            bawk_run_line (&ctx, prog, line, (size_t) rd);
+            /* `nextfile` abandons the current input file; the eval-time
+               short-circuits (in bawk_run_line, the per-rule executor and
+               per-statement eval) stop the rules for this record first. */
+            if (ctx.nextfile_flag) { ctx.nextfile_flag = 0; bawk_input_close (&ctx); }
         }
-        else {
-            for (int i = 0; i < n_files && !ctx.exit_flag; i++) {
-                if (bawk_operand_assignment (files[i])) {
-                    bawk_apply_assignment (&ctx, files[i]);
-                    continue;
-                }
-                int is_stdin = !strcmp (files[i], "-");
-                FILE *f = is_stdin ? stdin : fopen (files[i], "r");
-                if (!f) { builtin_error ("%s: %s", files[i], strerror (errno)); ctx.exit_code = 2; ctx.fatal_flag = ctx.exit_flag = 1; break; }
-                free (ctx.FILENAME);
-                ctx.FILENAME = bawk_strdup (files[i]);
-                bawk_val_set_num (&ctx.FNR, 0);        /* gawk: FNR resets to 0 at each new input file */
-                char *line = NULL; size_t cap = 0; ssize_t rd;
-                while ((rd = bawk_read_record (&ctx, f, &line, &cap)) != -1) {
-                    bawk_counter_advance (&ctx.NR);
-                    bawk_counter_advance (&ctx.FNR);
-                    bawk_run_line (&ctx, prog, line, (size_t) rd);
-                    if (ctx.exit_flag) break;
-                    /* `nextfile` abandons the current input file; clear the
-                       flag so subsequent files in argv are still processed.
-                       The eval-time short-circuits (in bawk_run_line + the
-                       per-rule executor + per-stmt eval) prevent any further
-                       patterns/actions from firing against the current file
-                       before we get here. */
-                    if (ctx.nextfile_flag) { ctx.nextfile_flag = 0; break; }
-                }
-                free (line);
-                bawk_rs_forget (f);
-                if (is_stdin) clearerr (f);
-                else fclose (f);
-            }
-        }
+        free (line);
     }
 
     /* END blocks. A user `exit` in BEGIN/main rules still runs the END
@@ -4721,6 +4978,8 @@ bawk_main (WORD_LIST *list)
         bawk_node *r = q->A;
         if (r->kind == N_FUNCDEF) continue;
         if ((int) r->nval == 2 && r->B) {
+            ctx.cur_off = r->src_off;
+            ctx.cur_off_set = 1;
             bawk_val v = bawk_eval (&ctx, r->B);
             bawk_val_free (&v);
         }
@@ -4747,6 +5006,13 @@ bawk_main (WORD_LIST *list)
 	    for (int i = 0; i < n_pre; i++) { free (pre_vars[i].name); free (pre_vars[i].val); }
 	    free (pre_vars);
 	    return EXECUTION_FAILURE;
+
+	err_fatal:      /* gawk's fatal errors exit with status 2 */
+	    bawk_free_all (NULL, &ctx);
+	    free (script); free ((void *) files); free (fs_override);
+	    for (int i = 0; i < n_pre; i++) { free (pre_vars[i].name); free (pre_vars[i].val); }
+	    free (pre_vars);
+	    return 2;
 }
 
 char *awk_doc[] = {
@@ -4763,6 +5029,12 @@ char *awk_doc[] = {
     "log/exp/tolower/toupper/systime/strftime/mktime, user-defined",
     "functions, getline (var or from file), ENVIRON, RSTART/RLENGTH,",
     "system (gated by BASHAWK_ALLOW_SYSTEM=1).",
+    "Plain getline and getline VAR read the next record of the main input",
+    "(the file operands in turn, or standard input), in BEGIN too; only",
+    "they count NR and FNR. ENVIRON holds the shell's exported variables",
+    "and VAR=VALUE prefixes, which commands run by awk also get. Input",
+    "and string data convert to numbers as decimal only (\"0x1A\" is 0).",
+    "--version, -V and -W version print the version.",
     "NUL bytes are data (gawk): in input, in strings and escapes (\"\\0\"),",
     "in -v/-F values, in regex literals (/\\0/), and as RS, FS, OFS or ORS.",
     "Output that is not a terminal is fully buffered (gawk/mawk): it is",

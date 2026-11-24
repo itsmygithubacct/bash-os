@@ -110,6 +110,8 @@ struct bashos_pax_write_context {
     FILE *verbose_out;
     /* incremental (tar -g/-G): GNU headers also carry atime and ctime. */
     int incremental;
+    /* tar_words (tar): GNU tar's diagnostics ("NAME: Cannot stat: ..."). */
+    int tar_words;
 };
 /* Position OUT (opened r+) at the end-of-archive marker for appending; with
    ctx->update also remember each member's name and time. Returns 0 or -1. */

@@ -7,7 +7,10 @@
 # the fault shim after libasan; that is the order its harness already uses.
 # parity, index-cache, git-integrity and git-parity replace or forward the
 # environment, so a module cannot be the code that runs. Those use the
-# 28-builtin indexcheck binary built with the review's sanitizer flags.
+# 28-builtin indexcheck binary built with the review's sanitizer flags and
+# tests/sol-index-map-recorder.c linked in: each of its processes records
+# its own maps at start-up, so every process that ran is checked, however
+# short-lived, with no outside /proc watcher to race.
 # sol-index-bench-check.py never starts index.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd); cd "$HERE"
@@ -16,7 +19,7 @@ BT="build/bash-$(. config/versions.sh; echo "$BASH_SRC_VERSION")"
 [[ -d $BT ]] || { echo 'sol-index-sanitize: build tree missing; run ./build.sh first'; exit 1; }
 target=$(realpath "${1:-out/bash}")
 d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
-mkdir -p "$d/helpers/builtins" "$d/helpers/examples/loadables" "$d/objects" "$d/maps" "$d/live"
+mkdir -p "$d/helpers/builtins" "$d/helpers/examples/loadables" "$d/objects" "$d/maps"
 python3 config/stage-helpers.py --stage "$HERE" "$d/helpers" index git obj >/dev/null
 flags=(-O1 -g -fPIC -fno-omit-frame-pointer -fsanitize=address,undefined
        -fno-sanitize-recover=all -DHAVE_CONFIG_H
@@ -45,11 +48,12 @@ printf '%s\n' "$asan" > "$d/asan-path"
 } > "$d/load.sh"
 "$CC" -O2 -Wall -Wextra -Werror -fPIC -shared tests/sol-index-faults.c -ldl -o "$d/faults.so"
 
+"$CC" -O2 -Wall -Wextra -Werror -fno-pie -c tests/sol-index-map-recorder.c -o "$d/map-recorder.o"
 if [[ -n ${SOL_INDEX_ASAN_BASH:-} ]]; then
   asan_bash=$(realpath "$SOL_INDEX_ASAN_BASH")
 else
   env CFLAGS="-O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -fno-pie" \
-    LDFLAGS_EXTRA="-fsanitize=address,undefined -no-pie" \
+    LDFLAGS_EXTRA="-fsanitize=address,undefined -no-pie $d/map-recorder.o" \
     ./build.sh --include git,obj,index,pack,cat,chmod,cp,ln,mkdir,mv,rm,rmdir,sed,sleep,wc,head,cut,sort,tr,ls,grep,cksum,tail,seq,od,cmp,touch,env \
     --name indexcheck-asan --no-strip
   asan_bash=$(realpath out/bash-indexcheck-asan)
@@ -61,6 +65,11 @@ readelf -d "$asan_bash" | grep NEEDED
 # grep -m1: that closes the pipe early, and pipefail then looks like a miss.
 nm -D "$asan_bash" > "$d/nm-dynamic.txt"
 grep -m1 '__asan_' "$d/nm-dynamic.txt" || { echo 'sol-index-sanitize: indexcheck binary is not linked with ASan'; exit 1; }
+grep -q -a 'bash-os index sanitizer map recorder v1' "$asan_bash" \
+  || { echo 'sol-index-sanitize: indexcheck binary lacks tests/sol-index-map-recorder.c'; exit 1; }
+records="$asan_bash.maps"
+[[ ! -e $records ]] || { echo "sol-index-sanitize: $records exists; is another run using this binary?"; exit 1; }
+trap 'rm -rf "$d" "$records"' EXIT
 echo "asan-options detect_leaks=0"
 
 export ASAN_OPTIONS=detect_leaks=0:abort_on_error=1
@@ -82,44 +91,39 @@ require_so_maps() {
   grep -F "$d/index.so" "$found"
 }
 
+# Each process of $asan_bash wrote PID-N.cmdline and PID-N.maps into
+# $records at start-up (tests/sol-index-map-recorder.c). Every recorded
+# process must have mapped libasan, and at least one must have run.
 start_watch() {
-  local label=$1 bin=$2
-  rm -f "$d/live/$label.done" "$d/live/$label.hit"
-  (
-    while [[ ! -f $d/live/$label.done ]]; do
-      cmd= pid= exe=
-      for cmd in /proc/[0-9]*/cmdline; do
-        [[ -r $cmd ]] || continue
-        pid=${cmd#/proc/}; pid=${pid%/cmdline}
-        exe=
-        # The task may exit between the directory scan and this read.
-        { IFS= read -r -d '' exe <"$cmd"; } 2>/dev/null || continue
-        [[ $exe == "$bin" ]] || continue
-        if maps=$(grep libasan "/proc/$pid/maps" 2>/dev/null); then
-          printf 'pid=%s\n%s\n' "$pid" "$maps" > "$d/live/$label.hit"
-        fi
-      done
-    done
-  ) &
-  echo $! > "$d/live/$label.watcher"
+  rm -rf "$records"
+  mkdir -m 700 "$records"
 }
 stop_watch() {
-  local label=$1
-  touch "$d/live/$label.done"
-  wait "$(cat "$d/live/$label.watcher")" || true
-  [[ -s $d/live/$label.hit ]] || { echo "sol-index-sanitize: $label did not map libasan while index ran" >&2; exit 1; }
-  echo "asan-map $label"
-  cat "$d/live/$label.hit"
+  local label=$1 want=$2 count=0 ran=0 cmd maps argv
+  for cmd in "$records"/*.cmdline; do
+    [[ -e $cmd ]] || continue
+    maps=${cmd%.cmdline}.maps
+    argv=$(tr '\0' ' ' <"$cmd")
+    grep -q libasan "$maps" 2>/dev/null \
+      || { echo "sol-index-sanitize: $label: process ${cmd##*/} ($argv) did not map libasan" >&2; exit 1; }
+    count=$((count+1))
+    [[ -z $want || $argv == *"$want"* ]] && ran=$((ran+1))
+  done
+  (( count > 0 )) || { echo "sol-index-sanitize: $label recorded no process of $asan_bash" >&2; exit 1; }
+  (( ran > 0 )) || { echo "sol-index-sanitize: $label recorded no process running '$want'" >&2; exit 1; }
+  echo "asan-map $label: $count of $count recorded processes mapped libasan${want:+ ($ran ran $want)}"
+  grep -m1 libasan "$maps"
+  rm -rf "$records"
 }
 run_watched() {
-  local label=$1 bin=$2
+  local label=$1 want=$2
   shift 2
-  start_watch "$label" "$bin"
+  start_watch
   set +e
   "$@"
   local rc=$?
   set -e
-  stop_watch "$label"
+  stop_watch "$label" "$want"
   return "$rc"
 }
 
@@ -161,12 +165,12 @@ if report['failed']:
 PY
 
 for case in v1-over-refusal v2-mismatch v3-split-literal v3-untr; do
-  run_watched "parity-$case" "$asan_bash" \
+  run_watched "parity-$case" index \
     python3 tests/sol-index-parity.py --binary "$asan_bash" --case "$case"
 done
-run_watched index-cache "$asan_bash" python3 tests/index-cache.py "$asan_bash"
-run_watched git-integrity "$asan_bash" python3 tests/git-integrity.py "$asan_bash"
-run_watched git-parity "$asan_bash" python3 tests/git-parity.py "$asan_bash"
+run_watched index-cache '' python3 tests/index-cache.py "$asan_bash"
+run_watched git-integrity '' python3 tests/git-integrity.py "$asan_bash"
+run_watched git-parity '' python3 tests/git-parity.py "$asan_bash"
 python3 tests/sol-index-bench-check.py
 echo 'bench-check does not start index; no ASan map applies'
 echo 'sol-index-sanitize: passed'

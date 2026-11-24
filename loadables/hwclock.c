@@ -35,6 +35,7 @@
 #include <linux/rtc.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 #define BHC_RTC_PATH "/dev/rtc0"
 #define BHC_ADJTIME_PATH "/etc/adjtime"
@@ -559,7 +560,8 @@ bhc_help (void)
   puts ("Local conversions reject DST gaps; repeated DST hours follow libc mktime.");
   puts ("Short forms (util-linux): -r show, -s hctosys, -w systohc, -a adjust,");
   puts ("  -u utc, -l localtime, -f PATH rtc, -V version.");
-  puts ("--adjfile PATH selects an alternate adjtime file; --noadjfile disables it.");
+  puts ("--adjfile PATH selects an alternate adjtime file; --noadjfile disables it");
+  puts ("  and then needs --utc or --localtime. Conflicting options fail (util-linux).");
   puts ("--hctosys/--systohc need CAP_SYS_TIME.");
   return bhc_output_status ();
 }
@@ -572,6 +574,7 @@ hwclock_builtin (WORD_LIST *list)
   enum bhc_time_mode time_mode = BHC_UTC;
   int time_mode_seen = 0;
   int use_adjtime = 1;
+  int adjfile_seen = 0, operand_seen = 0;
   const char *rtc_path = BHC_RTC_PATH;
   const char *adj_path = BHC_ADJTIME_PATH;
   struct bhc_adjtime adj;
@@ -579,7 +582,32 @@ hwclock_builtin (WORD_LIST *list)
   clearerr (stdout);
   for (; list; list = list->next)
     {
-      const char *arg = list->word->word;
+      /* A cluster such as -ul or -fPATH is taken one option at a time, as
+         getopt does; each letter stands for its long spelling below. */
+      const char *word = list->word->word;
+      const char *cluster = word[0] == '-' && word[1] && word[1] != '-' && word[2] ? word + 1 : NULL;
+      do {
+      const char *arg = word;
+      if (cluster)
+        {
+          static const char shorts[] = "hVulfrswa";
+          static const char *const longs[] = { "--help", "--version", "--utc", "--localtime",
+                                               "--rtc", "--show", "--hctosys", "--systohc", "--adjust" };
+          const char *at = strchr (shorts, *cluster);
+          if (at == NULL)
+            {
+              bos_shim_bad_option ("-", (unsigned char) *cluster, "hwclock");
+              return EXECUTION_FAILURE;
+            }
+          arg = longs[at - shorts];
+          if (*cluster == 'f' && cluster[1])
+            {
+              rtc_path = cluster + 1;
+              cluster = NULL;
+              continue;
+            }
+          cluster++;
+        }
       if (strcmp (arg, "--help") == 0 || strcmp (arg, "-h") == 0)
         return bhc_help ();
       if (strcmp (arg, "--version") == 0 || strcmp (arg, "-V") == 0)
@@ -589,30 +617,27 @@ hwclock_builtin (WORD_LIST *list)
           list = list->next;
           if (list == 0)
             {
-              builtin_error ("--adjfile: option requires an argument");
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_missing_arg (arg, 0, "hwclock");
+              return EXECUTION_FAILURE;
             }
-          adj_path = list->word->word;
-          if (*adj_path == '\0')
-            { builtin_error ("--adjfile: empty path"); return EX_USAGE; }
-          use_adjtime = 1;
+          if (use_adjtime == 0)
+            goto adjfile_conflict;
+          adj_path = list->word->word;      /* "" is a missing file, as in util-linux */
+          adjfile_seen = 1;
           continue;
         }
       if (strncmp (arg, "--adjfile=", 10) == 0)
         {
+          if (use_adjtime == 0)
+            goto adjfile_conflict;
           adj_path = arg + 10;
-          if (*adj_path == '\0')
-            {
-              builtin_error ("--adjfile: empty path");
-              builtin_usage ();
-              return EX_USAGE;
-            }
-          use_adjtime = 1;
+          adjfile_seen = 1;
           continue;
         }
       if (strcmp (arg, "--noadjfile") == 0)
         {
+          if (adjfile_seen)
+            goto adjfile_conflict;
           use_adjtime = 0;
           continue;
         }
@@ -637,24 +662,15 @@ hwclock_builtin (WORD_LIST *list)
           list = list->next;
           if (list == 0)
             {
-              builtin_error ("--rtc: option requires an argument");
-              builtin_usage ();
-              return EX_USAGE;
+              bos_shim_missing_arg (cluster ? "-" : arg, 'f', "hwclock");
+              return EXECUTION_FAILURE;
             }
-          rtc_path = list->word->word;
-          if (*rtc_path == '\0')
-            { builtin_error ("--rtc: empty path"); return EX_USAGE; }
+          rtc_path = list->word->word;      /* "" is checked after parsing */
           continue;
         }
       if (strncmp (arg, "--rtc=", 6) == 0)
         {
           rtc_path = arg + 6;
-          if (*rtc_path == '\0')
-            {
-              builtin_error ("--rtc: empty path");
-              builtin_usage ();
-              return EX_USAGE;
-            }
           continue;
         }
 
@@ -668,7 +684,7 @@ hwclock_builtin (WORD_LIST *list)
         }
       if (strcmp (arg, "--hctosys") == 0 || strcmp (arg, "-s") == 0)
         {
-          if (action_seen)
+          if (action_seen && action != BHC_HCTOSYS)
             goto multiple_actions;
           action = BHC_HCTOSYS;
           action_seen = 1;
@@ -676,7 +692,7 @@ hwclock_builtin (WORD_LIST *list)
         }
       if (strcmp (arg, "--systohc") == 0 || strcmp (arg, "-w") == 0)
         {
-          if (action_seen)
+          if (action_seen && action != BHC_SYSTOHC)
             goto multiple_actions;
           action = BHC_SYSTOHC;
           action_seen = 1;
@@ -684,16 +700,45 @@ hwclock_builtin (WORD_LIST *list)
         }
       if (strcmp (arg, "--adjust") == 0 || strcmp (arg, "-a") == 0)
         {
-          if (action_seen)
+          if (action_seen && action != BHC_ADJUST)
             goto multiple_actions;
           action = BHC_ADJUST;
           action_seen = 1;
           continue;
         }
 
-      builtin_error ("unknown option: %s", arg);
-      builtin_usage ();
-      return EX_USAGE;
+      /* An operand is reported after all options, as getopt permutes it
+         to the end; an unknown option is reported in place. util-linux:
+         getopt's wording, the Try line, status 1. */
+      if (arg[0] != '-' || arg[1] == '\0')
+        {
+          operand_seen = 1;
+          continue;
+        }
+      bos_shim_bad_option (arg, (unsigned char) arg[1], "hwclock");
+      return EXECUTION_FAILURE;
+      } while (cluster && *cluster);
+    }
+
+  /* util-linux 2.41's checks after option parsing, in its order, each
+     status 1. The clock is chosen before adjtime is read: an empty --rtc
+     path names no device, so no clock interface is usable. */
+  if (operand_seen)
+    {
+      fflush (stdout);
+      builtin_error ("too many arguments");
+      bos_shim_try_help ("hwclock");
+      return EXECUTION_FAILURE;
+    }
+  if (use_adjtime == 0 && time_mode_seen == 0)
+    {
+      builtin_error ("With --noadjfile, you must specify either --utc or --localtime");
+      return EXECUTION_FAILURE;
+    }
+  if (*rtc_path == '\0')
+    {
+      builtin_error ("Cannot access the Hardware Clock via any known method.");
+      return EXECUTION_FAILURE;
     }
 
   if (use_adjtime)
@@ -714,8 +759,7 @@ hwclock_builtin (WORD_LIST *list)
   if (action == BHC_ADJUST && use_adjtime == 0)
     {
       builtin_error ("--adjust requires an adjtime file");
-      builtin_usage ();
-      return EX_USAGE;
+      return EXECUTION_FAILURE;
     }
 
   switch (action)
@@ -731,15 +775,19 @@ hwclock_builtin (WORD_LIST *list)
     }
   return EXECUTION_FAILURE;
 
+/* util-linux names every option of the exclusive group, in its order. */
 multiple_actions:
-  builtin_error ("choose only one action");
-  builtin_usage ();
-  return EX_USAGE;
+  builtin_error ("mutually exclusive arguments: --adjust --show --hctosys --systohc"
+                 " --get --predict --set --systz");
+  return EXECUTION_FAILURE;
 
 multiple_time_modes:
-  builtin_error ("choose only one time mode");
-  builtin_usage ();
-  return EX_USAGE;
+  builtin_error ("mutually exclusive arguments: --localtime --utc");
+  return EXECUTION_FAILURE;
+
+adjfile_conflict:
+  builtin_error ("mutually exclusive arguments: --adjfile --noadjfile");
+  return EXECUTION_FAILURE;
 }
 
 char *hwclock_doc[] = {
@@ -755,7 +803,8 @@ char *hwclock_doc[] = {
   "--show prints the raw RTC calendar as YYYY-MM-DDTHH:MM:SS (years 1900..9999).",
   "Local conversions reject DST gaps; repeated DST hours follow libc mktime.",
   "Short forms (util-linux): -r/-s/-w/-a actions; -u/-l mode; -f PATH rtc; -V version.",
-  "--adjfile PATH selects an alternate adjtime file; --noadjfile disables it.",
+  "--adjfile PATH selects an alternate adjtime file; --noadjfile disables it",
+  "and then needs --utc or --localtime. Conflicting options fail (util-linux).",
   "Set paths need CAP_SYS_TIME.",
   (char *)0
 };

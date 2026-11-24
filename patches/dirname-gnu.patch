@@ -1,8 +1,10 @@
 --- builtins/dirname.c
 +++ builtins/dirname.c
-@@ -33,68 +33,73 @@
+@@ -33,68 +33,96 @@
  #include "bashgetopt.h"
  
++#include "shim-prog-name.h"
++
 +static void
 +dirname_output (const char *path, int delimiter)
 +{
@@ -29,7 +31,7 @@
 +  WORD_LIST *word;
 +  SHELL_VAR *posix_var = find_variable ("POSIXLY_CORRECT");
 +  int posix = posix_var && exported_p (posix_var);
-+  int delimiter = '\n', options = 1, result = EXECUTION_SUCCESS;
++  int delimiter = '\n', options = 1, result = EXECUTION_SUCCESS, bad = 0;
 +  size_t count, used = 0, i;
 +  char **paths, *arg;
  
@@ -51,7 +53,22 @@
 +        {
 +          if (arg[1] == '-')
 +            {
-+              size_t length = strlen (arg + 2);
++              size_t length = strcspn (arg + 2, "=");
++              const char *name = 0;
++              if (length && length <= 4 && strncmp (arg + 2, "zero", length) == 0)
++                name = "zero";
++              else if (length && length <= 4 && strncmp (arg + 2, "help", length) == 0)
++                name = "help";
++              else if (length && length <= 7 && strncmp (arg + 2, "version", length) == 0)
++                name = "version";
++              if (name && arg[2 + length])
++                {
++                  builtin_error ("option '--%s' doesn't allow an argument", name);
++                  bos_shim_try_help ("dirname");
++                  result = EXECUTION_FAILURE;
++                  goto done;
++                }
++              if (arg[2 + length]) goto invalid;
 +              if (length <= 4 && strncmp (arg + 2, "zero", length) == 0)
 +                delimiter = 0;
 +              else if (length <= 4 && strncmp (arg + 2, "help", length) == 0)
@@ -63,7 +80,7 @@
 +          else
 +            for (i = 1; arg[i]; i++)
 +              {
-+                if (arg[i] != 'z') goto invalid;
++                if (arg[i] != 'z') { bad = (unsigned char) arg[i]; goto invalid; }
 +                delimiter = 0;
 +              }
 +          continue;
@@ -121,24 +138,30 @@
 -  printf ("%s\n", (slen == 0) ? "/" : string);
 -  return (EXECUTION_SUCCESS);
 +  if (used == 0)
-+    { builtin_error ("missing operand"); result = EXECUTION_FAILURE; goto done; }
++    {
++      builtin_error ("missing operand");
++      bos_shim_try_help ("dirname");
++      result = EXECUTION_FAILURE;
++      goto done;
++    }
 +  for (i = 0; i < used; i++) dirname_output (paths[i], delimiter);
 +  goto done;
 +invalid:
-+  builtin_error ("invalid option: %s", arg);
++  /* glibc getopt's wording and the coreutils Try line. */
++  bos_shim_bad_option (arg, bad, "dirname");
 +  result = EXECUTION_FAILURE;
 +done:
 +  free (paths);
 +  return sh_chkwrite (result);
  }
  
-@@ -104,4 +109,5 @@
+@@ -104,4 +132,5 @@
  	"The STRING is converted to the name of the directory containing",	
  	"the filename corresponding to the last pathname component in STRING.",
 +	"Multiple NAME operands are accepted; -z or --zero uses NUL separators.",
  	(char *)NULL
  };
-@@ -114,5 +120,5 @@
+@@ -114,5 +143,5 @@
  	BUILTIN_ENABLED,	/* initial flags for builtin */
  	dirname_doc,		/* array of long documentation strings. */
 -	"dirname string",	/* usage synopsis */

@@ -9,7 +9,8 @@
     "before/after context and max-count with count output",
     "pattern files across multiple input files",
     "PCRE lookahead with only-matching output",
-    "NUL-delimited records, ordinary no-match status, and invalid-pattern error status"
+    "NUL-delimited records, ordinary no-match status, and invalid-pattern error status",
+    "Pass 9 (docker suite AN): pass9-separators-label-usage"
   ],
   "exclusions": [
     "GNU grep parity is representative rather than exhaustive; other locale encodings, recursive traversal, binary-file heuristics, large block boundaries, stdin repositioning, output failures, and PCRE match-limit behavior are not covered.",
@@ -145,6 +146,17 @@
       "requires": [
         "grep"
       ]
+    },
+    {
+      "id": "pass9-separators-label-usage",
+      "kind": "parity",
+      "purpose": "Docker suite grep/grep-group-separator, grep/grep-label and errors/grep: --group-separator=SEP, --no-group-separator, --label naming standard input, and the usage lines after a missing option argument.",
+      "requires": [
+        "grep"
+      ],
+      "script": "e() { printf '$ %s\\n' \"$*\"; \"$@\" </dev/null || echo \"rc=$?\"; }\nseq 1 20 > f\ngrep -A1 --group-separator=XX -e '^2$' -e '^8$' f; echo --\ngrep -A1 --no-group-separator -e '^2$' -e '^8$' f\ngrep -C1 --group-separator '' -e '^5$' -e '^15$' f\nprintf 'x\\ny\\n' | grep -H --label=IN x; printf 'x\\n' | grep -c --label=IN -H x; printf 'x\\n' | grep -l --label IN x\ne grep -e\ne grep --label\ne grep --group-separator\ne grep --max-count\n",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

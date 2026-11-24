@@ -1,5 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 /* GNU-style tar interface to bash-os's ustar/PAX archive engine. */
+#ifndef _GNU_SOURCE
+#  define _GNU_SOURCE 1   /* fopencookie */
+#endif
 #include <config.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -549,6 +552,35 @@ static int tar_set_format(struct bashos_pax_write_context *writer, const char *n
     return 0;
 }
 
+/* -b N (blocks of 512 bytes) or --record-size=BYTES (BYTES_FORM): the
+   archive's record size, as GNU tar checks it. */
+static int tar_set_record(size_t *record, const char *value, int bytes_form)
+{
+    char *end; errno = 0;
+    unsigned long long n = strtoull(value, &end, 10);
+    int ok = *value >= '0' && *value <= '9' && !*end && !errno;
+    if (bytes_form) {
+        if (!ok || n == 0) { builtin_error("%s: Invalid record size", value); fputs(TAR_TRY, stderr); return -1; }
+        if (n % 512) { builtin_error("Record size must be a multiple of 512."); fputs(TAR_TRY, stderr); return -1; }
+        n /= 512;
+    }
+    if (!ok || n == 0 || n > (SIZE_MAX / 512) || n > 0x7fffffffULL / 512) {
+        builtin_error("%s: Invalid blocking factor", value); fputs(TAR_TRY, stderr); return -1;
+    }
+    *record = (size_t) n * 512;
+    return 0;
+}
+
+/* A write-only stream that counts the bytes it passes on. */
+struct tar_count { FILE *out; unsigned long long bytes; };
+static ssize_t tar_count_write(void *cookie, const char *buf, size_t n)
+{
+    struct tar_count *c = cookie;
+    size_t w = fwrite(buf, 1, n, c->out);
+    c->bytes += w;
+    return w == n ? (ssize_t) n : w ? (ssize_t) w : -1;
+}
+
 int tar_builtin(WORD_LIST *list)
 {
     size_t count = 0;
@@ -564,13 +596,17 @@ int tar_builtin(WORD_LIST *list)
     int mode = 0, zip = 0, verbose = 0, end_options = 0, first = 1, no_recurse = 0;
     int saved = -1, rc = 0, zip_warning = 0;
     const char *archive = "-";
-    FILE *stream = NULL, *temporary = NULL;
+    FILE *stream = NULL, *temporary = NULL, *counter = NULL;
     struct bashos_pax_write_context writer = {0};
     struct bashos_pax_read_options read_options = { .tar_mode = 1 };
     /* -1: GNU tar's default, on for root and off for other users. */
     int same_owner = -1, same_permissions = -1, numeric_owner = 0;
     struct tar_newer newer = {0};
     struct tar_incr incr = {0};
+    const char *bad = NULL;
+    char bad_char = 0;
+    size_t record = 10240;       /* GNU tar's default: 20 blocks of 512 bytes */
+    writer.tar_words = 1;
     tar_format_name = NULL;
     for (; list; list = list->next) {
         const char *w = list->word->word, *opts = NULL, *value = NULL;
@@ -579,7 +615,7 @@ int tar_builtin(WORD_LIST *list)
         first = 0;
         if (!end_options && !strcmp(w, "--")) { end_options = 1; continue; }
         if (!end_options && !strcmp(w, "--help")) {
-            puts("Usage: tar -c|-t|-x|-d|--delete [-zvhPSG] [-H FORMAT] [-f ARCHIVE] [-C DIR] [-g SNAPSHOT] [-N DATE] [FILE...]\nCreate, list, extract or compare (-d, --diff) ustar/PAX archives. '-' means stdin/stdout.\n-h follows symbolic links; --format=FORMAT (-H) writes gnu, oldgnu, v7, ustar, posix.\n-O extracts to stdout; --strip-components=N removes leading path components.\n-p preserves permissions; --no-recursion archives only directory entries.\n--same-owner/--no-same-owner restore the archived owner (default for root);\n--numeric-owner uses archived ids rather than names.\n--exclude=PATTERN skips members; --wildcards makes member operands patterns.\n--transform=s/RE/REPL/FLAGS rewrites member names; -P keeps a leading '/'.\n-S stores files with holes as sparse members; --acls stores and restores ACLs.\n--delete removes the named members from ARCHIVE; --to-command=CMD pipes each\nregular member to CMD with GNU's TAR_* variables.\n-g, --listed-incremental=SNAPSHOT makes a level-0 dump when SNAPSHOT does not exist,\nthen dumps what changed since (GNU snapshot format 2); --level=0 forces a full dump.\n-G, --incremental makes a dump with directory contents; -G or -g on -x deletes what\nthe dumped directories no longer held, and -tvv -G lists their contents.\n-N, --newer, --after-date=DATE stores files changed (mtime or ctime) since DATE;\n--newer-mtime=DATE looks at mtime only; a DATE starting with / or . names a file.\n--owner=NAME[:UID], --group=NAME[:GID], --sort=name apply on create."); goto done;
+            puts("Usage: tar -c|-t|-x|-d|--delete [-zvhPSG] [-H FORMAT] [-f ARCHIVE] [-C DIR] [-g SNAPSHOT] [-N DATE] [FILE...]\nCreate, list, extract or compare (-d, --diff) ustar/PAX archives. '-' means stdin/stdout.\n-h follows symbolic links; --format=FORMAT (-H) writes gnu, oldgnu, v7, ustar, posix.\n-O extracts to stdout; --strip-components=N removes leading path components.\n-p preserves permissions; --no-recursion archives only directory entries.\n--same-owner/--no-same-owner restore the archived owner (default for root);\n--numeric-owner uses archived ids rather than names.\n--exclude=PATTERN skips members; --wildcards makes member operands patterns.\n--transform=s/RE/REPL/FLAGS rewrites member names; -P keeps a leading '/'.\n-S stores files with holes as sparse members; --acls stores and restores ACLs.\n--delete removes the named members from ARCHIVE; --to-command=CMD pipes each\nregular member to CMD with GNU's TAR_* variables.\n-g, --listed-incremental=SNAPSHOT makes a level-0 dump when SNAPSHOT does not exist,\nthen dumps what changed since (GNU snapshot format 2); --level=0 forces a full dump.\n-G, --incremental makes a dump with directory contents; -G or -g on -x deletes what\nthe dumped directories no longer held, and -tvv -G lists their contents.\n-N, --newer, --after-date=DATE stores files changed (mtime or ctime) since DATE;\n--newer-mtime=DATE looks at mtime only; a DATE starting with / or . names a file.\n--owner=NAME[:UID], --group=NAME[:GID], --sort=name apply on create.\n-b N, --blocking-factor=N, --record-size=BYTES set the record size (default\n20 blocks of 512 bytes); a created archive fills its last record with zeros."); goto done;
         }
         if (!end_options && !strcmp(w, "--version")) { puts("tar (bash-os) 0.1.1"); goto done; }
         if (!end_options && !strcmp(w, "--create")) opts = "c";
@@ -592,13 +628,13 @@ int tar_builtin(WORD_LIST *list)
         else if (!end_options && (!strcmp(w, "--old-archive") || !strcmp(w, "--portability"))) { writer.format = BASHOS_PAX_FMT_V7; tar_format_name = "v7"; continue; }
         else if (!end_options && (!strcmp(w, "--listed-incremental") || !strncmp(w, "--listed-incremental=", 21))) {
             if (w[20] == '=') value = w + 21;
-            else { if (!(list = list->next)) goto invalid; value = list->word->word; }
+            else { if (!(list = list->next)) { bad = w; goto missing_long; } value = list->word->word; }
             incr.listed = 1; incr.snapshot = value; continue;
         }
         else if (!end_options && !strcmp(w, "--incremental")) { incr.old = 1; continue; }
         else if (!end_options && (!strcmp(w, "--level") || !strncmp(w, "--level=", 8))) {
             if (w[7] == '=') value = w + 8;
-            else { if (!(list = list->next)) goto invalid; value = list->word->word; }
+            else { if (!(list = list->next)) { bad = w; goto missing_long; } value = list->word->word; }
             const char *digits = value + (*value == '-' || *value == '+');
             if (strspn(digits, "0123456789") != strlen(digits)) {
                 builtin_error("Invalid incremental level value"); fputs(TAR_TRY, stderr); rc = 2; goto done;
@@ -610,7 +646,7 @@ int tar_builtin(WORD_LIST *list)
                                   !strcmp(w, "--newer-mtime") || !strncmp(w, "--newer-mtime=", 14))) {
             const char *eq = strchr(w, '=');
             if (eq) value = eq + 1;
-            else { if (!(list = list->next)) goto invalid; value = list->word->word; }
+            else { if (!(list = list->next)) { bad = w; goto missing_long; } value = list->word->word; }
             int mtime_only = !strncmp(w, "--newer-mtime", 13);
             if (tar_newer_date(&newer, mtime_only ? "--newer-mtime" : "--after-date", value, mtime_only) < 0) { rc = 2; goto done; }
             continue;
@@ -619,19 +655,23 @@ int tar_builtin(WORD_LIST *list)
                                   !strcmp(w, "--group") || !strncmp(w, "--group=", 8))) {
             const char *eq = strchr(w, '=');
             if (eq) value = eq + 1;
-            else { if (!(list = list->next)) goto invalid; value = list->word->word; }
+            else { if (!(list = list->next)) { bad = w; goto missing_long; } value = list->word->word; }
             if (tar_set_owner(&writer, value, w[2] == 'g') < 0) { rc = 2; goto done; }
             continue;
         }
         else if (!end_options && !strncmp(w, "--sort=", 7)) {
             if (!strcmp(w + 7, "name")) writer.sort_names = 1;
             else if (!strcmp(w + 7, "none") || !strcmp(w + 7, "inode")) writer.sort_names = 0;
-            else goto invalid;
+            else {
+                builtin_error("invalid argument '%s' for '--sort'", w + 7);
+                fputs("Valid arguments are:\n  - 'none'\n  - 'name'\n  - 'inode'\n", stderr);
+                rc = 2; goto done;
+            }
             continue;
         }
         else if (!end_options && (!strcmp(w, "--format") || !strncmp(w, "--format=", 9))) {
             if (w[8] == '=') value = w + 9;
-            else { if (!(list = list->next)) goto invalid; value = list->word->word; }
+            else { if (!(list = list->next)) { bad = w; goto missing_long; } value = list->word->word; }
             if (tar_set_format(&writer, value) < 0) { rc = 2; goto done; }
             continue;
         }
@@ -646,7 +686,7 @@ int tar_builtin(WORD_LIST *list)
         else if (!end_options && !strcmp(w, "--no-recursion")) { no_recurse = 1; continue; }
         else if (!end_options && (!strcmp(w, "--to-command") || !strncmp(w, "--to-command=", 13))) {
             if (w[12] == '=') value = w + 13;
-            else { if (!(list = list->next)) goto invalid; value = list->word->word; }
+            else { if (!(list = list->next)) { bad = w; goto missing_long; } value = list->word->word; }
             read_options.to_command = value; continue;
         }
         else if (!end_options && !strcmp(w, "--wildcards")) { read_options.wildcards = 1; continue; }
@@ -656,25 +696,25 @@ int tar_builtin(WORD_LIST *list)
         else if (!end_options && !strcmp(w, "--acls")) { read_options.acls = writer.acls = 1; continue; }
         else if (!end_options && !strcmp(w, "--no-acls")) { read_options.acls = writer.acls = 0; continue; }
         else if (!end_options && !strcmp(w, "--delete")) {
-            if (mode && mode != 'D') goto invalid;
+            if (mode && mode != 'D') goto conflict;
             mode = 'D'; continue;
         }
         else if (!end_options && (!strcmp(w, "--exclude") || !strncmp(w, "--exclude=", 10))) {
             if (w[9] == '=') value = w + 10;
-            else { if (!(list = list->next)) goto invalid; value = list->word->word; }
+            else { if (!(list = list->next)) { bad = w; goto missing_long; } value = list->word->word; }
             excludes[exclude_count++] = value; continue;
         }
         else if (!end_options && (!strcmp(w, "--transform") || !strcmp(w, "--xform") ||
                                   !strncmp(w, "--transform=", 12) || !strncmp(w, "--xform=", 8))) {
             const char *eq = strchr(w, '=');
             if (eq) value = eq + 1;
-            else { if (!(list = list->next)) goto invalid; value = list->word->word; }
+            else { if (!(list = list->next)) { bad = w; goto missing_long; } value = list->word->word; }
             if (bashos_pax_xform_add(&xforms, value) < 0) { rc = 2; goto done; }
             continue;
         }
         else if (!end_options && (!strcmp(w, "--mtime") || !strncmp(w, "--mtime=", 8))) {
             if (w[7] == '=') value = w + 8;
-            else { if (!(list = list->next)) goto invalid; value = list->word->word; }
+            else { if (!(list = list->next)) { bad = w; goto missing_long; } value = list->word->word; }
             if (*value != '@' || bashos_pax_set_mtime(&writer, value + 1) < 0) goto invalid;
             continue;
         }
@@ -685,18 +725,45 @@ int tar_builtin(WORD_LIST *list)
         else if (!end_options && (!strcmp(w, "--strip-components") || !strncmp(w, "--strip-components=", 19))) {
             value = w + 18;
             if (*value == '=') value++;
-            else { if (!(list = list->next)) goto invalid; value = list->word->word; }
+            else { if (!(list = list->next)) { bad = w; goto missing_long; } value = list->word->word; }
             char *end; errno = 0;
             unsigned long n = strtoul(value, &end, 10);
-            if (!*value || *value == '-' || *end || errno || n > UINT_MAX) goto invalid;
+            if (!*value || *value == '-' || *end || errno || n > UINT_MAX) {
+                builtin_error("%s: Invalid number of elements", value); fputs(TAR_TRY, stderr); rc = 2; goto done;
+            }
             read_options.strip = (unsigned)n; continue;
+        }
+        else if (!end_options && (!strcmp(w, "--blocking-factor") || !strncmp(w, "--blocking-factor=", 18) ||
+                                  !strcmp(w, "--record-size") || !strncmp(w, "--record-size=", 14))) {
+            const char *eq = strchr(w, '=');
+            if (eq) value = eq + 1;
+            else { if (!(list = list->next)) { bad = w; goto missing_long; } value = list->word->word; }
+            if (tar_set_record(&record, value, w[2] == 'r') < 0) { rc = 2; goto done; }
+            continue;
+        }
+        else if (!end_options && w[0] == '-' && w[1] == '-') {
+            /* A known option given an argument it does not take. */
+            const char *eq = strchr(w, '=');
+            static const char *const plain[] = {
+                "--create", "--extract", "--get", "--list", "--diff", "--compare", "--dereference",
+                "--posix", "--old-archive", "--portability", "--incremental", "--gzip", "--gunzip",
+                "--verbose", "--to-stdout", "--same-permissions", "--preserve-permissions",
+                "--no-same-permissions", "--same-owner", "--no-same-owner", "--numeric-owner",
+                "--no-recursion", "--wildcards", "--no-wildcards", "--absolute-names", "--sparse",
+                "--acls", "--no-acls", "--delete", "--help", "--version", NULL };
+            for (int i = 0; eq && plain[i]; i++)
+                if (strlen(plain[i]) == (size_t)(eq - w) && !strncmp(plain[i], w, (size_t)(eq - w))) {
+                    builtin_error("option '%.*s' doesn't allow an argument", (int)(eq - w), w);
+                    fputs(TAR_TRY, stderr); rc = 64; goto done;
+                }
+            bad = w; goto unknown_long;
         }
         else if (!end_options && w[0] == '-' && w[1]) opts = w + 1;
         else if (!end_options && old_style) opts = w;
         if (opts) {
             for (; *opts; opts++) {
                 if (*opts == 'c' || *opts == 't' || *opts == 'x' || *opts == 'd') {
-                    if (mode && mode != *opts) goto invalid;
+                    if (mode && mode != *opts) goto conflict;
                     mode = *opts;
                 } else if (*opts == 'z') zip = 1;
                 else if (*opts == 'v') verbose++;
@@ -706,22 +773,37 @@ int tar_builtin(WORD_LIST *list)
                 else if (*opts == 'P') absolute_names = 1;
                 else if (*opts == 'S') writer.sparse = 1;
                 else if (*opts == 'h') writer.dereference = read_options.dereference = 1;
-                else if (*opts == 'f' || *opts == 'C' || *opts == 'H' || *opts == 'g' || *opts == 'N') {
+                else if (*opts == 'f' || *opts == 'C' || *opts == 'H' || *opts == 'g' || *opts == 'N' || *opts == 'b') {
                     char option = *opts;
                     if (!old_style && opts[1]) { value = opts + 1; opts += strlen(opts) - 1; }
-                    else { if (!(list = list->next)) goto invalid; value = list->word->word; }
+                    else if (!(list = list->next)) {
+                        if (old_style) {
+                            builtin_error("Old option '%c' requires an argument.", option);
+                            fputs(TAR_TRY, stderr); rc = 2; goto done;
+                        }
+                        bad = w; bad_char = option; goto missing_short;
+                    } else value = list->word->word;
                     if (option == 'f') archive = value;
+                    else if (option == 'b') { if (tar_set_record(&record, value, 0) < 0) { rc = 2; goto done; } }
                     else if (option == 'g') { incr.listed = 1; incr.snapshot = value; }
                     else if (option == 'N') { if (tar_newer_date(&newer, "--after-date", value, 0) < 0) { rc = 2; goto done; } }
                     else if (option == 'H') { if (tar_set_format(&writer, value) < 0) { rc = 2; goto done; } }
                     else args[used++] = (struct tar_arg){value, 1};
-                } else goto invalid;
+                } else { bad = w; bad_char = *opts; goto invalid_short; }
             }
         } else if (value_option == 'f') archive = value;
         else if (value_option == 'C') args[used++] = (struct tar_arg){value, 1};
         else { args[used++] = (struct tar_arg){w, 0}; members[member_count++] = w; }
     }
-    if (!mode || (mode == 'c' && !member_count) || (writer.override_mtime && mode != 'c')) goto invalid;
+    if (!mode) {
+        builtin_error("You must specify one of the '-Acdtrux', '--delete' or '--test-label' options");
+        fputs(TAR_TRY, stderr); rc = 2; goto done;
+    }
+    if (mode == 'c' && !member_count) {
+        builtin_error("Cowardly refusing to create an empty archive");
+        fputs(TAR_TRY, stderr); rc = 2; goto done;
+    }
+    if (writer.override_mtime && mode != 'c') goto invalid;
     /* -g, -G and -N as GNU tar checks them. */
     if (incr.listed && newer.set) {
         builtin_error("'--listed-incremental' cannot be used with '--newer'"); fputs(TAR_TRY, stderr); rc = 2; goto done;
@@ -760,7 +842,6 @@ int tar_builtin(WORD_LIST *list)
     writer.strip_slash = !absolute_names;
     read_options.same_owner = same_owner < 0 ? geteuid() == 0 : same_owner;
     read_options.preserve = same_permissions < 0 ? geteuid() == 0 : same_permissions;
-    if (mode == 'c' && (read_options.to_stdout || read_options.strip)) goto invalid;
     saved = open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if (saved < 0) { builtin_error("save working directory: %s", strerror(errno)); rc = 2; goto done; }
     /* Open the archive before -C affects member paths. */
@@ -809,6 +890,16 @@ int tar_builtin(WORD_LIST *list)
         if (drc) { if (drc == 1) builtin_error("Exiting with failure status due to previous errors"); rc = 2; }
         goto done;
     }
+    struct tar_count tally = { stream, 0 };
+    int counted = 0;
+    if (mode == 'c' && !zip) {
+        /* Count what goes to an archive that may not be seekable (a pipe),
+           to fill its last record. */
+        cookie_io_functions_t io = { NULL, tar_count_write, NULL, NULL };
+        FILE *wrapped = fopencookie(&tally, "wb", io);
+        if (!wrapped) { builtin_error("archive: %s", strerror(errno)); rc = 2; goto done; }
+        payload = counter = wrapped; counted = 1;
+    }
     if (mode == 'c') {
         writer.no_recurse = no_recurse;
         writer.verbose_out = verbose ? (!strcmp(archive, "-") ? stderr : stdout) : NULL;
@@ -839,7 +930,17 @@ int tar_builtin(WORD_LIST *list)
         }
         if (member_failed) builtin_error("Exiting with failure status due to previous errors");
         unsigned char zero[1024] = {0};
-        if (fwrite(zero, 1, sizeof zero, payload) != sizeof zero || fflush(payload)) rc = 2;
+        if (fwrite(zero, 1, sizeof zero, payload) != sizeof zero) rc = 2;
+        /* GNU tar writes whole records: zero-fill the last one. */
+        if (fflush(payload)) rc = 2;
+        off_t written = counted ? (off_t) tally.bytes : ftello(payload);
+        if (written >= 0) {
+            size_t pad = (record - (size_t) (written % (off_t) record)) % record;
+            char *fill = pad ? calloc(1, pad) : NULL;
+            if (pad && (!fill || fwrite(fill, 1, pad, payload) != pad)) rc = 2;
+            free(fill);
+        }
+        if (fflush(payload)) rc = 2;
         if (!rc && zip) {
             if (fseek(payload, 0, SEEK_SET) || bgz_encode(fileno(payload), fileno(stream), 6, NULL, 0)) rc = 2;
         }
@@ -862,11 +963,25 @@ int tar_builtin(WORD_LIST *list)
     goto done;
 invalid:
     builtin_error("unsupported option, missing argument, or conflicting operation; try tar --help"); rc = 2;
+    goto done;
+conflict:
+    builtin_error("You may not specify more than one '-Acdtrux', '--delete' or  '--test-label' option");
+    fputs(TAR_TRY, stderr); rc = 2; goto done;
+unknown_long:
+    builtin_error("unrecognized option '%s'", bad); fputs(TAR_TRY, stderr); rc = 64; goto done;
+invalid_short:
+    builtin_error("invalid option -- '%c'", bad_char); fputs(TAR_TRY, stderr); rc = 64; goto done;
+missing_short:
+    if (bad[0] == '-' && bad[1] == '-') { bad_char = 0; goto missing_long; }
+    builtin_error("option requires an argument -- '%c'", bad_char); fputs(TAR_TRY, stderr); rc = 64; goto done;
+missing_long:
+    builtin_error("option '%.*s' requires an argument", (int)strcspn(bad, "="), bad); fputs(TAR_TRY, stderr); rc = 64;
 done:
     tar_incr_free(&incr);
     bashos_pax_write_clear(&writer);
     bashos_pax_xform_free(&xforms);
     free(excludes);
+    if (counter && fclose(counter)) rc = 2;
     if (temporary && fclose(temporary)) rc = 2;
     if (stream && fclose(stream)) rc = 2;
     if (saved >= 0) {
@@ -904,7 +1019,10 @@ char *tar_doc[] = {
     "deletes files the dumped directories no longer held; -tvv -G lists directory contents.",
     "-N/--newer/--after-date=DATE (mtime or ctime), --newer-mtime=DATE: only files changed",
     "since DATE (a DATE starting with '/' or '.' is a file whose mtime is used); on -t/-x,",
-    "only members not older than DATE. --owner, --group, --sort=name apply on create.", NULL
+    "only members not older than DATE. --owner, --group, --sort=name apply on create.",
+    "-b N, --blocking-factor=N or --record-size=BYTES sets the record size (default 20",
+    "blocks, 10240 bytes); as in GNU tar a created archive fills its last record with zeros.",
+    "Option errors use GNU tar's wording; getopt errors exit 64, others 2.", NULL
 };
 struct builtin tar_struct = {
     "tar", tar_builtin, BUILTIN_ENABLED, tar_doc, "tar -c|-t|-x|-d|--delete [-zvhPSG] [-H FORMAT] [-f ARCHIVE] [-C DIR] [-g SNAPSHOT] [-N DATE] [FILE...]", 0

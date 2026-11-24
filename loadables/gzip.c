@@ -12,6 +12,7 @@
 #include <time.h>
 #include "loadables.h"
 #include "gzip-stream.h"
+#include "gnu-longopt.h"
 
 /* name: -1 default (save name/time when compressing, use the file's own
    name and time when decompressing), 0 for -n, 1 for -N. */
@@ -110,6 +111,21 @@ static int gzip_one(const char *file, const struct gzip_options *o, struct gzip_
 {
     int from_stdin = !strcmp(file, "-");
     struct stat dirst;
+    /* As GNU gzip, a missing NAME to decompress also means NAME.gz; a
+       failure names NAME.gz. */
+    if (!from_stdin && !o->list && (o->decode || o->test) && lstat(file, &dirst) < 0 && errno == ENOENT) {
+        size_t len = strlen(file), slen = strlen(o->suffix);
+        int has = (len > slen && !strcmp(file + len - slen, o->suffix))
+                  || (!strcmp(o->suffix, ".gz") && len > 4 && !strcmp(file + len - 4, ".tgz"));
+        if (!has) {
+            char *alt = malloc(len + slen + 1);
+            if (!alt) { builtin_error("out of memory"); return 1; }
+            sprintf(alt, "%s%s", file, o->suffix);
+            int r = gzip_one(alt, o, ls, in_tree);
+            free(alt);
+            return r;
+        }
+    }
     if (!from_stdin && (o->force ? stat(file, &dirst) : lstat(file, &dirst)) == 0 && S_ISDIR(dirst.st_mode)) {
         if (o->recursive) return gzip_tree(file, o, ls);
         if (!o->quiet) builtin_error("%s is a directory -- ignored", file);
@@ -399,55 +415,56 @@ int gzip_builtin(WORD_LIST *list)
     const char **files = calloc(count + 1, sizeof *files);
     if (!files) { builtin_error("out of memory"); return 1; }
     size_t used = 0;
-    int end_options = 0, rc = 0;
-    for (; list; list = list->next) {
-        const char *w = list->word->word, *opts = NULL;
-        if (!end_options && !strcmp(w, "--")) { end_options = 1; continue; }
-        if (!end_options && !strcmp(w, "--help")) {
-            puts("Usage: gzip [-cdfklnNqrtv1-9] [-S SUFFIX] [--rsyncable] [FILE...]\nCompress files to .gz, or filter stdin. -d decompresses, -c writes stdout,\n-k keeps input, -f overwrites, -t checks integrity, -n omits name/time,\n-N restores the stored name/time, -l lists sizes, -r recurses, -v reports ratios.\n--rsyncable makes rsync-friendly output."); goto done;
+    int rc = 0, c;
+    enum { GZ_OPT_RSYNCABLE = BOS_OPT_FIRST };
+    static const struct bos_longopt longopts[] = {
+        { "stdout", BOS_NO_ARG, 'c' }, { "to-stdout", BOS_NO_ARG, 'c' },
+        { "decompress", BOS_NO_ARG, 'd' }, { "uncompress", BOS_NO_ARG, 'd' },
+        { "force", BOS_NO_ARG, 'f' }, { "help", BOS_NO_ARG, BOS_OPT_HELP },
+        { "keep", BOS_NO_ARG, 'k' }, { "list", BOS_NO_ARG, 'l' },
+        { "no-name", BOS_NO_ARG, 'n' }, { "name", BOS_NO_ARG, 'N' },
+        { "quiet", BOS_NO_ARG, 'q' }, { "silent", BOS_NO_ARG, 'q' },
+        { "recursive", BOS_NO_ARG, 'r' }, { "rsyncable", BOS_NO_ARG, GZ_OPT_RSYNCABLE },
+        { "suffix", BOS_REQ_ARG, 'S' }, { "test", BOS_NO_ARG, 't' },
+        { "verbose", BOS_NO_ARG, 'v' }, { "version", BOS_NO_ARG, BOS_OPT_VERSION },
+        { "fast", BOS_NO_ARG, '1' }, { "best", BOS_NO_ARG, '9' },
+        { NULL, 0, 0 }
+    };
+    /* GNU gzip's getopt_long: permuted operands, unambiguous prefixes,
+       glibc's diagnostics and gzip's own `gzip --help' hint, status 1. */
+    bos_getopt g;
+    bos_getopt_init(&g, "gzip", "cdfklnNqrtvS:123456789", longopts, list);
+    g.no_hint = 1;
+    while ((c = bos_getopt_next(&g)) != -1) {
+        switch (c) {
+            case 'c': o.stdout_mode = 1; break;
+            case 'd': o.decode = 1; break;
+            case 'k': o.keep = 1; break;
+            case 'f': o.force = 1; break;
+            case 't': o.test = o.decode = 1; break;
+            case 'n': o.name = 0; break;
+            case 'N': o.name = 1; break;
+            case 'q': o.quiet = 1; o.verbose = 0; break;
+            case 'v': o.verbose = 1; o.quiet = 0; break;
+            case 'l': o.list = o.decode = 1; break;
+            case 'r': o.recursive = 1; break;
+            case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': o.level = c - '0'; break;
+            case 'S': o.suffix = g.optarg; break;
+            case GZ_OPT_RSYNCABLE: o.rsyncable = 1; break;
+            case BOS_OPT_HELP:
+                puts("Usage: gzip [-cdfklnNqrtv1-9] [-S SUFFIX] [--rsyncable] [FILE...]\nCompress files to .gz, or filter stdin. -d decompresses, -c writes stdout,\n-k keeps input, -f overwrites, -t checks integrity, -n omits name/time,\n-N restores the stored name/time, -l lists sizes, -r recurses, -v reports ratios.\n--rsyncable makes rsync-friendly output.");
+                bos_getopt_free(&g); goto done;
+            case BOS_OPT_VERSION:
+                puts("gzip (bash-os) 0.1.1"); bos_getopt_free(&g); goto done;
+            default:
+                fflush(stdout);
+                fputs("Try `gzip --help' for more information.\n", stderr);
+                bos_getopt_free(&g); rc = 1; goto done;
         }
-        if (!end_options && !strcmp(w, "--version")) { puts("gzip (bash-os) 0.1.1"); goto done; }
-        if (!end_options && !strcmp(w, "--decompress")) opts = "d";
-        else if (!end_options && !strcmp(w, "--uncompress")) opts = "d";
-        else if (!end_options && (!strcmp(w, "--stdout") || !strcmp(w, "--to-stdout"))) opts = "c";
-        else if (!end_options && !strcmp(w, "--keep")) opts = "k";
-        else if (!end_options && !strcmp(w, "--force")) opts = "f";
-        else if (!end_options && !strcmp(w, "--test")) opts = "t";
-        else if (!end_options && !strcmp(w, "--no-name")) opts = "n";
-        else if (!end_options && !strcmp(w, "--quiet")) opts = "q";
-        else if (!end_options && !strcmp(w, "--name")) opts = "N";
-        else if (!end_options && !strcmp(w, "--list")) opts = "l";
-        else if (!end_options && !strcmp(w, "--recursive")) opts = "r";
-        else if (!end_options && !strcmp(w, "--verbose")) opts = "v";
-        else if (!end_options && !strcmp(w, "--fast")) opts = "1";
-        else if (!end_options && !strcmp(w, "--best")) opts = "9";
-        else if (!end_options && !strncmp(w, "--suffix=", 9)) { o.suffix = w + 9; continue; }
-        else if (!end_options && !strcmp(w, "--rsyncable")) { o.rsyncable = 1; continue; }
-        else if (!end_options && !strcmp(w, "--suffix")) opts = "S";
-        else if (!end_options && w[0] == '-' && w[1]) opts = w + 1;
-        if (opts) {
-            for (; *opts; opts++) switch (*opts) {
-                case 'c': o.stdout_mode = 1; break;
-                case 'd': o.decode = 1; break;
-                case 'k': o.keep = 1; break;
-                case 'f': o.force = 1; break;
-                case 't': o.test = o.decode = 1; break;
-                case 'n': o.name = 0; break;
-                case 'N': o.name = 1; break;
-                case 'q': o.quiet = 1; o.verbose = 0; break;
-                case 'v': o.verbose = 1; o.quiet = 0; break;
-                case 'l': o.list = o.decode = 1; break;
-                case 'r': o.recursive = 1; break;
-                case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': o.level = *opts - '0'; break;
-                case 'S':
-                    if (opts[1]) { o.suffix = opts + 1; opts += strlen(opts) - 1; }
-                    else { if (!(list = list->next)) goto invalid; o.suffix = list->word->word; }
-                    break;
-                default: goto invalid;
-            }
-        } else files[used++] = w;
     }
-    if (!*o.suffix || strchr(o.suffix, '/')) goto invalid;
+    for (int i = 0; i < g.noperands; i++) files[used++] = g.operands[i];
+    bos_getopt_free(&g);
+    if (!*o.suffix) { builtin_error("invalid suffix ''"); rc = 1; goto done; }
     if (!used) files[used++] = "-";
     for (size_t i = 0; i < used; i++) {
         int result = gzip_one(files[i], &o, &ls, 0);
@@ -459,9 +476,6 @@ int gzip_builtin(WORD_LIST *list)
         gzip_ratio(stdout, ls.total_out - (ls.total_in - ls.header_bytes), ls.total_out);
         puts(" (totals)");
     }
-    goto done;
-invalid:
-    builtin_error("unsupported option or invalid argument; try gzip --help"); rc = 1;
 done:
     free(files);
     if (fflush(stdout) || ferror(stdout)) { clearerr(stdout); rc = 1; }

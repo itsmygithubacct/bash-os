@@ -17,7 +17,8 @@
     "Grouping option precedence and bounded command-size failures",
     "Ordinary child error folding and parallel fatal-child cleanup",
     "G65: -a/--arg-file, -E/-e/--eof, -o/--open-tty and --process-slot-var.",
-    "Guest pass 7 G112/G113: --show-limits and exit status 1 for usage errors."
+    "Guest pass 7 G112/G113: --show-limits and exit status 1 for usage errors.",
+    "Pass 9 (docker suite AN): pass9-options-and-sizes"
   ],
   "exclusions": [
     "Interactive -p prompting is deferred because the runner does not provide a controlling PTY.",
@@ -809,6 +810,17 @@
       "script": "for o in '-n x' '-n 0' '-L 0' '-s 0x' '-P x' -n; do rc=0; xargs $o echo hit </dev/null 2>/dev/null || rc=$?; echo \"$o rc=$rc\"; done\nrc=0; echo a | xargs -s 5 echo 2>/dev/null || rc=$?; echo too-long rc=$rc",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass9-options-and-sizes",
+      "kind": "parity",
+      "purpose": "Docker suite find/xargs-exit-x, find/xargs-quotes-status and errors/xargs: getopt option errors, findutils' 'invalid number' and 'should be >=' checks, -x, the size limit checks, the GNU unmatched-quote wording, clustered short options, and the -l/-i/--replace/--max-args forms.",
+      "requires": [
+        "xargs"
+      ],
+      "script": "e() { printf '$ %s\\n' \"$*\"; \"$@\" </dev/null || echo \"rc=$?\"; }\ne xargs -n\ne xargs -n x\ne xargs -n 0\ne xargs -P x\ne xargs -P -1\ne xargs -s 0\ne xargs -s 1\ne xargs -L 0\ne xargs -l0\ne xargs -d ab\ne xargs --max-args\ne xargs --version=1\ne xargs --bogus\ne xargs -@\nprintf '1 2 3 4\\n' | xargs -n 3 -x echo || echo \"rc=$?\"\nprintf 'aaaa bbbb\\n' | xargs -x -s 8 echo || echo \"rc=$?\"\nprintf 'a b c\\n' | xargs -x -n 3 -s 9 echo || echo \"rc=$?\"\nprintf 'a b c\\n' | xargs -x -s 9 echo || echo \"rc=$?\"\nprintf 'aaaa\\n' | xargs -I{} -s 9 echo {} || echo \"rc=$?\"\nprintf 'a\\n' | xargs -s 5 echo || echo \"rc=$?\"\nxargs -s 5 echo </dev/null || echo \"rc=$?\"\nxargs -s 4 echo </dev/null || echo \"rc=$?\"\nxargs -s 4 cat </dev/null || echo \"rc=$?\"\nprintf \"a 'b\\n\" | xargs echo || echo \"rc=$?\"\nprintf 'a \"b\\n' | xargs echo || echo \"rc=$?\"\nprintf 'a\\nb\\nc\\n' | xargs -l echo\nprintf 'a\\nb\\n' | xargs -i echo '[{}]'\nprintf 'a\\nb\\n' | xargs --replace=@ echo '<@>'\nprintf 'a b c\\n' | xargs -rt --max-args=2 echo 2>&1\n",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

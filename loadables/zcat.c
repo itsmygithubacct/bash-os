@@ -17,13 +17,45 @@
 #  include <unistd.h>
 #endif
 
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <zlib.h>
 
 #include "loadables.h"
-#include "shim-prog-name.h"
+#include "gnu-longopt.h"
+
+/* GNU zcat is `gzip -cd`, so its diagnostics name gzip. Like gzip, a
+   problem with the compressed data starts on a new line (BLANK). */
+static void
+bz_error (int blank, const char *fmt, ...)
+{
+    va_list ap;
+    fflush (stdout);
+    if (blank)
+        fputc ('\n', stderr);
+    fputs ("gzip: ", stderr);
+    va_start (ap, fmt);
+    vfprintf (stderr, fmt, ap);
+    va_end (ap);
+    fputc ('\n', stderr);
+}
+
+/* gzip's wording for an inflate failure. */
+static const char *
+bz_inflate_error (const z_stream *s, int ret)
+{
+    if (ret == Z_DATA_ERROR && s->msg && !strcmp (s->msg, "incorrect data check"))
+        return "invalid compressed data--crc error";
+    if (ret == Z_DATA_ERROR && s->msg && !strcmp (s->msg, "incorrect length check"))
+        return "invalid compressed data--length error";
+    if (ret == Z_DATA_ERROR)
+        return "invalid compressed data--format violated";
+    return s->msg ? s->msg : zError (ret);
+}
 
 /* BZ_WARNING: every member decoded, then trailing garbage was ignored
  * (gzip -cd exits 2 for it). */
@@ -72,12 +104,12 @@ bz_passthrough (int fd, const char *name, const unsigned char *head, size_t len)
     for (;;) {
         ssize_t n = read (fd, buf, sizeof buf);
         if (n < 0 && errno == EINTR) continue;
-        if (n < 0) { builtin_error ("%s: %s", name, strerror (errno)); return BZ_FATAL_ERROR; }
+        if (n < 0) { bz_error (0, "%s: %s", name, strerror (errno)); return BZ_FATAL_ERROR; }
         if (n == 0) return BZ_OK;
         if (bz_write_all (buf, (size_t) n) < 0) goto write_error;
     }
 write_error:
-    builtin_error ("write: %s", strerror (errno));
+    bz_error (0, "write: %s", strerror (errno));
     return BZ_FATAL_ERROR;
 }
 
@@ -93,7 +125,7 @@ bz_pump (int fd, const char *name, int force, int quiet)
     /* Accept gzip only, without zlib autodetection or transparent copying. */
     int ret = inflateInit2 (&s, MAX_WBITS + 16);
     if (ret != Z_OK) {
-        builtin_error ("%s: %s", name, zError (ret));
+        bz_error (0, "%s: %s", name, zError (ret));
         return BZ_FATAL_ERROR;
     }
 
@@ -130,12 +162,12 @@ bz_pump (int fd, const char *name, int force, int quiet)
             }
             if (s.avail_in < 2) {
                 if (seen_member && s.avail_in == 0) result = BZ_OK;
-                else builtin_error ("%s: unexpected end of file", name);
+                else bz_error (1, "%s: unexpected end of file", name);
                 break;
             }
             if (s.next_in[0] != 0x1f || s.next_in[1] != 0x8b) {
                 if (!seen_member) {
-                    builtin_error ("%s: not in gzip format", name);
+                    bz_error (1, "%s: not in gzip format", name);
                     result = BZ_INPUT_ERROR;
                     break;
                 }
@@ -144,7 +176,7 @@ bz_pump (int fd, const char *name, int force, int quiet)
                  * ignored", exit status 2. Consume the rest so another
                  * '-' starts at the same stdin EOF. */
                 if (!quiet)
-                    builtin_error ("%s: decompression OK, trailing garbage ignored", name);
+                    bz_error (1, "%s: decompression OK, trailing garbage ignored", name);
                 while (!eof) {
                     s.avail_in = 0;
                     ssize_t n = bz_read_more (fd, &s, inbuf, sizeof inbuf);
@@ -158,7 +190,7 @@ bz_pump (int fd, const char *name, int force, int quiet)
                 /* inflateReset retains next_in and avail_in. */
                 ret = inflateReset (&s);
                 if (ret != Z_OK) {
-                    builtin_error ("%s: %s", name, zError (ret));
+                    bz_error (0, "%s: %s", name, zError (ret));
                     break;
                 }
             }
@@ -179,7 +211,7 @@ bz_pump (int fd, const char *name, int force, int quiet)
         /* Even Z_DATA_ERROR can accompany decoded bytes. Write those bytes
          * before diagnosing a CRC or length failure, just as gzip does. */
         if (bz_write_all (outbuf, produced) < 0) {
-            builtin_error ("write: %s", strerror (errno));
+            bz_error (0, "write: %s", strerror (errno));
             break;
         }
         if (ret == Z_STREAM_END) {
@@ -188,12 +220,12 @@ bz_pump (int fd, const char *name, int force, int quiet)
             continue;
         }
         if (ret != Z_OK && ret != Z_BUF_ERROR) {
-            builtin_error ("%s: %s", name, s.msg ? s.msg : zError (ret));
+            bz_error (1, "%s: %s", name, bz_inflate_error (&s, ret));
             break;
         }
         if (produced == 0 && s.avail_in == available) {
-            builtin_error ("%s: %s", name,
-                           eof ? "unexpected end of file" : "invalid gzip stream");
+            bz_error (1, "%s: %s", name,
+                      eof ? "unexpected end of file" : "invalid compressed data--format violated");
             break;
         }
     }
@@ -203,49 +235,101 @@ done:
     return result;
 
 read_error:
-    builtin_error ("%s: %s", name, strerror (errno));
+    bz_error (0, "%s: %s", name, strerror (errno));
     goto done;
+}
+
+/* gzip -d's suffixes; a missing FILE without one is looked up as FILE.gz
+   (and FILE with -S's suffix), and reported under that name. */
+static int
+bz_has_suffix (const char *path, const char *extra)
+{
+    static const char *const known[] = { ".gz", "-gz", ".z", "-z", "_z", ".Z", ".tgz", ".taz", NULL };
+    size_t n = strlen (path);
+    for (int i = 0; known[i] || extra; i++) {
+        const char *suf = known[i] ? known[i] : extra;
+        size_t k = strlen (suf);
+        if (k && n > k && !strcmp (path + n - k, suf))
+            return 1;
+        if (!known[i])
+            break;
+    }
+    return 0;
+}
+
+static int
+bz_open (const char *path, const char *suffix, char **shown)
+{
+    *shown = NULL;
+    int fd = open (path, O_RDONLY);
+    if (fd >= 0 || errno != ENOENT || bz_has_suffix (path, suffix))
+        return fd;
+    char *alt = malloc (strlen (path) + strlen (suffix) + 1);
+    if (!alt) { errno = ENOENT; return -1; }
+    strcpy (alt, path);
+    strcat (alt, suffix);
+    fd = open (alt, O_RDONLY);
+    int saved = errno;
+    *shown = alt;
+    errno = saved;
+    return fd;
 }
 
 int
 zcat_builtin (WORD_LIST *list)
 {
-    int force = 0, quiet = 0;
+    int force = 0, quiet = 0, c;
+    const char *suffix = ".gz";
+    static const struct bos_longopt longopts[] = {
+        { "force", BOS_NO_ARG, 'f' }, { "quiet", BOS_NO_ARG, 'q' }, { "silent", BOS_NO_ARG, 'q' },
+        { "stdout", BOS_NO_ARG, 'c' }, { "to-stdout", BOS_NO_ARG, 'c' },
+        { "decompress", BOS_NO_ARG, 'd' }, { "uncompress", BOS_NO_ARG, 'd' },
+        { "no-name", BOS_NO_ARG, 'n' }, { "name", BOS_NO_ARG, 'N' },
+        { "suffix", BOS_REQ_ARG, 'S' },
+        { NULL, 0, 0 }
+    };
     /* gzip -cd options: -f passes non-gzip input through, -q silences the
-       trailing-garbage warning; -c, -d, -n and -N change nothing for zcat. */
-    while (list && list->word->word[0] == '-' && list->word->word[1]) {
-        const char *w = list->word->word;
-        if (!strcmp (w, "--")) { list = list->next; break; }
-        if (!strcmp (w, "--force")) force = 1;
-        else if (!strcmp (w, "--quiet")) quiet = 1;
-        else if (strcmp (w, "--stdout") && strcmp (w, "--to-stdout") && strcmp (w, "--decompress") &&
-                 strcmp (w, "--no-name") && strcmp (w, "--name")) {
-            if (w[1] == '-' || w[strspn (w + 1, "fcdnNq") + 1]) {
-                /* gzip's option error (status 1), naming zcat. */
-                bos_shim_bad_option (w, w[1] == '-' ? 0 : w[strspn (w + 1, "fcdnNq") + 1], "zcat");
+       trailing-garbage warning, -S adds a suffix to look up; -c, -d, -n and
+       -N change nothing for zcat. Option errors exit 1, naming zcat. */
+    bos_getopt g;
+    bos_getopt_init (&g, "zcat", "fcdnNqS:", longopts, list);
+    while ((c = bos_getopt_next (&g)) != -1) {
+        switch (c) {
+            case 'f': force = 1; break;
+            case 'q': quiet = 1; break;
+            case 'S': suffix = g.optarg; break;
+            case 'c': case 'd': case 'n': case 'N': break;
+            default:
+                /* As the pass 8 contract: the getopt error names zcat. */
+                bos_getopt_free (&g);
                 return EXECUTION_FAILURE;
-            }
-            if (strchr (w, 'f')) force = 1;
-            if (strchr (w, 'q')) quiet = 1;
         }
-        list = list->next;
     }
-    if (!list) {
+    if (!*suffix) {
+        bz_error (0, "invalid suffix ''");
+        bos_getopt_free (&g);
+        return EXECUTION_FAILURE;
+    }
+    if (g.noperands == 0) {
+        bos_getopt_free (&g);
         enum bz_result result = bz_pump (STDIN_FILENO, "stdin", force, quiet);
         return result == BZ_OK ? EXECUTION_SUCCESS : result == BZ_WARNING ? 2 : EXECUTION_FAILURE;
     }
 
     int rc = EXECUTION_SUCCESS, warned = 0;
-    for (WORD_LIST *p = list; p; p = p->next) {
-        const char *path = p->word->word;
+    for (int i = 0; i < g.noperands; i++) {
+        const char *path = g.operands[i];
+        char *shown = NULL;
         int is_stdin = !strcmp (path, "-");
-        int fd = is_stdin ? STDIN_FILENO : open (path, O_RDONLY);
+        int fd = is_stdin ? STDIN_FILENO : bz_open (path, suffix, &shown);
         if (fd < 0) {
-            builtin_error ("%s: %s", path, strerror (errno));
+            bz_error (0, "%s: %s", shown ? shown : path, strerror (errno));
+            free (shown);
             rc = EXECUTION_FAILURE;
             continue;
         }
-        enum bz_result result = bz_pump (fd, is_stdin ? "stdin" : path, force, quiet);
+        enum bz_result result = bz_pump (fd, is_stdin ? "stdin" : shown ? shown : path, force, quiet);
+        free (shown);
         if (!is_stdin) close (fd);
         if (result == BZ_WARNING) { warned = 1; continue; }
         if (result != BZ_OK) {
@@ -255,6 +339,7 @@ zcat_builtin (WORD_LIST *list)
             if (result == BZ_FATAL_ERROR || is_stdin) break;
         }
     }
+    bos_getopt_free (&g);
     return rc == EXECUTION_SUCCESS && warned ? 2 : rc;
 }
 
@@ -266,7 +351,9 @@ char *zcat_doc[] = {
     "Reads each FILE (or stdin if none given, or `-` in the list) as",
     "gzip-format and writes the decompressed bytes to stdout. With -f",
     "(--force), input that is not gzip is copied unchanged, as gzip -cdf",
-    "does; -c, -d, -n, -N and -q are accepted. Trailing garbage after the last",
+    "does; -c, -d, -n, -N, -q and -S SUFFIX are accepted. A missing FILE without a",
+    "gzip suffix is read as FILE.gz. Diagnostics are gzip's, as GNU zcat runs",
+    "gzip -cd. Trailing garbage after the last",
     "member is ignored with gzip's warning (none with -q) and exit status 2;",
     "zero padding is ignored silently, and -f copies trailing data through. For xz,",
     "zstd, or zlib formats use `zlib -d -f FORMAT` directly.",

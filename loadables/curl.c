@@ -75,8 +75,15 @@
  *     and flag-only short options can be bundled before an argument option
  *     (for example: -fsSLo FILE).
  *
+ *     -i/--include, -e/--referer, --create-dirs, --url, -K/--config FILE,
+ *     --resolve HOST:PORT:ADDR, -4/-6, --noproxy LIST, -z/--time-cond,
+ *     --proto LIST, -n/--netrc, -R/--remote-time, --stderr FILE and
+ *     --trace-ascii FILE (request/response heads and data only) follow
+ *     curl(1); -g, -N, -#, -q, -l, -j, --fail-early and --limit-rate are
+ *     accepted without effect (no globbing, progress meter or shaping).
+ *
  * Deliberately omitted (out of scope, per work-doc):
- *     non-HTTP cookie schemes, --resolve, HTTP/2 framing, SOCKS proxies, OAuth.
+ *     non-HTTP cookie schemes, multiple URLs, HTTP/2 framing, SOCKS proxies, OAuth.
  *
  * Transport layer:
  *     http://  — raw TCP socket via getaddrinfo + connect.
@@ -94,6 +101,7 @@
  * MIT License. Copyright (c) 2026 bash_linux contributors.
  */
 
+#define _GNU_SOURCE 1
 #include <config.h>
 
 #if defined (HAVE_UNISTD_H)
@@ -121,6 +129,7 @@
 #include <sys/select.h>
 #include <sys/wait.h>
 #include <sys/time.h>
+#include <pwd.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -204,6 +213,20 @@ typedef struct {
   const char *forms[BCURL_HEADER_SLOTS]; /* -F/--form specs */
   int         nforms;
   char        proxy_auth[512]; /* base64 user:pass from the proxy URL */
+  int         include;         /* -i/--include: response head before the body */
+  const char *referer;         /* -e/--referer URL */
+  int         create_dirs;     /* --create-dirs */
+  int         remote_time;     /* -R/--remote-time */
+  const char *noproxy;         /* --noproxy LIST */
+  const char *time_cond;       /* -z/--time-cond TIME|FILE */
+  const char *proto;           /* --proto LIST */
+  int         netrc;           /* -n/--netrc */
+  char       *netrc_alloc;     /* user:password found in ~/.netrc */
+  const char *trace_ascii;     /* --trace-ascii FILE */
+  const char *resolve[16];     /* --resolve HOST:PORT:ADDR */
+  int         nresolve;
+  time_t      tc_time;         /* -z time */
+  int         tc_mode;         /* 0 none, 1 If-Modified-Since, 2 If-Unmodified-Since */
 } bc_opts;
 
 typedef struct {
@@ -220,11 +243,40 @@ typedef struct {
   long  missing;               /* Content-Length bytes the peer never sent */
 } bc_response;
 
+static int bc_header_value (const char *hdrs, const char *name, char *out, size_t outsz);
+
 /* Transfer-phase state for one invocation. -s without -S silences the
  * diagnostics curl would also silence; bc_errcode carries curl's exit
  * code (CURLE_*) out of the transport, 0 meaning a plain failure. */
 static int bc_quiet;
 static int bc_errcode;
+static int bc_family = AF_UNSPEC;            /* -4 / -6 */
+static const char *const *bc_resolve_list;   /* --resolve entries */
+static int bc_nresolve;
+static FILE *bc_trace;                       /* --trace-ascii output */
+
+/* --trace-ascii: one curl-style block, "%04x: " offsets and printable text. */
+static void
+bc_trace_block (const char *what, const char *data, size_t len, int lines)
+{
+  if (!bc_trace) return;
+  fprintf (bc_trace, "%s, %zu bytes (0x%zx)\n", what, len, len);
+  size_t i = 0;
+  while (i < len)
+    {
+      size_t start = i, n = 0;
+      fprintf (bc_trace, "%04zx: ", start);
+      while (i < len && n < 64)
+        {
+          unsigned char c = (unsigned char) data[i];
+          if (c == '\r' && i + 1 < len && data[i + 1] == '\n') { i += 2; break; }
+          if (c == '\n' && lines) { i++; break; }
+          fputc (c >= 0x20 && c < 0x7f ? c : '.', bc_trace);
+          i++; n++;
+        }
+      fputc ('\n', bc_trace);
+    }
+}
 #define bc_error(...) do { if (!bc_quiet) builtin_error (__VA_ARGS__); } while (0)
 
 /* curl(1)-shaped "curl: (N) message" diagnostic, shown unless silenced. */
@@ -991,8 +1043,29 @@ bc_connect_tcp (const char *host, const char *port, int timeout_s)
 {
   struct addrinfo hints, *ai = NULL, *p;
   memset (&hints, 0, sizeof hints);
-  hints.ai_family = AF_UNSPEC;
+  hints.ai_family = bc_family;
   hints.ai_socktype = SOCK_STREAM;
+  /* --resolve HOST:PORT:ADDR supplies the address for that host and port. */
+  const char *lookup = host;
+  char forced[256];
+  for (int i = 0; i < bc_nresolve; i++)
+    {
+      const char *e = bc_resolve_list[i] + (bc_resolve_list[i][0] == '+');
+      const char *c1 = strchr (e, ':'), *c2 = c1 ? strchr (c1 + 1, ':') : NULL;
+      if (!c2) continue;
+      size_t hl = (size_t) (c1 - e), pl = (size_t) (c2 - c1 - 1);
+      if ((hl == 1 && e[0] == '*') || (hl == strlen (host) && !strncasecmp (e, host, hl)))
+        if (pl == strlen (port) && !strncmp (c1 + 1, port, pl))
+          {
+            const char *a = c2 + 1;
+            size_t al = strcspn (a, ",");
+            if (al && a[0] == '[' && a[al - 1] == ']') { a++; al -= 2; }
+            snprintf (forced, sizeof forced, "%.*s", (int) al, a);
+            lookup = forced;
+            hints.ai_flags |= AI_NUMERICHOST;
+            break;
+          }
+    }
   /* Retry getaddrinfo on EAI_AGAIN (a *temporary* resolver failure that means
    * "try again") with a short backoff, mirroring crypto's TLS connect: under
    * QEMU slirp the built-in DNS forwarder is intermittently flaky on some names,
@@ -1002,7 +1075,7 @@ bc_connect_tcp (const char *host, const char *port, int timeout_s)
   for (int attempt = 0; ; attempt++)
     {
       ai = NULL;
-      rc = getaddrinfo (host, port, &hints, &ai);
+      rc = getaddrinfo (lookup, port, &hints, &ai);
       if (rc != EAI_AGAIN || attempt >= 5) break;   /* up to 6 attempts */
       long ms = 200 + attempt * 200; if (ms > 1000) ms = 1000;
       struct timespec ts = { ms / 1000, (ms % 1000) * 1000000L };
@@ -1010,8 +1083,7 @@ bc_connect_tcp (const char *host, const char *port, int timeout_s)
     }
   if (rc != 0)
     {
-      bc_error ("getaddrinfo %s:%s: %s", host, port, gai_strerror (rc));
-      snprintf (bc_wo.errormsg, sizeof bc_wo.errormsg, "Could not resolve host: %s", host);
+      bc_curl_error (6, "Could not resolve host: %s", host);
       bc_errcode = 6;                     /* CURLE_COULDNT_RESOLVE_HOST */
       return -1;
     }
@@ -1056,13 +1128,11 @@ bc_connect_tcp (const char *host, const char *port, int timeout_s)
     }
   if (fd < 0)
     {
-      bc_error ("cannot connect to %s:%s", host, port);
       struct timespec now;
       clock_gettime (CLOCK_MONOTONIC, &now);
-      if (!timed_out)
-        snprintf (bc_wo.errormsg, sizeof bc_wo.errormsg,
-                  "Failed to connect to %s port %s after %.0f ms: Could not connect to server",
-                  host, port, bc_wo_seconds (&now) * 1000.0);
+      bc_curl_error (timed_out ? 28 : 7, "Failed to connect to %s port %s after %.0f ms: %s",
+                     host, port, bc_wo_seconds (&now) * 1000.0,
+                     timed_out ? "Timeout was reached" : "Could not connect to server");
       bc_errcode = timed_out ? 28 : 7;    /* CURLE_OPERATION_TIMEDOUT / CURLE_COULDNT_CONNECT */
     }
   return fd;
@@ -1598,7 +1668,7 @@ bc_parse_response (unsigned char *raw, size_t rawlen, int head_request, bc_respo
     { bc_error ("incomplete informational response"); bc_errcode = 8; return -1; }
   raw = (unsigned char *) final;
   if (rawlen == 0)
-    { bc_error ("empty reply from server"); bc_errcode = 52; return -1; }
+    { bc_curl_error (52, "Empty reply from server"); bc_errcode = 52; return -1; }
   if (rawlen < 12 || memcmp (raw, "HTTP/", 5) != 0)
     { bc_error ("malformed response (no HTTP/ status line)"); bc_errcode = 8; return -1; }
   r->status = atoi ((char *) raw + 9);
@@ -1700,13 +1770,29 @@ bc_emit (bc_opts *o, const bc_url *u, const bc_response *r)
       out = nbuf;
     }
   FILE *fp;
-  /* -I -L writes every hop's head to one output; -C appends. */
-  const char *mode = (o->head && o->head_hops > 0) || (o->resume_set && o->resume_from != 0)
+  /* -I -L (and -i -L) writes every hop's head to one output; -C appends. */
+  const char *mode = ((o->head || o->include) && o->head_hops > 0) || (o->resume_set && o->resume_from != 0)
                      ? "ab" : "wb";
   if (!out || strcmp (out, "-") == 0)
     fp = stdout;
   else
     {
+      /* --create-dirs: the missing directories, mode 0750 as curl documents. */
+      if (o->create_dirs)
+        {
+          char dir[BCURL_URL_MAX];
+          snprintf (dir, sizeof dir, "%s", out);
+          for (char *sl = strchr (dir + 1, '/'); sl; sl = strchr (sl + 1, '/'))
+            {
+              *sl = '\0';
+              if (mkdir (dir, 0750) < 0 && errno != EEXIST)
+                {
+                  bc_curl_error (23, "Failed to create the file %s: %s", out, strerror (errno));
+                  return -1;
+                }
+              *sl = '/';
+            }
+        }
       fp = fopen (out, mode);
       if (!fp)
         { bc_error ("%s: %s", out, strerror (errno)); return -1; }
@@ -1722,10 +1808,36 @@ bc_emit (bc_opts *o, const bc_url *u, const bc_response *r)
   else
     {
       want = r->blen;
-      w = fwrite (r->body, 1, r->blen, fp);
+      w = 0;
+      if (o->include)
+        {
+          want += r->informational_len + r->hlen + 2;
+          w = r->informational_len ? fwrite (r->informational, 1, r->informational_len, fp) : 0;
+          w += fwrite (r->headers, 1, r->hlen, fp);
+          w += fwrite ("\r\n", 1, 2, fp);
+        }
+      w += fwrite (r->body, 1, r->blen, fp);
     }
   if (fp != stdout) { if (fclose (fp) == EOF) w = 0; }
   else fflush (fp);
+  /* -R: the output file takes the Last-Modified time. */
+  if (fp != stdout && o->remote_time && r->headers)
+    {
+      char lm[128];
+      struct tm tm;
+      if (bc_header_value (r->headers, "Last-Modified", lm, sizeof lm))
+        {
+          memset (&tm, 0, sizeof tm);
+          const char *e = strptime (lm, "%a, %d %b %Y %H:%M:%S", &tm);
+          if (e)
+            {
+              struct timespec ts[2];
+              ts[0].tv_sec = ts[1].tv_sec = timegm (&tm);
+              ts[0].tv_nsec = ts[1].tv_nsec = 0;
+              utimensat (AT_FDCWD, out, ts, 0);
+            }
+        }
+    }
   return (w == want) ? 0 : -1;
 }
 
@@ -2235,6 +2347,13 @@ bc_one_request (const bc_opts *o, const char *url_override, bc_response *out_res
 
   int timeout = o->max_time > 0 ? o->max_time : BCURL_DEFAULT_TIMEOUT;
   int connect_timeout = o->connect_time > 0 ? o->connect_time : timeout;
+  if (bc_trace)
+    {
+      const char *end = strstr (req, "\r\n\r\n");
+      size_t hl = end ? (size_t) (end - req) + 4 : reqlen;
+      bc_trace_block ("=> Send header", req, hl, 1);
+      if (reqlen > hl) bc_trace_block ("=> Send data", req + hl, reqlen - hl, 0);
+    }
   size_t raw_len = 0;
   unsigned char *raw = NULL;
   if (o->verbose)
@@ -2290,6 +2409,21 @@ bc_one_request (const bc_opts *o, const char *url_override, bc_response *out_res
   free (raw);
   if (rc == 0)
     bc_wo.header_bytes += (long) (out_resp->informational_len + out_resp->hlen + 2);
+  if (rc == 0 && bc_trace)
+    {
+      const char *h = out_resp->headers, *hend = h + out_resp->hlen;
+      while (h < hend)
+        {
+          const char *eol = memchr (h, '\n', (size_t) (hend - h));
+          size_t n = eol ? (size_t) (eol - h) + 1 : (size_t) (hend - h);
+          bc_trace_block ("<= Recv header", h, n, 1);
+          h += n;
+        }
+      bc_trace_block ("<= Recv header", "\r\n", 2, 1);
+      if (out_resp->blen)
+        bc_trace_block ("<= Recv data", (const char *) out_resp->body, out_resp->blen, 0);
+      fflush (bc_trace);
+    }
   if (rc == 0 && o->verbose)
     {
       if (out_resp->informational_len)
@@ -2404,6 +2538,122 @@ bc_resolve_redirect (const char *cur, const char *loc, char *out, size_t cap)
          >= (int) cap ? -1 : 0;
 }
 
+/* -z/--time-cond: a file's modification time, or a date curl_getdate(3)
+   reads (the common RFC 1123, RFC 850, asctime and ISO forms, UTC). */
+static int
+bc_parse_time_cond (const char *arg, time_t *out)
+{
+  struct stat st;
+  if (stat (arg, &st) == 0) { *out = st.st_mtime; return 0; }
+  static const char *const fmts[] = {
+    "%a, %d %b %Y %H:%M:%S", "%A, %d-%b-%y %H:%M:%S", "%a %b %d %H:%M:%S %Y",
+    "%d %b %Y %H:%M:%S", "%d %b %Y", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%d", "%Y%m%d %H:%M:%S", "%Y%m%d", NULL
+  };
+  for (int i = 0; fmts[i]; i++)
+    {
+      struct tm tm;
+      memset (&tm, 0, sizeof tm);
+      const char *e = strptime (arg, fmts[i], &tm);
+      if (!e) continue;
+      while (*e == ' ') e++;
+      if (*e && strcasecmp (e, "GMT") && strcasecmp (e, "UTC") && strcmp (e, "Z")) continue;
+      *out = timegm (&tm);
+      return 0;
+    }
+  return -1;
+}
+
+/* -n/--netrc: LOGIN:PASSWORD for HOST (or the default entry) from ~/.netrc. */
+static char *
+bc_netrc_lookup (const char *host)
+{
+  const char *home = getenv ("HOME");
+  char path[4096];
+  if (!home || !*home)
+    {
+      struct passwd *pw = getpwuid (getuid ());
+      home = pw ? pw->pw_dir : NULL;
+    }
+  if (!home) return NULL;
+  snprintf (path, sizeof path, "%s/.netrc", home);
+  FILE *f = fopen (path, "r");
+  if (!f) return NULL;
+  char tok[512], login[512] = "", pass[512] = "";
+  int state = 0;   /* 0 looking, 1 in the matching entry, 2 in another */
+  int found = 0;
+  while (fscanf (f, "%511s", tok) == 1)
+    {
+      if (!strcmp (tok, "machine") || !strcmp (tok, "default"))
+        {
+          if (state == 1) { found = 1; break; }
+          if (!strcmp (tok, "default")) state = 1;
+          else if (fscanf (f, "%511s", tok) == 1)
+            state = strcasecmp (tok, host) == 0 ? 1 : 2;
+        }
+      else if (state == 1 && !strcmp (tok, "login"))
+        { if (fscanf (f, "%511s", login) != 1) break; }
+      else if (state == 1 && !strcmp (tok, "password"))
+        { if (fscanf (f, "%511s", pass) != 1) break; }
+    }
+  if (state == 1) found = 1;
+  fclose (f);
+  if (!found || !login[0]) return NULL;
+  size_t n = strlen (login) + strlen (pass) + 2;
+  char *up = malloc (n);
+  if (up) snprintf (up, n, "%s:%s", login, pass);
+  return up;
+}
+
+/* --proto LIST: [+|-|=]PROTOCOL,... applied in order to "all". Returns
+   whether SCHEME stays enabled. */
+static int
+bc_proto_allowed (const char *list, const char *scheme)
+{
+  static const char *const known[] = { "http", "https", "file", "ftp", "ftps", "scp", "sftp",
+                                       "telnet", "ldap", "ldaps", "dict", "tftp", "gopher",
+                                       "gophers", "imap", "imaps", "pop3", "pop3s", "smtp",
+                                       "smtps", "rtsp", "smb", "smbs", "mqtt", "ws", "wss", NULL };
+  int on = 1;     /* the scheme's state; everything starts enabled */
+  char buf[512];
+  snprintf (buf, sizeof buf, "%s", list);
+  for (char *save = NULL, *t = strtok_r (buf, ",", &save); t; t = strtok_r (NULL, ",", &save))
+    {
+      char mod = '+';
+      while (*t == ' ') t++;
+      if (*t == '+' || *t == '-' || *t == '=') mod = *t++;
+      int all = !strcasecmp (t, "all"), match = all || !strcasecmp (t, scheme), valid = all;
+      for (int i = 0; !valid && known[i]; i++) valid = !strcasecmp (t, known[i]);
+      if (!valid)
+        {
+          if (!bc_quiet) fprintf (stderr, "Warning: unrecognized protocol '%s'\n", t);
+          continue;
+        }
+      if (mod == '=') on = match;
+      else if (match) on = mod == '+';
+    }
+  return on;
+}
+
+/* --noproxy LIST: "*" or host names (a leading dot optional) that match the
+   host or one of its parent domains. */
+static int
+bc_noproxy_match (const char *list, const char *host)
+{
+  char buf[1024];
+  snprintf (buf, sizeof buf, "%s", list);
+  size_t hl = strlen (host);
+  for (char *save = NULL, *t = strtok_r (buf, ", ", &save); t; t = strtok_r (NULL, ", ", &save))
+    {
+      if (!strcmp (t, "*")) return 1;
+      if (*t == '.') t++;
+      size_t tl = strlen (t);
+      if (tl == hl && !strcasecmp (t, host)) return 1;
+      if (tl < hl && host[hl - tl - 1] == '.' && !strcasecmp (host + hl - tl, t)) return 1;
+    }
+  return 0;
+}
+
 /* ---- main builtin entrypoint ---- */
 static void
 bc_usage (void)
@@ -2449,13 +2699,22 @@ bc_long_eq (const char *w, const char *name)
   return strncmp (w, name, n) == 0 && w[n] == '=' ? w + n + 1 : NULL;
 }
 
+/* curl's command-line diagnostics: "curl: option X: WHY" and the hint. */
+static void
+bc_option_error (const char *opt, const char *why)
+{
+  fflush (stdout);
+  fprintf (stderr, "curl: option %s: %s\n"
+           "curl: try 'curl --help' or 'curl --manual' for more information\n", opt, why);
+}
+
 static int
 bc_next_arg (WORD_LIST **pp, const char *opt, const char **out)
 {
   WORD_LIST *p = *pp;
   if (!p->next)
     {
-      builtin_error ("option requires an argument: %s", opt);
+      bc_option_error (opt, "requires parameter");
       return EX_USAGE;
     }
   p = p->next;
@@ -2929,16 +3188,32 @@ bc_apply_short_options (bc_opts *o, const char *w, WORD_LIST **pp)
           if (!arg && bc_next_arg (pp, "-m", &arg) != EXECUTION_SUCCESS) return EX_USAGE;
           o->max_time = atoi (arg);
           return EXECUTION_SUCCESS;
+        case 'i': o->include = 1; break;
+        case 'R': o->remote_time = 1; break;
+        case 'g': case 'N': case '#': case 'q': case 'l': case 'j': break;
+        case '4': bc_family = AF_INET; break;
+        case '6': bc_family = AF_INET6; break;
+        case 'n': o->netrc = 1; break;
+        case 'e':
+          arg = p[1] ? p + 1 : NULL;
+          if (!arg && bc_next_arg (pp, "-e", &arg) != EXECUTION_SUCCESS) return EX_USAGE;
+          o->referer = arg;
+          return EXECUTION_SUCCESS;
+        case 'z':
+          arg = p[1] ? p + 1 : NULL;
+          if (!arg && bc_next_arg (pp, "-z", &arg) != EXECUTION_SUCCESS) return EX_USAGE;
+          o->time_cond = arg;
+          return EXECUTION_SUCCESS;
         default:
-          builtin_error ("unknown option: -%c", *p);
+          bc_option_error (w, "is unknown");
           return EX_USAGE;
         }
     }
   return EXECUTION_SUCCESS;
 }
 
-int
-curl_builtin (WORD_LIST *list)
+static int
+bc_main (WORD_LIST *list)
 {
   bc_opts o; memset (&o, 0, sizeof o);
   o.method = "GET";
@@ -2947,7 +3222,7 @@ curl_builtin (WORD_LIST *list)
   memset (&bc_wo, 0, sizeof bc_wo);
   clock_gettime (CLOCK_MONOTONIC, &bc_wo.start);
   /* Parse-time exits (errors, --help, --version) release what -d read. */
-#define BC_PARSE_FAIL(rc) do { free (o.cookie_alloc); free (o.body_alloc); free (o.content_type_alloc); return (rc); } while (0)
+#define BC_PARSE_FAIL(rc) do { free (o.cookie_alloc); free (o.body_alloc); free (o.content_type_alloc); free (o.netrc_alloc); return (rc); } while (0)
 
   for (WORD_LIST *p = list; p; p = p->next)
     {
@@ -3067,6 +3342,55 @@ curl_builtin (WORD_LIST *list)
           else if (!strncmp (opt, "--retry-max-time", 16)) ;   /* accepted; each try keeps -m */
           else o.retries = (int) n;
         }
+      else if (!strcmp (w, "--include"))               o.include = 1;
+      else if (!strcmp (w, "--create-dirs"))           o.create_dirs = 1;
+      else if (!strcmp (w, "--remote-time"))           o.remote_time = 1;
+      else if (!strcmp (w, "--ipv4"))                  bc_family = AF_INET;
+      else if (!strcmp (w, "--ipv6"))                  bc_family = AF_INET6;
+      else if (!strcmp (w, "--netrc"))                 o.netrc = 1;
+      /* Accepted; this curl has no globbing, progress meter, FTP listing,
+         rate shaping or session cookie store for them to change. */
+      else if (!strcmp (w, "--globoff") || !strcmp (w, "--no-buffer") || !strcmp (w, "--progress-bar")
+               || !strcmp (w, "--disable") || !strcmp (w, "--list-only")
+               || !strcmp (w, "--junk-session-cookies") || !strcmp (w, "--fail-early")) ;
+      else if (!strcmp (w, "--referer") || (v = bc_long_eq (w, "--referer")))
+        { if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.referer = v; }
+      else if (!strcmp (w, "--url") || (v = bc_long_eq (w, "--url")))
+        {
+          if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE);
+          if (o.url) { builtin_error ("extra URL: %s", v); BC_PARSE_FAIL (EX_USAGE); }
+          o.url = v;
+        }
+      else if (!strcmp (w, "--resolve") || (v = bc_long_eq (w, "--resolve")))
+        {
+          if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE);
+          if (o.nresolve < 16) o.resolve[o.nresolve++] = v;
+        }
+      else if (!strcmp (w, "--noproxy") || (v = bc_long_eq (w, "--noproxy")))
+        { if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.noproxy = v; }
+      else if (!strcmp (w, "--time-cond") || (v = bc_long_eq (w, "--time-cond")))
+        { if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.time_cond = v; }
+      else if (!strcmp (w, "--proto") || (v = bc_long_eq (w, "--proto")))
+        { if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.proto = v; }
+      else if (!strcmp (w, "--trace-ascii") || (v = bc_long_eq (w, "--trace-ascii")))
+        { if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.trace_ascii = v; }
+      else if (!strcmp (w, "--stderr") || (v = bc_long_eq (w, "--stderr")))
+        { if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); }   /* applied by curl_builtin */
+      else if (!strcmp (w, "--limit-rate") || (v = bc_long_eq (w, "--limit-rate")))
+        {
+          if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE);
+          /* SPEED[k|m|g|t] bytes per second; accepted, not enforced. */
+          char *end;
+          errno = 0;
+          double sp = strtod (v, &end);
+          if (end == v || errno || sp < 0 || (*end && (strchr ("kKmMgGtT", *end) == NULL || end[1])))
+            {
+              fflush (stdout);
+              fprintf (stderr, "curl: option --limit-rate: is badly used here\n"
+                       "curl: try 'curl --help' or 'curl --manual' for more information\n");
+              BC_PARSE_FAIL (EX_USAGE);
+            }
+        }
       else if (!strcmp (w, "--version") || !strcmp (w, "-V")) { bc_version (); BC_PARSE_FAIL (EXECUTION_SUCCESS); }
       else if (!strcmp (w, "-h") || !strcmp (w, "--help"))       { bc_usage (); BC_PARSE_FAIL (EXECUTION_SUCCESS); }
       else if (w[0] == '-' && w[1] != '-' && w[1] != '\0')
@@ -3075,7 +3399,7 @@ curl_builtin (WORD_LIST *list)
           if (brc != EXECUTION_SUCCESS) BC_PARSE_FAIL (brc);
         }
       else if (w[0] == '-' && w[1] != '\0')
-        { builtin_error ("unknown option: %s", w); BC_PARSE_FAIL (EX_USAGE); }
+        { bc_option_error (w, "is unknown"); BC_PARSE_FAIL (EX_USAGE); }
       else
         {
           if (o.url) { builtin_error ("extra URL: %s", w); BC_PARSE_FAIL (EX_USAGE); }
@@ -3126,6 +3450,78 @@ curl_builtin (WORD_LIST *list)
    * we just gate the call. */
   int show_errs = (!o.silent) || o.show_error;
   bc_quiet = !show_errs;
+
+  /* --resolve entries are checked before any transfer. */
+  for (int i = 0; i < o.nresolve; i++)
+    {
+      const char *e = o.resolve[i];
+      const char *c1 = strchr (e, ':'), *c2 = c1 ? strchr (c1 + 1, ':') : NULL;
+      int removal = e[0] == '-';
+      if (!c1 || c1 == e || (!removal && (!c2 || !c2[1] || c2 == c1 + 1)))
+        { bc_curl_error (49, "Couldn't parse CURLOPT_RESOLVE entry '%s'", e); BC_PARSE_FAIL (49); }
+    }
+  bc_resolve_list = o.resolve;
+  bc_nresolve = o.nresolve;
+  {
+    bc_url pu;
+    const char *sep = strstr (o.url, "://");
+    char scheme[16];
+    if (sep && (size_t) (sep - o.url) < sizeof scheme)
+      snprintf (scheme, sizeof scheme, "%.*s", (int) (sep - o.url), o.url);
+    else
+      snprintf (scheme, sizeof scheme, "http");
+    for (char *c = scheme; *c; c++) *c = (char) tolower ((unsigned char) *c);
+    if (o.proto && !bc_proto_allowed (o.proto, scheme))
+      { bc_curl_error (1, "Protocol \"%s\" disabled", scheme); BC_PARSE_FAIL (1); }
+    int have_pu = bc_parse_url (o.url, &pu) == 0;
+    if (o.noproxy && have_pu && bc_noproxy_match (o.noproxy, pu.host))
+      o.proxy = NULL;
+    if (o.netrc && !o.userpass && have_pu && (o.netrc_alloc = bc_netrc_lookup (pu.host)))
+      o.userpass = o.netrc_alloc;
+  }
+  static char bc_referer_hdr[BCURL_URL_MAX + 16], bc_tc_hdr[96];
+  if (o.referer && !bc_user_header (&o, "Referer"))
+    {
+      /* ";auto" (Referer on redirects) is not kept apart; the URL part is sent. */
+      size_t rl = strcspn (o.referer, ";");
+      if (rl)
+        {
+          snprintf (bc_referer_hdr, sizeof bc_referer_hdr, "Referer: %.*s", (int) rl, o.referer);
+          int hrc = bc_add_header_opt (&o, bc_referer_hdr);
+          if (hrc != EXECUTION_SUCCESS) BC_PARSE_FAIL (hrc);
+        }
+    }
+  if (o.time_cond)
+    {
+      const char *t = o.time_cond;
+      int mode = 1;
+      if (*t == '-') { mode = 2; t++; }
+      else if (*t == '+' || *t == '=') t++;
+      if (bc_parse_time_cond (t, &o.tc_time) == 0)
+        {
+          o.tc_mode = mode;
+          struct tm tm;
+          gmtime_r (&o.tc_time, &tm);
+          char when[64];
+          strftime (when, sizeof when, "%a, %d %b %Y %H:%M:%S GMT", &tm);
+          const char *name = mode == 2 ? "If-Unmodified-Since" : "If-Modified-Since";
+          if (!bc_user_header (&o, name))
+            {
+              snprintf (bc_tc_hdr, sizeof bc_tc_hdr, "%s: %s", name, when);
+              int hrc = bc_add_header_opt (&o, bc_tc_hdr);
+              if (hrc != EXECUTION_SUCCESS) BC_PARSE_FAIL (hrc);
+            }
+        }
+      else if (!o.silent)
+        fprintf (stderr, "Warning: Illegal date format for -z, --time-cond (and not a file name).\n"
+                 "Warning: Disabling time condition. See curl_getdate(3) for valid date syntax.\n");
+    }
+  if (o.trace_ascii)
+    {
+      bc_trace = strcmp (o.trace_ascii, "-") ? fopen (o.trace_ascii, "w") : stdout;
+      if (!bc_trace)
+        { bc_curl_error (23, "Failed to open %s: %s", o.trace_ascii, strerror (errno)); BC_PARSE_FAIL (23); }
+    }
 
   char cur_url[BCURL_URL_MAX];
   if (snprintf (cur_url, sizeof cur_url, "%s", o.url) >= (int) sizeof cur_url)
@@ -3298,9 +3694,13 @@ curl_builtin (WORD_LIST *list)
               bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc); free (o.content_type_alloc); return EXECUTION_FAILURE; }
           snprintf (cur_url, sizeof cur_url, "%s", next);
           bc_wo.redirects++;
-          if (o.head)
+          if (o.head || o.include)
             {
-              if (bc_emit (&o, have_start_url ? &start_url : &hop_url_dummy, &r) < 0)
+              int was_head = o.head;
+              o.head = 1;
+              int erc = bc_emit (&o, have_start_url ? &start_url : &hop_url_dummy, &r);
+              o.head = was_head;
+              if (erc < 0)
                 { bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc); free (o.content_type_alloc); return 23; }
               o.head_hops++;
             }
@@ -3354,6 +3754,20 @@ curl_builtin (WORD_LIST *list)
         }
     }
 
+  /* -z: a document that fails the time condition is not written. */
+  if (o.tc_mode && r.status == 200 && r.headers && !o.head)
+    {
+      char lm[128];
+      struct tm tm;
+      memset (&tm, 0, sizeof tm);
+      if (bc_header_value (r.headers, "Last-Modified", lm, sizeof lm)
+          && strptime (lm, "%a, %d %b %Y %H:%M:%S", &tm))
+        {
+          time_t mt = timegm (&tm);
+          if (o.tc_mode == 1 ? mt <= o.tc_time : mt > o.tc_time)
+            r.blen = 0;
+        }
+    }
   bc_url eu;
   bc_parse_url (cur_url, &eu);
   if (bc_save_cookie_jar (o.cookie_jar, &eu, r.headers) < 0)
@@ -3399,6 +3813,126 @@ curl_builtin (WORD_LIST *list)
 #undef BC_PARSE_FAIL
 }
 
+/* -K/--config FILE: each line is "OPTION [=|:] VALUE"; long names may drop
+   their dashes, '#' starts a comment, and a double-quoted VALUE takes \\,
+   \", \t, \n, \r and \v escapes. "-" reads standard input. Appends the
+   words to *TAIL; returns -1 when the file cannot be read. */
+static int
+bc_config_words (const char *path, WORD_LIST **head)
+{
+  FILE *f = strcmp (path, "-") ? fopen (path, "r") : stdin;
+  if (!f) return -1;
+  char line[8192];
+  while (fgets (line, sizeof line, f))
+    {
+      char *c = line;
+      while (*c == ' ' || *c == '\t') c++;
+      if (!*c || *c == '#' || *c == '\n' || *c == '\r') continue;
+      char *name = c;
+      while (*c && !strchr (" \t=:\r\n", *c)) c++;
+      char saved = *c;
+      *c = '\0';
+      char opt[512];
+      if (name[0] == '-') snprintf (opt, sizeof opt, "%s", name);
+      else snprintf (opt, sizeof opt, "--%s", name);
+      *head = make_word_list (make_word (opt), *head);
+      *c = saved;
+      while (*c == ' ' || *c == '\t') c++;
+      if (*c == '=' || *c == ':') c++;
+      while (*c == ' ' || *c == '\t') c++;
+      if (!*c || *c == '\n' || *c == '\r') continue;
+      char val[8192];
+      size_t n = 0;
+      if (*c == '"')
+        {
+          for (c++; *c && *c != '"' && n + 1 < sizeof val; c++)
+            {
+              if (*c == '\\' && c[1])
+                {
+                  c++;
+                  val[n++] = *c == 't' ? '\t' : *c == 'n' ? '\n' : *c == 'r' ? '\r'
+                           : *c == 'v' ? '\v' : *c;
+                }
+              else val[n++] = *c;
+            }
+        }
+      else
+        while (*c && !strchr (" \t\r\n", *c) && n + 1 < sizeof val) val[n++] = *c++;
+      val[n] = '\0';
+      *head = make_word_list (make_word (val), *head);
+    }
+  int bad = ferror (f);
+  if (f != stdin) fclose (f);
+  return bad ? -1 : 0;
+}
+
+int
+curl_builtin (WORD_LIST *list)
+{
+  /* Expand -K/--config first, then apply --stderr around the run. */
+  WORD_LIST *rev = NULL;
+  const char *errfile = NULL;
+  int rc;
+  bc_family = AF_UNSPEC;
+  bc_resolve_list = NULL;
+  bc_nresolve = 0;
+  bc_trace = NULL;
+  for (WORD_LIST *p = list; p; p = p->next)
+    {
+      const char *w = p->word->word, *file = NULL;
+      if ((!strcmp (w, "-K") || !strcmp (w, "--config")) && p->next)
+        { p = p->next; file = p->word->word; }
+      else if (!strncmp (w, "--config=", 9)) file = w + 9;
+      else if (w[0] == '-' && w[1] == 'K' && w[2]) file = w + 2;
+      if (file)
+        {
+          if (bc_config_words (file, &rev) < 0)
+            {
+              fflush (stdout);
+              fprintf (stderr, "curl: option %s: error encountered when reading a file\n"
+                       "curl: try 'curl --help' or 'curl --manual' for more information\n",
+                       w[1] == '-' ? "--config" : "-K");
+              if (rev) dispose_words (rev);
+              return 26;
+            }
+          continue;
+        }
+      rev = make_word_list (make_word (w), rev);
+    }
+  WORD_LIST *words = rev ? REVERSE_LIST (rev, WORD_LIST *) : NULL;
+  for (WORD_LIST *p = words; p; p = p->next)
+    {
+      const char *w = p->word->word;
+      if (!strcmp (w, "--stderr") && p->next) errfile = p->next->word->word;
+      else if (!strncmp (w, "--stderr=", 9)) errfile = w + 9;
+    }
+  int saved_err = -1;
+  if (errfile)
+    {
+      int fd = strcmp (errfile, "-") ? open (errfile, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0666)
+                                     : dup (STDOUT_FILENO);
+      if (fd >= 0)
+        {
+          fflush (stderr);
+          saved_err = dup (STDERR_FILENO);
+          dup2 (fd, STDERR_FILENO);
+          close (fd);
+        }
+    }
+  rc = bc_main (words);
+  if (bc_trace && bc_trace != stdout) fclose (bc_trace);
+  else if (bc_trace) fflush (bc_trace);
+  bc_trace = NULL;
+  if (saved_err >= 0)
+    {
+      fflush (stderr);
+      dup2 (saved_err, STDERR_FILENO);
+      close (saved_err);
+    }
+  if (words) dispose_words (words);
+  return rc;
+}
+
 char *curl_doc[] = {
   "curl(1)-shaped HTTP client over http + crypto.",
   "  curl [-fsSLkO] [-X METHOD] [-H HDR]... [-d DATA]",
@@ -3423,7 +3957,10 @@ char *curl_doc[] = {
   "--data-binary (@-/@FILE/literal), Basic auth, -b/--cookie literal or jar input, -c/--cookie-jar output, redirects (default max 20),",
   "chunked + Content-Length decoding, -F multipart, HTTP proxies (CONNECT for https),",
   "gzip/deflate with --compressed, ranges and resume. --http2 talks HTTP/1.1.",
-  "Out of scope: non-HTTP cookie schemes, --resolve, HTTP/2 framing, SOCKS, OAuth.",
+  "Also -i, -e REFERER, --create-dirs, --url URL, -K FILE, --resolve H:P:ADDR, -4/-6,",
+  "--noproxy LIST, -z TIME|FILE, --proto LIST, -n (~/.netrc), -R, --stderr FILE and",
+  "--trace-ascii FILE; -g -N -# -q -l -j --fail-early --limit-rate are accepted.",
+  "Out of scope: non-HTTP cookie schemes, multiple URLs, HTTP/2 framing, SOCKS, OAuth.",
   (char *) NULL
 };
 

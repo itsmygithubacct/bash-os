@@ -46,6 +46,8 @@
 
 #include "loadables.h"
 #include "command-run.h"
+#include "shim-prog-name.h"
+#include "gnu-longopt.h"
 
 /* Parse "30", "30s", "1.5m", "2h" → seconds (double). */
 static int
@@ -268,117 +270,86 @@ timeout_builtin (WORD_LIST *list)
     int foreground = 0;
     int verbose = 0;
 
-    WORD_LIST *p = list;
-    while (p) {
-        const char *w = p->word->word;
-        if (strcmp (w, "--") == 0) { p = p->next; break; }
-        if (strcmp (w, "--help") == 0 || strcmp (w, "-h") == 0) {
+    /* glibc getopt_long in "+" mode, as GNU timeout: options up to the
+       first operand (DURATION), clusters such as -vs9, abbreviations,
+       "--". Option arguments are checked as they are read; then a missing
+       operand gets only the Try line, as GNU's. */
+    static const struct bos_longopt timeout_longopts[] = {
+        { "kill-after", BOS_REQ_ARG, 'k' },
+        { "signal", BOS_REQ_ARG, 's' },
+        { "verbose", BOS_NO_ARG, 'v' },
+        { "foreground", BOS_NO_ARG, BOS_OPT_FIRST },
+        { "preserve-status", BOS_NO_ARG, BOS_OPT_FIRST + 1 },
+        { "help", BOS_NO_ARG, BOS_OPT_HELP },
+        { "version", BOS_NO_ARG, BOS_OPT_VERSION },
+        { NULL, 0, 0 }
+    };
+    const char *prog = bos_shim_prog_name ("timeout");
+    bos_getopt g;
+    int c, nwords = 0;
+    char *quoted;
+
+    bos_getopt_init (&g, prog, "k:s:v", timeout_longopts, list);
+    g.posix = 1;
+    while ((c = bos_getopt_next (&g)) != -1) {
+        switch (c) {
+        case 'k':
+            if (bto_parse_duration (g.optarg, &kill_after) < 0) {
+                quoted = bos_quote (g.optarg);
+                builtin_error ("invalid time interval %s", quoted ? quoted : g.optarg);
+                free (quoted);
+                bos_shim_try_help ("timeout");
+                bos_getopt_free (&g);
+                return 125;
+            }
+            break;
+        case 's':
+            sig = bto_parse_signal (g.optarg);
+            if (sig < 0) {
+                quoted = bos_quote (g.optarg);
+                builtin_error ("%s: invalid signal", quoted ? quoted : g.optarg);
+                free (quoted);
+                bos_shim_try_help ("timeout");
+                bos_getopt_free (&g);
+                return 125;
+            }
+            break;
+        case 'v': verbose = 1; break;
+        case BOS_OPT_FIRST: foreground = 1; break;
+        case BOS_OPT_FIRST + 1: preserve_status = 1; break;
+        case BOS_OPT_HELP: {
             char **d;
+            bos_getopt_free (&g);
             for (d = timeout_doc; *d; d++) puts (*d);
             return EXECUTION_SUCCESS;
         }
-        if (strcmp (w, "--version") == 0) {
+        case BOS_OPT_VERSION:
+            bos_getopt_free (&g);
             puts ("timeout 1.0 (bash-loadable, coreutils-compatible)");
             return EXECUTION_SUCCESS;
+        default:
+            bos_getopt_free (&g);
+            return 125;
         }
-        if (strcmp (w, "--preserve-status") == 0) {
-            preserve_status = 1;
-            p = p->next;
-            continue;
-        }
-        if (strcmp (w, "--foreground") == 0) {
-            foreground = 1;
-            p = p->next;
-            continue;
-        }
-        if (strcmp (w, "--verbose") == 0 || strcmp (w, "-v") == 0) {
-            verbose = 1;
-            p = p->next;
-            continue;
-        }
-	    if (strcmp (w, "-s") == 0) {
-	        if (!p->next) {
-	            builtin_error ("-s needs SIG");
-	            builtin_usage ();
-	            return 125;
-	        }
-	        sig = bto_parse_signal (p->next->word->word);
-	        if (sig < 0) { fprintf (stderr, "timeout: '%s': invalid signal\n", p->next->word->word); return 125; }
-	        p = p->next->next;
-	        continue;
-	    }
-        if (strncmp (w, "--signal=", 9) == 0) {
-            sig = bto_parse_signal (w + 9);
-            if (sig < 0) { fprintf (stderr, "timeout: '%s': invalid signal\n", w + 9); return 125; }
-            p = p->next; continue;
-        }
-        if (strcmp (w, "--signal") == 0) {
-            if (!p->next) {
-                builtin_error ("--signal needs SIG");
-                builtin_usage ();
-                return 125;
-            }
-            sig = bto_parse_signal (p->next->word->word);
-            if (sig < 0) { fprintf (stderr, "timeout: '%s': invalid signal\n", p->next->word->word); return 125; }
-            p = p->next->next;
-            continue;
-        }
-	    if (strcmp (w, "-k") == 0) {
-	        if (!p->next) {
-	            builtin_error ("-k needs DUR");
-	            builtin_usage ();
-	            return 125;
-	        }
-	        if (bto_parse_duration (p->next->word->word, &kill_after) < 0) {
-	            builtin_error ("invalid kill-after duration: %s", p->next->word->word);
-	            return 125;
-	        }
-	        p = p->next->next; continue;
-        }
-        if (strncmp (w, "--kill-after=", 13) == 0) {
-            if (bto_parse_duration (w + 13, &kill_after) < 0) {
-                builtin_error ("invalid kill-after duration: %s", w + 13);
-                return 125;
-            }
-            p = p->next; continue;
-	    }
-        if (strcmp (w, "--kill-after") == 0) {
-            if (!p->next) {
-                builtin_error ("--kill-after needs DUR");
-                builtin_usage ();
-                return 125;
-            }
-            if (bto_parse_duration (p->next->word->word, &kill_after) < 0) {
-                builtin_error ("invalid kill-after duration: %s", p->next->word->word);
-                return 125;
-            }
-            p = p->next->next; continue;
-        }
-	    /* First non-flag is DURATION. */
-	    if (w[0] == '-' && w[1] != '\0') {
-	        builtin_error ("unknown flag: %s", w);
-	        builtin_usage ();
-	        return 125;
-	    }
-	    if (bto_parse_duration (w, &duration) < 0) {
-	        fprintf (stderr, "timeout: invalid time interval '%s'\n", w);
-	        return 125;
-        }
-        cmd_list = p->next;
-        break;
     }
-    /* --foreground: skip setpgid(0,0) in the child so the child stays in
-       the controlling-terminal pgrp and SIGINT/SIGQUIT from the tty reach
-       it (GNU timeout semantics). Default mode still calls setpgid for
-       process-group kill coverage. */
-    /* Handle "--" terminator: remaining words after "--" are duration + cmd. */
-    if (duration < 0 && p && bto_parse_duration (p->word->word, &duration) >= 0) {
-        cmd_list = p->next;
-    }
-    if (duration < 0 || !cmd_list) {
-        builtin_usage ();
+    if (g.noperands < 2) {
+        bos_getopt_free (&g);
+        bos_shim_try_help ("timeout");
         return 125;
     }
+    if (bto_parse_duration (g.operands[0], &duration) < 0) {
+        quoted = bos_quote (g.operands[0]);
+        builtin_error ("invalid time interval %s", quoted ? quoted : g.operands[0]);
+        free (quoted);
+        bos_shim_try_help ("timeout");
+        bos_getopt_free (&g);
+        return 125;
+    }
+    /* In "+" mode the operands are the list's tail: DURATION, CMD, ARGs. */
+    for (WORD_LIST *w = list; w; w = w->next) nwords++;
+    cmd_list = list;
+    for (int skip = nwords - g.noperands + 1; skip > 0; skip--) cmd_list = cmd_list->next;
+    bos_getopt_free (&g);
 
     /* Build argv. */
     int argc = 0;

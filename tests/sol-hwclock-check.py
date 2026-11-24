@@ -58,8 +58,12 @@ class Driver:
         commands = [('fixture','reset'), ('fixture','rtc',*rtc), ('fixture','now',now)]
         if fail: commands.append(('fixture','fail',fail))
         command = ['hwclock', '--rtc', '/fixture/rtc']
-        if noadj: command.append('--noadjfile')
+        # --adjfile and --noadjfile are mutually exclusive, and --noadjfile
+        # needs an explicit mode (util-linux 2.41); UTC is the default mode.
         if adj is not None: command += ['--adjfile', str(adj)]
+        elif noadj:
+            command.append('--noadjfile')
+            if not any(a in ('-u', '-l', '--utc', '--localtime') for a in args): command.append('-u')
         command += args
         commands += [command, ('fixture','stats')]
         if trace: commands += [('fixture','trace')]
@@ -136,13 +140,13 @@ def main():
             def output_failure():
                 script = '''hwclock_fixture reset
 hwclock_fixture rtc 2024 2 29 12 34 56
-hwclock --noadjfile --rtc /fixture/rtc >/dev/full; rc=$?
+hwclock --noadjfile -u --rtc /fixture/rtc >/dev/full; rc=$?
 printf 'FULL=%s\\n' "$rc"
 hwclock --help >/dev/full; rc=$?
 printf 'HELPFULL=%s\\n' "$rc"
 hwclock --version >/dev/full; rc=$?
 printf 'VERSIONFULL=%s\\n' "$rc"
-hwclock --noadjfile --rtc /fixture/rtc; rc=$?
+hwclock --noadjfile -u --rtc /fixture/rtc; rc=$?
 printf 'RECOVER=%s\\n' "$rc"
 '''
                 statuses,out,err=driver.run([],extra=script)
@@ -267,8 +271,9 @@ printf 'RECOVER=%s\\n' "$rc"
                 finally:
                     if new.exists(): new.unlink()
                 original=adj.read_text()
-                rc,out,stats,err=driver.case(['-w','-u','--noadjfile'],adj=adj,now=t)
-                expect(rc,0,out); assert adj.read_text()==original
+                rc,out,stats,err=driver.case(['-w','-u'],now=t)
+                expect(rc,0,out); assert adj.read_text()==original and stats['write']==1,stats
+                assert sorted(p.name for p in d.iterdir())==['adjtime']
             check('systohc-preserves-symlink-owner-creates-private-adjfile-noadj-bypasses-write',adjfile_symlink_and_create)
 
             def drift():
@@ -360,20 +365,88 @@ printf 'RECOVER=%s\\n' "$rc"
                 put('0 0 0\n0\nUTC\n')
                 rc,out,stats,err=driver.case(['--show','--rtc=/fixture/rtc','--adjfile='+str(adj)],noadj=False)
                 expect(rc,0,out,'2024-02-29T12:34:56\n')
-                rc,out,stats,err=driver.case(['--systohc','--utc','--adjfile='+str(adj)],now=1709210096)
+                rc,out,stats,err=driver.case(['--systohc','--utc','--adjfile='+str(adj)],now=1709210096,noadj=False)
                 expect(rc,0,out); assert adj.read_text()=='0.000000 1709210096 0.000000\n1709210096\nUTC\n'
             check('equals-path-options-and-long-actions',equals_options)
-            invalid_args=[['--rtc'],['-f'],['--rtc='],['--rtc',''],['--adjfile'],['--adjfile='],['--adjfile',''],
-                          ['--utc','--localtime'],['-r','-s'],['-a','-w'],['--bogus'],['operand'],['-a','--noadjfile']]
-            for a in invalid_args:
-                def bad_args(a=a):
-                    rc,out,stats,err=driver.case(a); expect(rc,2,out); assert stats['open']==stats['get']==0
+            # Usage errors: util-linux 2.41 hwclock's diagnostic, status 1,
+            # before any RTC or adjtime access. Each argument list follows
+            # '--rtc /fixture/rtc'. TRY marks getopt errors and an operand,
+            # which util-linux follows with its Try line. An empty --rtc path
+            # names no device: util-linux reports that no clock interface is
+            # usable, then suggests --verbose, which this builtin lacks.
+            TRY="Try 'hwclock --help' for more information."
+            NOADJ='With --noadjfile, you must specify either --utc or --localtime'
+            ACTIONS='mutually exclusive arguments: --adjust --show --hctosys --systohc --get --predict --set --systz'
+            MODES='mutually exclusive arguments: --localtime --utc'
+            ADJFILES='mutually exclusive arguments: --adjfile --noadjfile'
+            NOCLOCK='Cannot access the Hardware Clock via any known method.'
+            invalid_args=[
+                (['--noadjfile','--rtc'],["option '--rtc' requires an argument",TRY]),
+                (['--noadjfile','-f'],["option requires an argument -- 'f'",TRY]),
+                (['--noadjfile','--adjfile'],["option '--adjfile' requires an argument",TRY]),
+                (['--noadjfile','--bogus'],["unrecognized option '--bogus'",TRY]),
+                (['-@'],["invalid option -- '@'",TRY]),
+                (['-u@'],["invalid option -- '@'",TRY]),
+                (['--noadjfile','operand'],['too many arguments',TRY]),
+                (['-u','-'],['too many arguments',TRY]),
+                (['--bogus','-r','-s'],["unrecognized option '--bogus'",TRY]),
+                (['-r','-s','--bogus'],[ACTIONS]),
+                (['operand','-r','-s'],[ACTIONS]),
+                (['-u','--rtc='],[NOCLOCK]),
+                (['-u','--rtc',''],[NOCLOCK]),
+                (['-u','-f',''],[NOCLOCK]),
+                (['--noadjfile','--rtc='],[NOADJ]),
+                (['--noadjfile','--adjfile='],[ADJFILES]),
+                (['--noadjfile','--adjfile',''],[ADJFILES]),
+                (['--adjfile=','--noadjfile'],[ADJFILES]),
+                (['--adjfile=/fixture/adjtime','-u','--noadjfile'],[ADJFILES]),
+                (['--utc','--localtime'],[MODES]),
+                (['-l','-u'],[MODES]),
+                (['-ul'],[MODES]),
+                (['-u','-l','-u'],[MODES]),
+                (['-r','-s'],[ACTIONS]),
+                (['-a','-w'],[ACTIONS]),
+                (['--show','--systohc'],[ACTIONS]),
+                (['-rs'],[ACTIONS]),
+                (['-a','--noadjfile'],[NOADJ]),
+                (['--noadjfile','-r'],[NOADJ]),
+                (['--noadjfile'],[NOADJ])]
+            reference=next((p for p in ('/usr/sbin/hwclock','/sbin/hwclock','/usr/bin/hwclock') if Path(p).is_file()),None)
+            def first_message(line):
+                # "hwclock: ", "/usr/sbin/hwclock: " or (standalone) no prefix.
+                head,sep,rest=line.partition(': ')
+                return rest if sep and (head=='hwclock' or head.endswith('/hwclock')) else line
+            for a,want in invalid_args:
+                def bad_args(a=a,want=want):
+                    rc,out,stats,err=driver.case(a,noadj=False)
+                    assert stats['open']==stats['get']==stats['set']==0,stats
+                    expect(rc,1,out,'')
+                    assert [first_message(l) for l in err.splitlines()]==want,(err,want)
+                    if reference:
+                        # The same arguments under util-linux; its RTC path
+                        # does not exist, and every case fails before use.
+                        argv=[x.replace('/fixture/','/nonexistent-hwclock-fixture/') for x in a]
+                        p=subprocess.run([reference,'--rtc','/nonexistent-hwclock-fixture/rtc',*argv],
+                                         stdin=subprocess.DEVNULL,capture_output=True,text=True,
+                                         env=dict(os.environ,LC_ALL='C',TZ='UTC0'))
+                        lines=[first_message(l) for l in p.stderr.splitlines()]
+                        assert (p.returncode,p.stdout,lines[:len(want)])==(1,'',want),(p.returncode,p.stdout,p.stderr)
                 check('invalid-options-'+repr(a),bad_args)
+            def accepted_forms():
+                # util-linux accepts a repeated action or mode, and reads an
+                # empty --adjfile path as a missing file (zero drift, UTC).
+                for a in (['-s','-s','-u','--noadjfile'],['-u','-u','-s','--noadjfile'],['-r','--show','-u','--noadjfile']):
+                    rc,out,stats,err=driver.case(a,noadj=False); expect(rc,0,out); assert err=='',err
+                rc,out,stats,err=driver.case(['--show','--adjfile='],noadj=False)
+                expect(rc,0,out,'2024-02-29T12:34:56\n'); assert err=='',err
+                rc,out,stats,err=driver.case(['-s','--adjfile',''],noadj=False)
+                expect(rc,0,out); assert stats['sys']==epoch((2024,2,29,12,34,56)),stats
+            check('repeated-options-and-empty-adjfile',accepted_forms)
             def repeated():
                 commands=[('fixture','reset'),('fixture','rtc',2024,2,29,12,34,56),('fixture','quiet')]
                 for _ in range(100):
-                    commands += [('hwclock','-r','--noadjfile','-f','/fixture/rtc'),
-                                 ('hwclock','-s','--noadjfile','-f','/fixture/rtc')]
+                    commands += [('hwclock','-r','--noadjfile','-u','-f','/fixture/rtc'),
+                                 ('hwclock','-s','--noadjfile','-u','-f','/fixture/rtc')]
                 commands += [('fixture','stats')]
                 statuses,out,err=driver.run(commands)
                 assert all(s==0 for s in statuses),statuses
@@ -383,15 +456,21 @@ printf 'RECOVER=%s\\n' "$rc"
             def mode_state():
                 put('0 0 0\n0\nLOCAL\n')
                 common=['--rtc','/fixture/rtc']
+                # The third call names no mode: a mode left over from an
+                # earlier call would let it run. It must fail without a set.
                 commands=[('fixture','reset'),('fixture','rtc',2024,7,1,12,0,0),
                           ('hwclock','-s','-u','--noadjfile',*common),('fixture','stats'),
                           ('hwclock','-s','--adjfile',str(adj),*common),('fixture','stats'),
-                          ('hwclock','-s','--noadjfile',*common),('fixture','stats')]
+                          ('hwclock','-s','--noadjfile',*common),('fixture','stats'),
+                          ('hwclock','-s','-u','--noadjfile',*common),('fixture','stats')]
                 statuses,out,err=driver.run(commands,tz='America/New_York')
-                assert all(s==0 for s in statuses),statuses
+                assert statuses==[0]*6+[1]+[0]*3,statuses
+                assert 'With --noadjfile, you must specify either --utc or --localtime' in err,err
+                sets=[int(v) for v in re.findall(r' set=(\d+)',out)]
                 times=[int(v) for v in re.findall(r' sys=(-?\d+)',out)]
                 expected=epoch((2024,7,1,12,0,0))
-                assert times==[expected,expected+14400,expected],times
+                assert sets==[1,2,2,3],sets
+                assert [times[0],times[1],times[3]]==[expected,expected+14400,expected],times
             check('repeated-calls-reset-option-and-mode-state',mode_state)
             if not args.host:
                 def fd_cleanup():

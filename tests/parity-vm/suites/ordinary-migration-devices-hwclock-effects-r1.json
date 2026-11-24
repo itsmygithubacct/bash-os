@@ -234,8 +234,8 @@
       "files": {
         "rtc": "",
         "adjtime": "1.750000 1704067200 0.500000\n1704067200\nUTC\n",
-        "effects.json": "{\"mode\": \"validate\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 2, \"reads\": 0, \"writes\": 0, \"fault\": \"none\", \"preserve\": true}\n",
-        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --adjust --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime --noadjfile >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects.json": "{\"mode\": \"validate\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 1, \"reads\": 0, \"writes\": 0, \"fault\": \"none\", \"preserve\": true}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --adjust --utc --rtc /tmp/parity-case/rtc --noadjfile >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
         "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
         "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n"
       },
@@ -391,7 +391,7 @@
         "rtc": "",
         "adjtime": "1.750000 1704067200 0.500000\n1704067200\nUTC\n",
         "effects.json": "{\"mode\": \"systohc\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 0, \"writes\": 1, \"fault\": \"none\", \"preserve\": true}\n",
-        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --systohc --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime --noadjfile >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --systohc --utc --rtc /tmp/parity-case/rtc --noadjfile >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
         "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
         "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n"
       },

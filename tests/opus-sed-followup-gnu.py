@@ -209,9 +209,20 @@ for args in (['-b', 'p'], ['--binary', 'p'], ['-nbz', 'p']):
     parity(args, b'a\nb\0')
 a = run(['--version'])
 check('--version', (a.returncode, a.stdout.split(b'\n')[0].startswith(b'sed ')), (0, True))
-a = run(['--no-such-option', 'p'], b'a\n')
-check('unsupported option', (a.returncode, a.stdout, b'unsupported option' in a.stderr),
-      (1, b'', True))
+# Option errors: GNU's status, empty stdout and GNU's first diagnostic line
+# (glibc getopt wording, program name aside). GNU sed then prints its long
+# usage text; the builtin prints its own short usage instead, so only the
+# first line is compared.
+def first_error(p, name):
+    line = p.stderr.split(b'\n')[0]
+    return line[len(name) + 2:] if line.startswith(name + b': ') else line
+
+
+for args in (['--no-such-option', 'p'], ['-@', 'p'], ['-n', '-X', 'p'], ['--posix', '--bogus=1', 'p'],
+             ['-e'], ['-f'], ['--expression'], ['-n', '-f']):
+    a, g = run(args, b'a\n'), gnu(args, b'a\n')
+    check(('unsupported option', args), (a.returncode, a.stdout, first_error(a, b'sed')),
+          (g.returncode, g.stdout, first_error(g, GNU.encode())))
 
 for opts in ([], ['-E'], ['-z'], ['--debug']):
     for script in (r's/beta/BETA/', r's/a\+/X/g', r's/a\|b/X/g', r's/\w/X/g',

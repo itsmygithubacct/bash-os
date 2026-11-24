@@ -37,6 +37,7 @@
 #include "loadables.h"
 #include "command-run.h"
 #include "shim-prog-name.h"
+#include "gnu-quote.h"
 #include "trap.h"   /* signal_is_trapped / signal_is_hard_ignored */
 
 /* GNU env (coreutils) exits 125 (EXIT_CANCELED) for EVERY usage/option error
@@ -1016,7 +1017,10 @@ env_builtin (WORD_LIST *list)
             if (debug)
                 fprintf (stderr, "chdir:    %s\n", newdir);
             if (chdir (newdir) < 0) {
-                fprintf (stderr, "env: cannot change directory to %s: %s\n", newdir, strerror (errno));
+                int e = errno;
+                char *q = bos_quote (newdir);
+                fprintf (stderr, "env: cannot change directory to %s: %s\n", q ? q : newdir, strerror (e));
+                free (q);
                 _exit (125);
             }
         }
@@ -1046,7 +1050,15 @@ env_builtin (WORD_LIST *list)
             bashenv_exec_shell_fallback (program, argv, argc, envp);
             err = errno;
         }
-        fprintf (stderr, "env: %s: %s\n", program, strerror (err));
+        /* GNU quotes the name and, when a missing name holds white space
+           (a whole shebang line passed as one word), points at -S. */
+        {
+            char *q = bos_quote (program);
+            fprintf (stderr, "env: %s: %s\n", q ? q : program, strerror (err));
+            free (q);
+        }
+        if (err == ENOENT && strpbrk (program, " \t\n\v\f\r"))
+            fputs ("env: use -[v]S to pass options in shebang lines\n", stderr);
         _exit (err == ENOENT ? 127 : 126);
     }
     free (envp); free (argv);

@@ -11,7 +11,8 @@
     "Unforced named symlink errors have status 1 even with -q; quiet hard-link warnings retain status 2.",
     "Explicit force follows source symlinks, preserves referent data, and removes only the symlink name unless -k is used.",
     "Stdout/test filters follow ordinary symlinks, and mixed warning/error operands continue with failure precedence.",
-    "G30: -l/--list (with -v, -N, -q, totals and errors), -v ratios, -r/--recursive, -N name/time restoration and GNU's default of keeping the compressed file's time."
+    "G30: -l/--list (with -v, -N, -q, totals and errors), -v ratios, -r/--recursive, -N name/time restoration and GNU's default of keeping the compressed file's time.",
+    "Pass 9 (docker suite AN): pass9-errors-and-trailing"
   ],
   "exclusions": [
     "Compression byte identity is intentionally not asserted; the documented interface permits different valid compressed streams.",
@@ -307,6 +308,17 @@
       "stdout": "rsyncable-shares-tail\nplain-differs\nroundtrip\n",
       "stderr": "empty",
       "timeout": 15
+    },
+    {
+      "id": "pass9-errors-and-trailing",
+      "kind": "parity",
+      "purpose": "Docker suite errors/gzip and archive/gzip-trailing: getopt diagnostics with gzip's backquote hint (exit 1), an empty suffix, a missing NAME also tried as NAME.gz, and trailing garbage ignored with a warning.",
+      "requires": [
+        "gzip"
+      ],
+      "script": "e() { printf '$ %s\\n' \"$*\"; \"$@\" </dev/null || echo \"rc=$?\"; }\ntouch a\ne gzip --bogus\ne gzip -@\ne gzip -S\ne gzip -S '' a\ne gzip nosuch\ne gzip -d nosuch.gz\ne gzip -d nosuch\nprintf 'H4sIAAAAAAAAA8tIzcnJBwCGphA2BQAAAA==' | base64 -d > h.gz; cp h.gz k.gz; printf 'garbage' >> h.gz\ne gzip -t h.gz\ne gzip -dc k\ne gzip -d k; cat k; echo\n",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

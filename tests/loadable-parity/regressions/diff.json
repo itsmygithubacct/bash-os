@@ -619,6 +619,18 @@
       "script": "rc=0\ndiff || rc=$?\necho \"rc=$rc\"\nrc=0\n: > a || rc=$?\necho \"rc=$rc\"\nrc=0\ndiff a || rc=$?\necho \"rc=$rc\"",
       "expected_status": 0,
       "stderr": "exact"
+    },
+    {
+      "id": "pass9-all-missing-operands",
+      "kind": "parity",
+      "purpose": "Docker parity errors/diff: every operand that cannot be accessed is reported, also with -N when neither side exists or the other side fails.",
+      "requires": [
+        "diff",
+        "touch"
+      ],
+      "script": "touch a </dev/null || echo \"rc=$?\"\ndiff nosuch nosuch2 </dev/null || echo \"rc=$?\"\ndiff -q nosuch nosuch2 </dev/null || echo \"rc=$?\"\ndiff -N nosuch nosuch2 </dev/null || echo \"rc=$?\"\ndiff -N a/x nosuch </dev/null || echo \"rc=$?\"\ndiff a/x b/y </dev/null || echo \"rc=$?\"\ndiff a nosuch </dev/null || echo \"rc=$?\"\ndiff nosuch a </dev/null || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

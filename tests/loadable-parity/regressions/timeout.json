@@ -77,6 +77,18 @@
       "kind": "deferred",
       "purpose": "Verify default process-group isolation and --foreground terminal signal behavior, including the effect on a child process tree.",
       "reason": "Requires a disposable Linux VM with a private PTY/terminal driver and a supervised fixture process tree. Compare process-group membership and signal forwarding with GNU coreutils timeout, and assert all processes belong to the fixture namespace."
+    },
+    {
+      "id": "pass9-option-errors",
+      "kind": "parity",
+      "purpose": "Docker parity errors/timeout: glibc getopt wording and the Try line for unknown, ambiguous and argument-less options; option values are checked as read; a missing operand gives only the Try line; invalid durations and signals are quoted. Clusters and attached values work.",
+      "requires": [
+        "timeout",
+        "true"
+      ],
+      "script": "timeout --bogus </dev/null || echo \"rc=$?\"\ntimeout -@ </dev/null || echo \"rc=$?\"\ntimeout </dev/null || echo \"rc=$?\"\ntimeout 1 </dev/null || echo \"rc=$?\"\ntimeout x true </dev/null || echo \"rc=$?\"\ntimeout -s BAD 1 true </dev/null || echo \"rc=$?\"\ntimeout -s BAD </dev/null || echo \"rc=$?\"\ntimeout -k x 1 true </dev/null || echo \"rc=$?\"\ntimeout --kill-after=x 1 true </dev/null || echo \"rc=$?\"\ntimeout -k 1 </dev/null || echo \"rc=$?\"\ntimeout -s KILL x </dev/null || echo \"rc=$?\"\ntimeout --v 1 true </dev/null || echo \"rc=$?\"\ntimeout -s </dev/null || echo \"rc=$?\"\ntimeout --signal </dev/null || echo \"rc=$?\"\ntimeout --preserve-status=1 1 true </dev/null || echo \"rc=$?\"\ntimeout -h </dev/null || echo \"rc=$?\"\ntimeout -s9 1 true </dev/null || echo \"rc=$?\"\ntimeout -vk1 1 true </dev/null || echo \"rc=$?\"\ntimeout --fore 1 true </dev/null || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

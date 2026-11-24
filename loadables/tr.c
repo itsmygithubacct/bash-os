@@ -125,12 +125,19 @@ btr_check_repeats (const char *s, int set_number, int translating)
 
     while (*s) {
         if (btr_parse_repeat (s, &c, &count, &next)) {
-            if (set_number == 1) {
-                builtin_error ("tr: repeat constructs may not appear in string1");
+            /* GNU tr: a counted repeat [c*N] is allowed in either string;
+               the indefinite [c*] (or [c*0]) only once, in string2, and
+               only when translating. */
+            if (count == 0 && set_number == 1) {
+                builtin_error ("the [c*] repeat construct may not appear in string1");
                 return -1;
             }
-            if (count == 0 && (!translating || ++indefinite > 1)) {
-                builtin_error ("tr: string2 permits one indefinite repeat, only when translating");
+            if (count == 0 && !translating) {
+                builtin_error ("the [c*] construct may appear in string2 only when translating");
+                return -1;
+            }
+            if (count == 0 && ++indefinite > 1) {
+                builtin_error ("only one [c*] repeat construct may appear in string2");
                 return -1;
             }
             s = next;
@@ -139,6 +146,19 @@ btr_check_repeats (const char *s, int set_number, int translating)
         }
     }
     return 0;
+}
+
+/* GNU tr's error for a range X-Y with Y before X; each endpoint is shown
+   as itself when printable, else as a three-digit octal escape. */
+static void
+btr_range_error (unsigned char lo, unsigned char hi)
+{
+    char a[8], b[8];
+    if (lo >= 0x20 && lo < 0x7f) snprintf (a, sizeof a, "%c", lo);
+    else snprintf (a, sizeof a, "\\%03o", lo);
+    if (hi >= 0x20 && hi < 0x7f) snprintf (b, sizeof b, "%c", hi);
+    else snprintf (b, sizeof b, "\\%03o", hi);
+    builtin_error ("range-endpoints of '%s-%s' are in reverse collating sequence order", a, b);
 }
 
 /* Expand SET into a 256-byte slot array. Each slot[i] = 1 iff byte i is
@@ -231,8 +251,8 @@ btr_expand_set (const char *s, unsigned char in_set[256], size_t repeat_fill)
             unsigned char hi;
             if (btr_parse_escaped_char (&p, &hi)) {
                 s = p;
-                if (c <= hi) { for (int i = c; i <= hi; i++) in_set[i] = 1; }
-                else         { in_set[c] = 1; in_set[hi] = 1; }
+                if (c > hi) { btr_range_error (c, hi); return -1; }
+                for (int i = c; i <= hi; i++) in_set[i] = 1;
                 continue;
             }
         }
@@ -346,12 +366,8 @@ btr_expand_list (const char *s, unsigned char *out, size_t *n_out, size_t max,
             unsigned char hi;
             if (btr_parse_escaped_char (&p, &hi)) {
                 s = p;
-                if (c <= hi) {
-                    for (int i = c; i <= hi && n < max; i++) btr_list_byte (out, &n, (unsigned char) i);
-                } else {
-                    btr_list_byte (out, &n, c);
-                    if (n < max) btr_list_byte (out, &n, hi);
-                }
+                if (c > hi) { btr_range_error (c, hi); return -1; }
+                for (int i = c; i <= hi && n < max; i++) btr_list_byte (out, &n, (unsigned char) i);
                 continue;
             }
         }
@@ -435,10 +451,20 @@ tr_run (WORD_LIST *list)
         lon_try_help ();
         return EXECUTION_FAILURE;
     }
-    int translate_mode = (!dflag && set2[0]);
+    /* Two strings without -d translate (with -s too); an empty string2
+       there is GNU's error unless -t truncates set1 to nothing or set1 is
+       empty itself. */
+    int translate_mode = (!dflag && list->next);
     if (btr_check_repeats (set1, 1, translate_mode) < 0 ||
         btr_check_repeats (set2, 2, translate_mode) < 0)
         return EXECUTION_FAILURE;
+    if (translate_mode && !set2[0]) {
+        if (!tflag && (set1[0] || cflag)) {
+            builtin_error ("when not truncating set1, string2 must be non-empty");
+            return EXECUTION_FAILURE;
+        }
+        translate_mode = 0;
+    }
 
     /* Build set membership for SET1 (with -c complement applied). */
     unsigned char in1[256], in2_set[256];
@@ -482,9 +508,9 @@ tr_run (WORD_LIST *list)
             free (l1); free (l2);
             return EXECUTION_FAILURE;
         }
-        if (n1 && n2 == 0) {
+        if (n1 && n2 == 0 && !tflag) {
             free (l1); free (l2);
-            builtin_error ("tr: SET2 empty for translate mode");
+            builtin_error ("when not truncating set1, string2 must be non-empty");
             return EXECUTION_FAILURE;
         }
         size_t nmap = tflag && n2 < n1 ? n2 : n1;
@@ -551,7 +577,9 @@ char *tr_doc[] = {
     "Char-set syntax: literal bytes, ranges `a-z`, escape sequences",
     "`\\n \\t \\r \\\\ \\NNN` (octal), POSIX classes `[:alpha:]` etc.,",
     "equivalence classes `[=c=]`, and `[c*]`/`[c*N]` repeats in SET2",
-    "(N is octal if it begins with 0).",
+    "(N is octal if it begins with 0; `[c*N]` may appear in SET1 too).",
+    "A reversed range such as `c-a` is an error, as is an empty SET2 when",
+    "translating without -t.",
     "",
     "Examples:",
     "    echo Hello | bashtr A-Z a-z      # 'hello'",

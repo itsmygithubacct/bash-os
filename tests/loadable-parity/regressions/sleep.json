@@ -170,6 +170,17 @@
       "requires": [
         "sleep"
       ]
+    },
+    {
+      "id": "pass9-usage-errors",
+      "kind": "parity",
+      "purpose": "G132: missing operand, options (anywhere, as getopt permutes) and invalid intervals use coreutils wording: each bad interval is quoted and reported, then one Try line.",
+      "requires": [
+        "sleep"
+      ],
+      "script": "sleep </dev/null || echo \"rc=$?\"\nsleep --bogus </dev/null || echo \"rc=$?\"\nsleep -@ </dev/null || echo \"rc=$?\"\nsleep -1 </dev/null || echo \"rc=$?\"\nsleep 0 --bogus </dev/null || echo \"rc=$?\"\nsleep x </dev/null || echo \"rc=$?\"\nsleep x y </dev/null || echo \"rc=$?\"\nsleep '' </dev/null || echo \"rc=$?\"\nsleep - </dev/null || echo \"rc=$?\"\nsleep -- -1 </dev/null || echo \"rc=$?\"\nsleep -- -- </dev/null || echo \"rc=$?\"\nsleep 1x </dev/null || echo \"rc=$?\"\nsleep --vers=1 </dev/null || echo \"rc=$?\"\nsleep 0 -- 0 </dev/null || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

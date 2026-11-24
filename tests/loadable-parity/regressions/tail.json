@@ -231,6 +231,17 @@
       "script": "s() { local rc=0; eval \"$1\" 2>&1 || rc=$?; echo \"rc=$rc\"; }\nprintf '1\\n2\\n' > in2\ns 'tail -n x </dev/null'\ns 'tail -c x </dev/null'\ns 'tail -n +x </dev/null'\ns 'tail -n -x </dev/null'\ns 'tail -n '\"'\"''\"'\"' </dev/null'\ns 'tail -n 5x </dev/null'\ns 'tail --lines=x </dev/null'\ns 'tail --bytes=-y </dev/null'\ns 'tail -n </dev/null'\ns 'tail -c </dev/null'\ns 'tail --lines </dev/null'\ns 'tail --bogus </dev/null'\ns 'tail -Q </dev/null'\ns 'tail -n 1 in2'\ns 'tail -n +2 in2'\n",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass9-obsolete-plus",
+      "kind": "parity",
+      "purpose": "Docker parity text/tail-obsolete-plus: the obsolete first argument [+-][N][bcl][f] before at most one file: +N starts at line (c: byte, b: 512-byte block) N, -N[c] keeps the last N, N defaults to 10; with two files or after -- or another option it is a file name.",
+      "requires": [
+        "tail"
+      ],
+      "script": "printf '1\\n2\\n3\\n4\\n5\\n' > f\ntail +4 f; echo \"rc=$?\"; tail -3 f; tail +4 < f; tail +4c f; tail +2l f; tail -2c f; tail + f; tail +0 f; tail +3b f; tail +1c f; tail -3l f\ntail +4 f f || echo \"rc=$?\"\ntail -- +4 f || echo \"rc=$?\"\ntail +x f || echo \"rc=$?\"\ntail -n 2 +4 </dev/null || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

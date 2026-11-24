@@ -152,34 +152,33 @@ cs_regex_matches_line (regex_t *re, const char *line, ssize_t n)
     return rc == 0;
 }
 
-/* GNU csplit error helpers. GNU quotes the original pattern token in
-   U+2018/U+2019 fancy quotes (e.g. ‘/SEP/’, ‘5’, ‘%re%+3’) and appends
-   "on repetition N" only when the failure is on a repeat (applied > 0). The
-   base application (applied == 0) omits the suffix. `applied` is the number
-   of repeats attempted so far (the failing attempt included); the base
-   pattern is not counted. */
-#define CS_LQUO "\xe2\x80\x98"   /* U+2018 LEFT SINGLE QUOTATION MARK  */
-#define CS_RQUO "\xe2\x80\x99"   /* U+2019 RIGHT SINGLE QUOTATION MARK */
+/* GNU csplit error helpers. GNU quotes the original pattern token in the
+   locale's quotation marks (bos_quote: '/SEP/' in the C locale, U+2018
+   and U+2019 under UTF-8) and appends "on repetition N" only when the
+   failure is on a repeat (applied > 0). The base application (applied ==
+   0) omits the suffix. `applied` is the number of repeats attempted so far
+   (the failing attempt included); the base pattern is not counted. */
+static void
+cs_err_pattern (const char *pat, const char *what, long applied)
+{
+    char *q = bos_quote (pat);
+    if (applied > 0)
+        builtin_error ("%s: %s on repetition %ld", q ? q : pat, what, applied);
+    else
+        builtin_error ("%s: %s", q ? q : pat, what);
+    free (q);
+}
 
 static void
 cs_err_out_of_range (const char *pat, long applied)
 {
-    if (applied > 0)
-        builtin_error (CS_LQUO "%s" CS_RQUO
-                       ": line number out of range on repetition %ld",
-                       pat, applied);
-    else
-        builtin_error (CS_LQUO "%s" CS_RQUO ": line number out of range", pat);
+    cs_err_pattern (pat, "line number out of range", applied);
 }
 
 static void
 cs_err_no_match (const char *pat, long applied)
 {
-    if (applied > 0)
-        builtin_error (CS_LQUO "%s" CS_RQUO
-                       ": match not found on repetition %ld", pat, applied);
-    else
-        builtin_error (CS_LQUO "%s" CS_RQUO ": match not found", pat);
+    cs_err_pattern (pat, "match not found", applied);
 }
 
 /* stdin's FILE belongs to the persistent shell. A private stream so a later

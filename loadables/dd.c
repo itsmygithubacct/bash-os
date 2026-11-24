@@ -535,6 +535,87 @@ dd_print_xfer (long long bytes, double elapsed, int progress)
     fprintf (stderr, "%s, %g s, %s%s\n", line, elapsed, rate, tail);
 }
 
+/* The output side. GNU dd writes each input block as it is read only for
+   bs= without a data-transforming conversion; otherwise it collects the
+   data and writes it in obs-sized records, the last one partial. */
+struct dd_out {
+    int fd, direct, sparse, final_seek;
+    unsigned char *buf;
+    size_t len, obs;
+    long long full, part, bytes;
+    const char *name;
+};
+
+/* Write one output record (seeking over it for conv=sparse when it is all
+   NUL). Returns 0, or -1 after GNU's diagnostic. */
+static int
+dd_write_record (struct dd_out *o, const unsigned char *b, size_t n)
+{
+    size_t off = 0;
+    if (o->sparse && n > 0) {
+        size_t z = 0;
+        while (z < n && b[z] == 0) z++;
+        if (z == n) {
+            if (lseek (o->fd, (off_t) n, SEEK_CUR) < 0)
+                o->sparse = 0;
+            else {
+                o->final_seek = 1;
+                off = n;
+            }
+        }
+        if (off < n) o->final_seek = 0;
+    }
+    /* Handle EINTR and short writes. */
+    while (off < n) {
+        ssize_t w = write (o->fd, b + off, n - off);
+        if (w <= 0) {
+            if (w < 0 && errno == EINTR) continue;
+            if (w == 0) errno = EIO; /* avoid looping on no progress */
+            dd_file_error ("error writing", o->name, errno);
+            /* A device can accept a prefix before reporting ENOSPC.
+               Account for that partial output record and its bytes. */
+            if (off > 0) {
+                o->part++;
+                o->bytes += (long long) off;
+            }
+            return -1;
+        }
+        off += (size_t) w;
+    }
+    if (n == o->obs) o->full++;
+    else             o->part++;
+    o->bytes += (long long) n;
+    return 0;
+}
+
+static int
+dd_put (struct dd_out *o, const unsigned char *b, size_t n)
+{
+    if (o->direct)
+        return dd_write_record (o, b, n);
+    while (n > 0) {
+        size_t take = o->obs - o->len < n ? o->obs - o->len : n;
+        memcpy (o->buf + o->len, b, take);
+        o->len += take;
+        b += take;
+        n -= take;
+        if (o->len == o->obs) {
+            o->len = 0;
+            if (dd_write_record (o, o->buf, o->obs) < 0) return -1;
+        }
+    }
+    return 0;
+}
+
+static int
+dd_flush_out (struct dd_out *o)
+{
+    if (o->direct || o->len == 0) return 0;
+    size_t n = o->len;
+    o->len = 0;
+    return dd_write_record (o, o->buf, n);
+}
+
 int
 dd_builtin (WORD_LIST *list)
 {
@@ -674,7 +755,7 @@ dd_builtin (WORD_LIST *list)
     } else {
         ifd = open (iname, O_RDONLY | O_CLOEXEC);
         if (ifd < 0) {
-            builtin_error ("if=%s: %s", iname, strerror (errno));
+            dd_file_error ("failed to open", iname, errno);
             return EXECUTION_FAILURE;
         }
     }
@@ -694,7 +775,7 @@ dd_builtin (WORD_LIST *list)
         if (oflag & DDO_APPEND) flags |= O_APPEND;
         ofd = open (oname, flags | O_CLOEXEC, 0666);
         if (ofd < 0) {
-            builtin_error ("of=%s: %s", oname, strerror (errno));
+            dd_file_error ("failed to open", oname, errno);
             if (input_owned) close (ifd);
             return EXECUTION_FAILURE;
         }
@@ -807,17 +888,29 @@ dd_builtin (WORD_LIST *list)
     }
 
     int rc = EXECUTION_SUCCESS;
+    struct dd_out out = { 0 };
+    out.fd = ofd;
+    out.obs = (size_t) obs;
+    out.sparse = (conv & DDC_SPARSE) != 0;
+    out.name = output_owned ? oname : "standard output";
+    out.direct = bs > 0 && !(conv & (DDC_UCASE | DDC_LCASE | DDC_SWAB | DDC_BLOCK | DDC_UNBLOCK));
+    if (!out.direct && !(out.buf = malloc ((size_t) obs))) {
+        builtin_error ("memory exhausted");
+        rc = EXECUTION_FAILURE;
+        goto done;
+    }
     /* Track the intended position: a failed read may itself move the file
        offset.  ESPIPE means a stream, where seeking past a block is impossible. */
     off_t input_pos = lseek (ifd, 0, SEEK_CUR);
     int input_seek_errno = input_pos < 0 ? errno : 0;
+    long long bytes_in = 0;  /* input bytes read, for iflag=count_bytes */
     while ((iflag & DDI_COUNT_BYTES)
-           ? (count < 0 || bytes_total < count)
+           ? (count < 0 || bytes_in < count)
            : (count < 0 || (ifull + ipart) < count)) {
         ssize_t r;
         size_t want = (size_t) ibs;
         if ((iflag & DDI_COUNT_BYTES) && count >= 0) {
-            long long remain = count - bytes_total;
+            long long remain = count - bytes_in;
             if (remain <= 0) break;
             if (remain < ibs) want = (size_t) remain;
         }
@@ -846,9 +939,9 @@ dd_builtin (WORD_LIST *list)
             }
             if (!(status & DDS_NONE)) {
                 fprintf (stderr, "%lld+%lld records in\n", ifull, ipart);
-                fprintf (stderr, "%lld+%lld records out\n", ofull, opart);
+                fprintf (stderr, "%lld+%lld records out\n", out.full, out.part);
                 if (!(status & DDS_NOXFER))
-                    dd_print_xfer (bytes_total, dd_now_seconds () - start_time, 0);
+                    dd_print_xfer (out.bytes, dd_now_seconds () - start_time, 0);
             }
             if (input_seek_errno != ESPIPE) {
                 int seek_error = input_seek_errno;
@@ -876,6 +969,7 @@ dd_builtin (WORD_LIST *list)
         }
         if (r == ibs) ifull++;
         else          ipart++;
+        bytes_in += r;
 
         /* conv ordering matches GNU dd: case-fold first, then sync-pad the
            short block, then swab the (possibly padded) block. With
@@ -912,49 +1006,18 @@ dd_builtin (WORD_LIST *list)
             }
         }
 
-        /* conv=sparse (GNU): seek over an all-NUL output block instead of
+        /* conv=sparse (GNU): seek over an all-NUL output record instead of
            writing it; an unseekable output drops the advisory request. */
-        size_t off = 0;
-        if ((conv & DDC_SPARSE) && wlen > 0) {
-            size_t z = 0;
-            while (z < wlen && wbuf[z] == 0) z++;
-            if (z == wlen) {
-                if (lseek (ofd, (off_t) wlen, SEEK_CUR) < 0)
-                    conv &= ~DDC_SPARSE;
-                else {
-                    final_seek = 1;
-                    off = wlen;
-                }
-            }
-            if (off < wlen) final_seek = 0;
+        if (dd_put (&out, wbuf, wlen) < 0) {
+            rc = EXECUTION_FAILURE;
+            goto done;
         }
-        /* Write loop — handle EINTR + short writes. */
-        while (off < wlen) {
-            ssize_t w = write (ofd, wbuf + off, wlen - off);
-            if (w <= 0) {
-                if (w < 0 && errno == EINTR) continue;
-                if (w == 0) errno = EIO; /* avoid looping on no progress */
-                dd_file_error ("error writing", output_owned ? oname : "standard output", errno);
-                /* A device can accept a prefix before reporting ENOSPC.
-                   Account for that partial output record and its bytes. */
-                if (off > 0) {
-                    opart++;
-                    bytes_total += (long long) off;
-                }
-                rc = EXECUTION_FAILURE;
-                goto done;
-            }
-            off += (size_t) w;
-        }
-        if (r == obs) ofull++;
-        else          opart++;
-        bytes_total += r;
 
         if (status & DDS_PROGRESS) {
             double now = dd_now_seconds ();
             if (dd_sigusr1_progress || now >= next_progress) {
                 dd_sigusr1_progress = 0;
-                dd_print_xfer (bytes_total, now - start_time, 1);
+                dd_print_xfer (out.bytes, now - start_time, 1);
                 next_progress = now + 1.0;
             }
         }
@@ -969,18 +1032,8 @@ dd_builtin (WORD_LIST *list)
             flen = dd_block_stream (NULL, 0, rebuf, &rbstate);
         else
             flen = dd_unblock_stream (NULL, 0, rebuf, &rbstate);
-        size_t off = 0;
-        while (off < flen) {
-            ssize_t w = write (ofd, rebuf + off, flen - off);
-            if (w < 0) {
-                if (errno == EINTR) continue;
-                dd_file_error ("error writing", output_owned ? oname : "standard output", errno);
-                rc = EXECUTION_FAILURE;
-                break;
-            }
-            off += (size_t) w;
-        }
-        if (rc == EXECUTION_SUCCESS) bytes_total += (long long) flen;
+        if (dd_put (&out, rebuf, flen) < 0)
+            rc = EXECUTION_FAILURE;
     }
 
     /* Flush any held swab carry byte (odd-length stream). GNU emits the
@@ -988,21 +1041,19 @@ dd_builtin (WORD_LIST *list)
     if (rc == EXECUTION_SUCCESS && (conv & DDC_SWAB) && swab_have_carry) {
         unsigned char tail = swab_carry;
         swab_have_carry = 0;
-        size_t off = 0;
-        while (off < 1) {
-            ssize_t w = write (ofd, &tail + off, 1 - off);
-            if (w < 0) {
-                if (errno == EINTR) continue;
-                dd_file_error ("error writing", output_owned ? oname : "standard output", errno);
-                rc = EXECUTION_FAILURE;
-                break;
-            }
-            off += (size_t) w;
-        }
-        if (rc == EXECUTION_SUCCESS) bytes_total += 1;
+        if (dd_put (&out, &tail, 1) < 0)
+            rc = EXECUTION_FAILURE;
     }
+    /* The last, partial output record. */
+    if (rc == EXECUTION_SUCCESS && dd_flush_out (&out) < 0)
+        rc = EXECUTION_FAILURE;
 
 done:
+    ofull = out.full;
+    opart = out.part;
+    bytes_total = out.bytes;
+    final_seek = out.final_seek;
+    free (out.buf);
     /* A trailing sparse seek leaves the file short: extend it, as GNU dd
        does, so the hole is part of the output. */
     if (final_seek) {

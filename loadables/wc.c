@@ -379,6 +379,33 @@ bwc_number_width (char **files, int nfiles, int ncols, int stdin_is_list)
     return width;
 }
 
+/* --total=WHEN (GNU wc): when to print the total line. */
+enum { BWC_TOTAL_AUTO, BWC_TOTAL_ALWAYS, BWC_TOTAL_ONLY, BWC_TOTAL_NEVER };
+
+/* Match WHEN as GNU's argmatch does: an exact name or a unique prefix.
+   Returns the mode, or -1 after the "invalid"/"ambiguous argument"
+   diagnostic, the list of valid arguments and the Try line. */
+static int
+bwc_total_mode (const char *when)
+{
+    static const char *const names[] = { "auto", "always", "only", "never" };
+    size_t len = strlen (when);
+    int found = -1, matches = 0;
+    for (int i = 0; i < 4; i++) {
+        if (strncmp (names[i], when, len)) continue;
+        if (!names[i][len]) return i;
+        found = i;
+        matches++;
+    }
+    if (matches == 1) return found;
+    fflush (stdout);
+    builtin_error ("%s argument '%s' for '--total'", matches ? "ambiguous" : "invalid", when);
+    fputs ("Valid arguments are:\n", stderr);
+    for (int i = 0; i < 4; i++) fprintf (stderr, "  - '%s'\n", names[i]);
+    bos_shim_try_help ("wc");
+    return -1;
+}
+
 int
 wc_builtin (WORD_LIST *list)
 {
@@ -387,6 +414,7 @@ wc_builtin (WORD_LIST *list)
     clearerr (stdout);
     int lflag = 0, wflag = 0, cflag = 0, mflag = 0, Lflag = 0;
     const char *files_from = NULL;
+    int total_mode = BWC_TOTAL_AUTO;
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
         if (!strcmp (w, "--")) { list = list->next; break; }
@@ -414,6 +442,19 @@ wc_builtin (WORD_LIST *list)
             files_from = w + 14;
             list = list->next;
             continue;
+        }
+        /* --total=WHEN or --total WHEN; "--t" and longer prefixes name it. */
+        {
+            size_t nl = strcspn (w, "=");
+            if (nl >= 3 && !strncmp (w, "--total", nl)) {
+                const char *when;
+                if (w[nl] == '=') when = w + nl + 1;
+                else if (list->next) { list = list->next; when = list->word->word; }
+                else { bos_shim_missing_arg ("--total", 0, "wc"); return EXECUTION_FAILURE; }
+                if ((total_mode = bwc_total_mode (when)) < 0) return EXECUTION_FAILURE;
+                list = list->next;
+                continue;
+            }
         }
         if (!strncmp (w, "--", 2)) {
             bos_shim_bad_option (w, 0, "wc");
@@ -501,6 +542,7 @@ wc_builtin (WORD_LIST *list)
         } else {
             width = bwc_number_width (names, nnames, ncols, 0);
         }
+        if (total_mode == BWC_TOTAL_ONLY) width = 1;
 
         for (int k = 0; k < nnames; k++) {
             int from_stdin = strcmp (names[k], "-") == 0;
@@ -533,7 +575,8 @@ wc_builtin (WORD_LIST *list)
             }
             if (!from_stdin)
                 fclose (f);
-            bwc_print (&c, lflag, wflag, cflag, mflag, Lflag, width, names[k]);
+            if (total_mode != BWC_TOTAL_ONLY)
+                bwc_print (&c, lflag, wflag, cflag, mflag, Lflag, width, names[k]);
             total.lines += c.lines;
             total.words += c.words;
             total.bytes += c.bytes;
@@ -541,7 +584,9 @@ wc_builtin (WORD_LIST *list)
             if (c.max_line > total.max_line)
                 total.max_line = c.max_line;
         }
-        if (nnames > 1)
+        if (total_mode == BWC_TOTAL_ONLY)
+            bwc_print (&total, lflag, wflag, cflag, mflag, Lflag, width, NULL);
+        else if (total_mode == BWC_TOTAL_ALWAYS || (total_mode == BWC_TOTAL_AUTO && nnames > 1))
             bwc_print (&total, lflag, wflag, cflag, mflag, Lflag, width, "total");
         free (names);
         free (blob);
@@ -554,6 +599,7 @@ wc_builtin (WORD_LIST *list)
 
     if (!list) {
         int width = bwc_number_width ((char *[]){ (char *) "-" }, 1, ncols, 0);
+        if (total_mode == BWC_TOTAL_ONLY) width = 1;
         bwc_counts c = {0};
         bwc_count_selected (stdin, &c, lflag, wflag, cflag, mflag, Lflag);
         if (ferror (stdin)) {
@@ -561,6 +607,8 @@ wc_builtin (WORD_LIST *list)
             rc = EXECUTION_FAILURE;
         }
         bwc_print (&c, lflag, wflag, cflag, mflag, Lflag, width, NULL);
+        if (total_mode == BWC_TOTAL_ALWAYS)
+            bwc_print (&c, lflag, wflag, cflag, mflag, Lflag, width, "total");
     } else {
         int n_files = 0;
         for (WORD_LIST *p = list; p; p = p->next) n_files++;
@@ -573,6 +621,7 @@ wc_builtin (WORD_LIST *list)
                 files[k++] = p->word->word;
         }
         int width = bwc_number_width (files, n_files, ncols, 0);
+        if (total_mode == BWC_TOTAL_ONLY) width = 1;
         free (files);
 
         for (WORD_LIST *p = list; p; p = p->next) {
@@ -600,7 +649,8 @@ wc_builtin (WORD_LIST *list)
             }
             if (!from_stdin)
                 fclose (f);
-            bwc_print (&c, lflag, wflag, cflag, mflag, Lflag, width, p->word->word);
+            if (total_mode != BWC_TOTAL_ONLY)
+                bwc_print (&c, lflag, wflag, cflag, mflag, Lflag, width, p->word->word);
             total.lines += c.lines;
             total.words += c.words;
             total.bytes += c.bytes;
@@ -608,7 +658,9 @@ wc_builtin (WORD_LIST *list)
             if (c.max_line > total.max_line)
                 total.max_line = c.max_line;
         }
-        if (n_files > 1)
+        if (total_mode == BWC_TOTAL_ONLY)
+            bwc_print (&total, lflag, wflag, cflag, mflag, Lflag, width, NULL);
+        else if (total_mode == BWC_TOTAL_ALWAYS || (total_mode == BWC_TOTAL_AUTO && n_files > 1))
             bwc_print (&total, lflag, wflag, cflag, mflag, Lflag, width, "total");
     }
     if (fflush (stdout) == EOF || ferror (stdout)) {
@@ -632,6 +684,8 @@ char *wc_doc[] = {
     "    -L   count maximum display line length",
     "    --lines, --words, --bytes, --chars, --max-line-length",
     "    --files0-from=F  read NUL-separated file names from F (- for stdin)",
+    "    --total=WHEN     print the total line: auto (more than one file),",
+    "                     always, only (just the total, unpadded) or never",
     "    --help      show usage",
     "    --version   show version",
     "    (no flags) → -lwc (default)",

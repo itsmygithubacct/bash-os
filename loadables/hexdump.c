@@ -701,6 +701,7 @@ hd_option (hd_opts *o, int c, const char *arg)
     case 'h':
         for (char **dp = hexdump_doc; *dp; dp++) puts (*dp);
         return 1;
+    case 'V': puts ("hexdump 1.0 (bash-loadable)"); return 1;
     case 'C': o->canonical = 1; return 0;
     case 'v': o->verbose = 1; return 0;   /* disable the '*' folding of duplicate rows */
     case 'n': return hd_parse_count (arg, &o->limit, "-n LIMIT") < 0 ? -1 : 0;
@@ -733,7 +734,7 @@ hexdump_builtin (WORD_LIST *list)
         { "canonical", 'C', 0 }, { "two-bytes-decimal", 'd', 0 },
         { "two-bytes-octal", 'o', 0 }, { "two-bytes-hex", 'x', 0 },
         { "format", 'e', 1 }, { "length", 'n', 1 }, { "skip", 's', 1 },
-        { "no-squeezing", 'v', 0 }, { "help", 'h', 0 },
+        { "no-squeezing", 'v', 0 }, { "help", 'h', 0 }, { "version", 'V', 0 },
     };
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
@@ -778,7 +779,7 @@ hexdump_builtin (WORD_LIST *list)
         }
         for (const char *cp = w + 1; *cp; cp++) {
             const char *arg = NULL;
-            if (!strchr ("bcCdoxvhens", *cp)) {
+            if (!strchr ("bcCdoxvhensV", *cp)) {
                 bos_shim_bad_option (w, (unsigned char) *cp, "hexdump");
                 return EXECUTION_FAILURE;
             }
@@ -952,6 +953,7 @@ char *hexdump_doc[] = {
     "               optional ITER/BYTES prefixes, %_p/%_c, and %_a/%_A)",
     "    -n LIMIT   stop after LIMIT bytes (decimal; 0x.. hex; 0... octal)",
     "    -s OFFSET  skip OFFSET bytes before formatting",
+    "    -V, --version  print the version and exit",
     "",
     "Default format (no -C) emits eight 16-bit little-endian hex words per row,",
     "addresses in 7 hex digits, no ASCII gutter — matches util-linux's bare",

@@ -58,6 +58,7 @@
 #include "loadables.h"
 #include "command-run.h"
 #include "shim-prog-name.h"
+#include "gnu-longopt.h"
 
 /* This parent-side stdio optimization also stays instrumented in sanitizer
    builds. An older libc or a process that has created threads uses fgetc. */
@@ -194,6 +195,66 @@ bx_parse_positive_long (const char *s, long *out)
     *out = n;
     return 0;
 }
+
+/* findutils' numeric option checks: strtol syntax (leading blanks and a
+   sign allowed), then the bounds.  CLAMP takes values above MAX silently.
+   Returns 0, or -1 after the diagnostic and help hint. */
+static int
+bx_option_number (int opt, const char *text, long min, long max, int clamp, long *out)
+{
+    char *end = NULL;
+    long n;
+
+    errno = 0;
+    n = strtol (text, &end, 10);
+    if (end == text || *end) {
+        builtin_error ("invalid number \"%s\" for -%c option", text, opt);
+        bos_shim_try_help ("xargs");
+        return -1;
+    }
+    if (n < min) {
+        builtin_error ("value %s for -%c option should be >= %ld", text, opt, min);
+        bos_shim_try_help ("xargs");
+        return -1;
+    }
+    if (n > max) {
+        if (!clamp) {
+            builtin_error ("value %s for -%c option should be <= %ld", text, opt, max);
+            bos_shim_try_help ("xargs");
+            return -1;
+        }
+        n = max;
+    }
+    *out = n;
+    return 0;
+}
+
+enum {
+    BX_OPT_SLOT_VAR = BOS_OPT_FIRST,
+    BX_OPT_SHOW_LIMITS
+};
+
+static const struct bos_longopt bx_longopts[] = {
+    { "null", BOS_NO_ARG, '0' },
+    { "arg-file", BOS_REQ_ARG, 'a' },
+    { "delimiter", BOS_REQ_ARG, 'd' },
+    { "eof", BOS_OPT_ARG, 'e' },
+    { "replace", BOS_OPT_ARG, 'i' },
+    { "max-lines", BOS_REQ_ARG, 'L' },
+    { "max-args", BOS_REQ_ARG, 'n' },
+    { "open-tty", BOS_NO_ARG, 'o' },
+    { "max-procs", BOS_REQ_ARG, 'P' },
+    { "interactive", BOS_NO_ARG, 'p' },
+    { "process-slot-var", BOS_REQ_ARG, BX_OPT_SLOT_VAR },
+    { "no-run-if-empty", BOS_NO_ARG, 'r' },
+    { "max-chars", BOS_REQ_ARG, 's' },
+    { "show-limits", BOS_NO_ARG, BX_OPT_SHOW_LIMITS },
+    { "verbose", BOS_NO_ARG, 't' },
+    { "exit", BOS_NO_ARG, 'x' },
+    { "help", BOS_NO_ARG, BOS_OPT_HELP },
+    { "version", BOS_NO_ARG, BOS_OPT_VERSION },
+    { NULL, 0, 0 }
+};
 
 static int
 bx_prompt_yes (char **argv, int n, int *prompt_error)
@@ -632,7 +693,8 @@ bx_report_read_error (bx_spawn_state *state, int error)
 {
     if (bx_end_mask_interval (state) < 0) return -1;
     if (error == '\\') builtin_error ("unterminated escape in input");
-    else builtin_error ("unmatched %c quote in input", error);
+    else builtin_error ("unmatched %s quote; by default quotes are special to xargs unless you use the -0 option",
+                        error == '\'' ? "single" : "double");
     return 0;
 }
 
@@ -1400,219 +1462,127 @@ xargs_builtin (WORD_LIST *list)
     int show_limits = 0;          /* --show-limits */
     FILE *in = stdin;
 
-    /* Parse flags. */
-    while (list && list->word->word[0] == '-' && list->word->word[1]) {
-        const char *w = list->word->word;
-        if (!strcmp (w, "--")) { list = list->next; break; }
-        if (!strcmp (w, "--help")) {
+    /* Parse flags: GNU getopt_long, stopping at the command ("+"). */
+    int xflag = 0;
+    bos_getopt g;
+    int c;
+    long num;
+    bos_getopt_init (&g, "xargs", "0a:d:E:e::I:i::L:l::n:oP:prs:tx", bx_longopts, list);
+    g.posix = 1;
+#define BX_USAGE_FAIL() do { bos_getopt_free (&g); return EXECUTION_FAILURE; } while (0)
+    while ((c = bos_getopt_next (&g)) != -1) {
+        switch (c) {
+        case BOS_OPT_HELP:
+            bos_getopt_free (&g);
             builtin_help ();
             return EXECUTION_SUCCESS;
-        }
-        if (!strcmp (w, "--version")) {
+        case BOS_OPT_VERSION:
+            bos_getopt_free (&g);
             puts ("bashxargs 1.0 (bash-loadable)");
             return EXECUTION_SUCCESS;
-        }
-        if (!strcmp (w, "--show-limits")) {
-            show_limits = 1; list = list->next; continue;
-        }
-        if (!strcmp (w, "-0") || !strcmp (w, "--null")) {
-            delimiter = 0; list = list->next; continue;
-        }
-        if (w[1] == 'd' || !strcmp (w, "--delimiter") || !strncmp (w, "--delimiter=", 12)) {
-            const char *arg;
-            if (w[1] == 'd' && w[2]) arg = w + 2;
-            else if (w[1] == '-' && w[11] == '=') arg = w + 12;
-            else {
-                list = list->next;
-                if (!list) { builtin_error ("-d requires a delimiter"); return EXECUTION_FAILURE; }
-                arg = list->word->word;
+        case BX_OPT_SHOW_LIMITS:
+            show_limits = 1;
+            break;
+        case '0':
+            delimiter = 0;
+            break;
+        case 'd':
+            delimiter = bx_delimiter (g.optarg);
+            if (delimiter < 0) {
+                builtin_error ("Invalid input delimiter specification %s: the delimiter must be either a single character or an escape sequence starting with \\.", g.optarg);
+                BX_USAGE_FAIL ();
             }
-            delimiter = bx_delimiter (arg);
-            if (delimiter < 0) { builtin_error ("invalid input delimiter: %s", arg); return EXECUTION_FAILURE; }
-            list = list->next; continue;
-        }
-        if (w[1] == 'a' || !strcmp (w, "--arg-file") || !strncmp (w, "--arg-file=", 11)) {
-            if (w[1] == 'a' && w[2]) arg_file = w + 2;
-            else if (w[1] == '-' && w[10] == '=') arg_file = w + 11;
-            else {
-                if (!list->next) { builtin_error ("option requires an argument -- 'a'"); return EXECUTION_FAILURE; }
-                list = list->next;
-                arg_file = list->word->word;
-            }
-            list = list->next; continue;
-        }
-        if (w[1] == 'E') {
-            const char *arg = w + 2;
-            if (!*arg) {
-                if (!list->next) { builtin_error ("option requires an argument -- 'E'"); return EXECUTION_FAILURE; }
-                list = list->next;
-                arg = list->word->word;
-            }
-            eof_str = *arg ? arg : NULL;
-            list = list->next; continue;
-        }
-        /* -e[EOF] and --eof[=EOF] take an optional attached string only. */
-        if (w[1] == 'e' || !strcmp (w, "--eof") || !strncmp (w, "--eof=", 6)) {
-            const char *arg = w[1] == 'e' ? w + 2 : (w[5] == '=' ? w + 6 : "");
-            eof_str = *arg ? arg : NULL;
-            list = list->next; continue;
-        }
-        if (!strcmp (w, "-o") || !strcmp (w, "--open-tty")) {
-            open_tty = 1; list = list->next; continue;
-        }
-        if (!strcmp (w, "--process-slot-var") || !strncmp (w, "--process-slot-var=", 19)) {
-            if (w[18] == '=') slot_var = w + 19;
-            else {
-                if (!list->next) { builtin_error ("option '--process-slot-var' requires an argument"); return EXECUTION_FAILURE; }
-                list = list->next;
-                slot_var = list->word->word;
-            }
+            break;
+        case 'a':
+            arg_file = g.optarg;
+            break;
+        case 'E':
+            eof_str = *g.optarg ? g.optarg : NULL;
+            break;
+        case 'e':
+            /* -e[EOF] and --eof[=EOF] take an optional attached string only. */
+            eof_str = g.optarg && *g.optarg ? g.optarg : NULL;
+            break;
+        case 'o':
+            open_tty = 1;
+            break;
+        case BX_OPT_SLOT_VAR:
+            slot_var = g.optarg;
             /* GNU's two diagnostics; it reports an empty NAME only when
                unsetenv fails before the first command. */
             if (strchr (slot_var, '=')) {
                 builtin_error ("option --process-slot-var may not be set to a value which includes `='");
-                return EXECUTION_FAILURE;
+                BX_USAGE_FAIL ();
             }
             if (!*slot_var) {
                 builtin_error ("failed to unset environment variable : %s", strerror (EINVAL));
-                return EXECUTION_FAILURE;
+                BX_USAGE_FAIL ();
             }
-            list = list->next; continue;
-        }
-        if (!strcmp (w, "-r")) { rflag = 1; list = list->next; continue; }
-        if (!strcmp (w, "-t")) { tflag = 1; list = list->next; continue; }
-        if (!strcmp (w, "-p")) { pflag = 1; tflag = 1; list = list->next; continue; }
-        if (w[1] == 'n' && w[2]) {
-            if (bx_parse_positive_int (w + 2, &max_n) != 0) {
-                builtin_error ("-n needs a positive count");
-                bos_shim_try_help ("xargs");
-                return EXECUTION_FAILURE;
-            }
+            break;
+        case 'r': rflag = 1; break;
+        case 't': tflag = 1; break;
+        case 'p': pflag = 1; tflag = 1; break;
+        case 'x': xflag = 1; break;
+        case 'n':
+            if (bx_option_number ('n', g.optarg, 1, INT_MAX, 1, &num) < 0) BX_USAGE_FAIL ();
+            max_n = (int) num;
             if (max_l || (Iflag && max_n != 1)) {
                 builtin_error ("warning: -n overrides previous -L or -I");
                 max_l = 0;
                 Iflag = NULL;
             }
             if (Iflag && max_n == 1) max_n = 0;
-            list = list->next;
-            continue;
-        }
-        if (!strcmp (w, "-n")) {
-            if (!list->next) { builtin_error ("-n needs MAX"); bos_shim_try_help ("xargs"); return EXECUTION_FAILURE; }
-            list = list->next;
-            if (bx_parse_positive_int (list->word->word, &max_n) != 0) {
-                builtin_error ("-n needs a positive count");
-                bos_shim_try_help ("xargs");
-                return EXECUTION_FAILURE;
-            }
-            if (max_l || (Iflag && max_n != 1)) {
-                builtin_error ("warning: -n overrides previous -L or -I");
-                max_l = 0;
-                Iflag = NULL;
-            }
-            if (Iflag && max_n == 1) max_n = 0;
-            list = list->next;
-            continue;
-        }
-        if (w[1] == 'L' && w[2]) {
-            if (bx_parse_positive_int (w + 2, &max_l) != 0) {
-                builtin_error ("-L needs a positive count");
-                bos_shim_try_help ("xargs");
-                return EXECUTION_FAILURE;
-            }
+            break;
+        case 'L':
+        case 'l': {
+            /* -l without a count means one line. */
+            const char *text = (c == 'l' && !g.optarg) ? "1" : g.optarg;
+            if (bx_option_number (c, text, 1, INT_MAX, 1, &num) < 0) BX_USAGE_FAIL ();
+            max_l = (int) num;
             if (max_n || Iflag) {
                 builtin_error ("warning: -L overrides previous -n or -I");
                 max_n = 0;
                 Iflag = NULL;
             }
-            list = list->next;
-            continue;
+            break;
         }
-        if (!strcmp (w, "-L")) {
-            if (!list->next) { builtin_error ("-L needs MAX"); bos_shim_try_help ("xargs"); return EXECUTION_FAILURE; }
-            list = list->next;
-            if (bx_parse_positive_int (list->word->word, &max_l) != 0) {
-                builtin_error ("-L needs a positive count");
+        case 'P':
+            if (bx_option_number ('P', g.optarg, 0, INT_MAX, 0, &num) < 0) BX_USAGE_FAIL ();
+            /* -P 0 runs as many as possible; the pool needs a bound. */
+            max_p = num == 0 ? 1024 : num > 1024 ? 1024 : (int) num;
+            break;
+        case 's': {
+            char *end = NULL;
+            errno = 0;
+            num = strtol (g.optarg, &end, 10);
+            if (end == g.optarg || *end) {
+                builtin_error ("invalid number \"%s\" for -s option", g.optarg);
                 bos_shim_try_help ("xargs");
-                return EXECUTION_FAILURE;
+                BX_USAGE_FAIL ();
             }
-            if (max_n || Iflag) {
-                builtin_error ("warning: -L overrides previous -n or -I");
-                max_n = 0;
-                Iflag = NULL;
+            /* GNU warns and raises the size to 1; the size check below
+               then refuses it. */
+            if (num < 1) {
+                builtin_error ("value %s for -s option should be >= 1", g.optarg);
+                num = 1;
             }
-            list = list->next;
-            continue;
+            s_flag = num;
+            break;
         }
-        if (w[1] == 'P' && w[2]) {
-            if (bx_parse_positive_int (w + 2, &max_p) != 0) {
-                builtin_error ("-P needs a positive count");
-                bos_shim_try_help ("xargs");
-                return EXECUTION_FAILURE;
-            }
-            list = list->next;
-            continue;
-        }
-        if (!strcmp (w, "-P")) {
-            if (!list->next) { builtin_error ("-P needs MAX"); bos_shim_try_help ("xargs"); return EXECUTION_FAILURE; }
-            list = list->next;
-            if (bx_parse_positive_int (list->word->word, &max_p) != 0) {
-                builtin_error ("-P needs a positive count");
-                bos_shim_try_help ("xargs");
-                return EXECUTION_FAILURE;
-            }
-            list = list->next;
-            continue;
-        }
-        if (w[1] == 's' && w[2]) {
-            if (bx_parse_positive_long (w + 2, &s_flag) != 0) {
-                builtin_error ("-s needs a positive byte count");
-                bos_shim_try_help ("xargs");
-                return EXECUTION_FAILURE;
-            }
-            list = list->next;
-            continue;
-        }
-        if (!strcmp (w, "-s")) {
-            if (!list->next) { builtin_error ("-s needs SIZE"); bos_shim_try_help ("xargs"); return EXECUTION_FAILURE; }
-            list = list->next;
-            if (bx_parse_positive_long (list->word->word, &s_flag) != 0) {
-                builtin_error ("-s needs a positive byte count");
-                bos_shim_try_help ("xargs");
-                return EXECUTION_FAILURE;
-            }
-            list = list->next;
-            continue;
-        }
-        if (w[1] == 'I' && w[2]) {
-            Iflag = (char *) (w + 2);
+        case 'I':
+        case 'i':
+            Iflag = (char *) (g.optarg ? g.optarg : "{}");
             if (max_n || max_l) {
                 builtin_error ("warning: -I overrides previous -n or -L");
                 max_n = max_l = 0;
             }
-            list = list->next;
-            continue;
+            break;
+        default:
+            /* getopt's diagnostic is out; usage errors exit 1 (findutils). */
+            BX_USAGE_FAIL ();
         }
-        if (!strcmp (w, "-I")) {
-            if (!list->next) { builtin_error ("-I needs REPL"); bos_shim_try_help ("xargs"); return EXECUTION_FAILURE; }
-            list = list->next;
-            Iflag = list->word->word;
-            if (max_n || max_l) {
-                builtin_error ("warning: -I overrides previous -n or -L");
-                max_n = max_l = 0;
-            }
-            list = list->next;
-            continue;
-        }
-        /* GNU getopt's wording; usage errors exit 1 (findutils). */
-        if (w[1] == '-')
-            builtin_error ("unrecognized option '%s'", w);
-        else
-            builtin_error ("invalid option -- '%c'", w[1]);
-        bos_shim_try_help ("xargs");
-        return EXECUTION_FAILURE;
     }
-
+#undef BX_USAGE_FAIL
     if (eof_str && delimiter >= 0) {
         /* GNU's message carries its own newline, so a blank line follows. */
         builtin_error ("warning: the -E option has no effect if -0 or -d is used.\n");
@@ -1620,24 +1590,23 @@ xargs_builtin (WORD_LIST *list)
     }
 
     /* Build template argv. Default if no CMD: /bin/echo. */
-    int tmpl_n = 0;
-    for (WORD_LIST *p = list; p; p = p->next) tmpl_n++;
+    int tmpl_n = g.noperands;
     char **tmpl;
     int default_echo = 0;
     if (tmpl_n == 0) {
         tmpl = malloc (2 * sizeof *tmpl);
-        if (!tmpl) return EXECUTION_FAILURE;
+        if (!tmpl) { bos_getopt_free (&g); return EXECUTION_FAILURE; }
         tmpl[0] = (char *) "/bin/echo";
         tmpl[1] = NULL;
         tmpl_n = 1;
         default_echo = 1;
     } else {
         tmpl = malloc ((size_t) (tmpl_n + 1) * sizeof *tmpl);
-        if (!tmpl) return EXECUTION_FAILURE;
-        int i = 0;
-        for (WORD_LIST *p = list; p; p = p->next) tmpl[i++] = p->word->word;
+        if (!tmpl) { bos_getopt_free (&g); return EXECUTION_FAILURE; }
+        for (int i = 0; i < tmpl_n; i++) tmpl[i] = g.operands[i];
         tmpl[tmpl_n] = NULL;
     }
+    bos_getopt_free (&g);
 
     bx_spawn_state spawn_state = { 0 };
     /* GNU: with -a the commands keep xargs' own standard input. */
@@ -1721,6 +1690,13 @@ xargs_builtin (WORD_LIST *list)
     size_t line_limit = s_flag > 0 ? (size_t) s_flag : 131072;
     size_t tmpl_bytes = 0;
     for (int i = 0; i < tmpl_n; i++) tmpl_bytes += strlen (tmpl[i]) + 1;
+    if (default_echo) tmpl_bytes = sizeof "echo";
+    /* GNU checks the size before reading: the command alone must fit. */
+    if (s_flag > 0 && (size_t) s_flag < tmpl_bytes) {
+        builtin_error ("cannot fit single argument within argument list size limit");
+        rc = BX_BAD;
+        goto cleanup;
+    }
 
     if (Iflag) {
         /* -I REPL: run CMD once per input, with REPL replaced by the input. */
@@ -1784,7 +1760,8 @@ xargs_builtin (WORD_LIST *list)
             size_t line_bytes = 0;
             for (int i = 0; i < tmpl_n; i++) line_bytes += (argv[i] ? strlen (argv[i]) : 0) + 1;
             if (line_bytes > line_limit) {
-                builtin_error ("argument line too long");
+                /* -I implies -x. */
+                builtin_error ("argument list too long");
                 too_long = 1;
                 for (int i = 0; i < tmpl_n; i++) free (argv[i]);
                 free (argv);
@@ -1840,12 +1817,7 @@ xargs_builtin (WORD_LIST *list)
         if (arg_max <= 0) arg_max = 131072;
         size_t cap_bytes;
         if (s_flag > 0) {
-            if ((size_t) s_flag <= tmpl_bytes) {
-                builtin_error ("-s %ld: argument list too long (template alone needs %zu bytes)",
-                               s_flag, tmpl_bytes);
-                rc = BX_BAD;
-                goto cleanup;
-            }
+            /* Equal sizes leave no room: each argument is then too long. */
             cap_bytes = (size_t) s_flag - tmpl_bytes;
         } else {
             cap_bytes = (size_t) arg_max / 2;
@@ -1880,8 +1852,9 @@ xargs_builtin (WORD_LIST *list)
             if (max_n > 0 && (int) batch_n >= max_n) flush = 1;
             if (max_l > 0 && batch_n > 0 &&
                 arg_line - batch_line >= (size_t) max_l) flush = 1;
-            /* -L implies GNU's -x: do not split a logical batch to fit -s. */
-            if (max_l > 0 && !flush && batch_n > 0 &&
+            /* -L implies GNU's -x; -x keeps an -n batch whole: do not
+               split a batch to fit -s. */
+            if ((max_l > 0 || (xflag && max_n > 0)) && !flush && batch_n > 0 &&
                 batch_bytes + alen > cap_bytes) {
                 if (bx_end_mask_interval (&spawn_state) < 0) {
                     rc = BX_BAD;
@@ -2050,7 +2023,7 @@ char *xargs_doc[] = {
     "Run an enabled builtin or external command for each argument batch.",
     "Build and run command lines from stdin.",
     "",
-    "    bashxargs [-0rtpo] [-a FILE] [-E EOF] [-d DELIM] [-n MAX] [-L MAX]",
+    "    bashxargs [-0rtpox] [-a FILE] [-E EOF] [-d DELIM] [-n MAX] [-L MAX]",
     "              [-P MAX] [-s SIZE] [-I REPL] [--process-slot-var=NAME]",
     "              [--show-limits] [CMD [ARG...]]",
     "    bashxargs --help | --version",
@@ -2062,9 +2035,12 @@ char *xargs_doc[] = {
     "    -p        prompt before run (yes/no)",
     "    -n MAX    max args per invocation",
     "    -L MAX    max nonblank logical input lines per invocation",
-    "    -P MAX    run up to MAX invocations in parallel",
+    "              (-l[MAX] is the old form; MAX defaults to 1)",
+    "    -P MAX    run up to MAX invocations in parallel (0: up to 1024)",
     "    -s SIZE   max command-line bytes per invocation (POSIX/GNU)",
     "    -I REPL   substitute REPL with input arg; run once per input",
+    "              (-i[REPL], --replace[=REPL] is the old form; REPL: {})",
+    "    -x        exit if an -n batch does not fit in the -s size",
     "    -a FILE, --arg-file=FILE  read items from FILE, not standard input;",
     "              the commands keep the standard input (else /dev/null)",
     "    -E EOF    stop at an input item (with -I, a line) equal to EOF;",
@@ -2082,6 +2058,6 @@ struct builtin bashxargs_struct = {
     xargs_builtin,
     BUILTIN_ENABLED,
     xargs_doc,
-    "bashxargs [-0rtpo] [-a FILE] [-E EOF] [-d DELIM] [-n MAX] [-L MAX] [-P MAX] [-s SIZE] [-I REPL] [--process-slot-var=NAME] [--show-limits] [CMD [ARG...]]",
+    "bashxargs [-0rtpox] [-a FILE] [-E EOF] [-d DELIM] [-n MAX] [-L MAX] [-P MAX] [-s SIZE] [-I REPL] [--process-slot-var=NAME] [--show-limits] [CMD [ARG...]]",
     0
 };

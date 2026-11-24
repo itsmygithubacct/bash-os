@@ -254,6 +254,17 @@
       "script": "printf AB > f\nrc=0\nhexdump --bogus || rc=$?\necho \"rc=$rc\"\nrc=0\nhexdump -Y || rc=$?\necho \"rc=$rc\"\nrc=0\nhexdump -vY f || rc=$?\necho \"rc=$rc\"",
       "expected_status": 0,
       "stderr": "exact"
+    },
+    {
+      "id": "pass9-version",
+      "kind": "parity",
+      "purpose": "Docker parity avail/version-awk-hexdump: hexdump --version and -V print a version and exit 0 (util-linux).",
+      "requires": [
+        "hexdump"
+      ],
+      "script": "hexdump --version </dev/null >/dev/null && echo ok1\nhexdump -V </dev/null >/dev/null && echo ok2",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

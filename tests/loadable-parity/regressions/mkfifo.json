@@ -6,7 +6,8 @@
     "The candidate exposes mkfifo as a Bash builtin while candidate PATH is empty.",
     "The short help synopsis matches the declared usage.",
     "The full builtin help includes the FIFO description, default-mode and umask behavior, -m behavior, and symbolic-mode description.",
-    "Private FIFO fixtures check default permissions, octal and symbolic modes, multi-operand creation and partial failure, invalid modes, and argument errors."
+    "Private FIFO fixtures check default permissions, octal and symbolic modes, multi-operand creation and partial failure, invalid modes, and argument errors.",
+    "Pass 9 (docker suite AN): pass9-coreutils-surface"
   ],
   "exclusions": [
     "FIFOs are created only in the disposable fixture directory and are never connected to host IPC. Concurrent writer/reader behavior is outside this permission and creation suite."
@@ -126,6 +127,17 @@
       "requires": [
         "mkfifo"
       ]
+    },
+    {
+      "id": "pass9-coreutils-surface",
+      "kind": "parity",
+      "purpose": "Docker suite files/mkfifo-stat and G132: coreutils mkfifo's 'cannot create fifo' wording with shell quoting, 'missing operand' with the hint, getopt errors, 'invalid mode', --mode and -Z/--context accepted, and modes from the documented 0666 base.",
+      "requires": [
+        "mkfifo"
+      ],
+      "script": "e() { printf '$ %s\\n' \"$*\"; \"$@\" </dev/null || echo \"rc=$?\"; }\numask 022\nmkfifo -m 640 p; stat -c '%F %a' p\ne mkfifo p\ne mkfifo \"it's\"; e mkfifo \"it's\"\ne mkfifo nodir/x\ne mkfifo\ne mkfifo -m\ne mkfifo -m bad x\ne mkfifo --bogus\nmkfifo -Z z1; mkfifo --context z2; mkfifo --mode=600 -- -z3; mkfifo -m g+w z4; mkfifo -m a=r z5\nstat -c '%n %a' -- z1 z2 -z3 z4 z5\ne mkfifo -m u+s z6\n",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

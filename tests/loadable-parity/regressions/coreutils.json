@@ -715,6 +715,50 @@
       "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n{ cu tac --bogus || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu tac -Y || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'\n{ cu tac -s || echo \"rc=$?\"; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass9-numfmt-plain-diagnostics",
+      "kind": "parity",
+      "purpose": "Docker parity numbers/numfmt-invalid: numfmt (run as coreutils numfmt) prints \"numfmt: invalid number: 'abc'\" without the shell's script-and-line prefix, also for --invalid=warn and option errors.",
+      "requires": [
+        "numfmt"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\ncu numfmt abc || echo \"rc=$?\"\ncu numfmt --invalid=warn abc 10 || echo \"rc=$?\"\ncu numfmt --to=bogus 1 || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass9-nproc-plain-diagnostics",
+      "kind": "parity",
+      "purpose": "nproc (run as coreutils nproc) prints GNU's plain \"nproc: message\" without the shell's script-and-line prefix, for its own errors and for option errors.",
+      "requires": [
+        "nproc"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\ncu nproc x || echo \"rc=$?\"\ncu nproc --bogus || echo \"rc=$?\"\ncu nproc -x || echo \"rc=$?\"\ncu nproc --ignore || echo \"rc=$?\"\ncu nproc --ignore=z || echo \"rc=$?\"\ncu nproc --all=1 || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass9-shred-plain-diagnostics",
+      "kind": "parity",
+      "purpose": "shred (run as coreutils shred) prints GNU's plain \"shred: message\" without the shell's script-and-line prefix, for its own errors and for option errors.",
+      "requires": [
+        "shred"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\ncu shred || echo \"rc=$?\"\ncu shred -n || echo \"rc=$?\"\ncu shred --bogus || echo \"rc=$?\"\ncu shred -q || echo \"rc=$?\"\ncu shred -n z f || echo \"rc=$?\"\ncu shred -s z f || echo \"rc=$?\"\ncu shred --remove=bad f || echo \"rc=$?\"\ncu shred nosuch/f || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass9-groups-plain-diagnostics",
+      "kind": "parity",
+      "purpose": "groups (run as coreutils groups) prints GNU's plain \"groups: message\" without the shell's script-and-line prefix, for its own errors and for option errors.",
+      "requires": [
+        "groups"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\ncu groups nosuch || echo \"rc=$?\"\ncu groups --bogus || echo \"rc=$?\"\ncu groups -x || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

@@ -40,6 +40,7 @@
 #include <sys/stat.h>
 
 #include "loadables.h"
+#include "gnu-longopt.h"
 #include "shim-prog-name.h"
 
 /* GNU diffutils says "byte", except in the C/POSIX message locale, where
@@ -62,21 +63,58 @@ bcm_unit_word (void)
     return "char";
 }
 
+/* A byte count as diffutils documents SKIP and LIMIT: decimal, octal or
+   hex, optionally followed by a multiplier: K, M, G, T, P, E (powers of
+   1024, also written KiB, MiB, ...) or kB, KB, MB, GB, ... (powers of
+   1000). */
 static int
 bcm_parse_skip (const char *s, uint64_t *out)
 {
     char *end = NULL;
     unsigned long long v;
 
-    if (!s || !*s || s[0] == '-')
+    if (!s || !*s || s[0] == '-' || s[0] == '+' || s[0] == ' ' || s[0] == '\t')
         return -1;
     errno = 0;
     v = strtoull (s, &end, 0);
-    if (errno == ERANGE || !end || end == s || *end ||
-        (off_t) v < 0 || (uintmax_t) (off_t) v != (uintmax_t) v)
+    if (errno == ERANGE || !end || end == s)
+        return -1;
+    if (*end) {
+        static const char units[] = "KMGTPE";
+        char u = end[0] == 'k' ? 'K' : end[0];
+        const char *at = u ? strchr (units, u) : NULL;
+        unsigned base = 1024;
+        if (!at)
+            return -1;
+        if (!strcmp (end + 1, "B"))
+            base = 1000;
+        else if (end[1] && strcmp (end + 1, "iB"))
+            return -1;
+        else if (end[0] == 'k' && !end[1])
+            return -1;
+        for (int i = 0; i <= at - units; i++) {
+            if (v > UINT64_MAX / base)
+                return -1;
+            v *= base;
+        }
+    }
+    if ((off_t) v < 0 || (uintmax_t) (off_t) v != (uintmax_t) v)
         return -1;
     *out = (uint64_t) v;
     return 0;
+}
+
+/* -b's rendering of a byte: printable ASCII as itself, controls as ^X,
+   DEL as ^?, and bytes with the high bit as M- and the same rendering. */
+static void
+bcm_byte_text (unsigned char c, char *buf)
+{
+    char *p = buf;
+    if (c >= 0x80) { *p++ = 'M'; *p++ = '-'; c -= 0x80; }
+    if (c < 0x20) { *p++ = '^'; *p++ = (char) (c + 0x40); }
+    else if (c == 0x7f) { *p++ = '^'; *p++ = '?'; }
+    else *p++ = (char) c;
+    *p = '\0';
 }
 
 static int
@@ -123,121 +161,98 @@ bcm_try (void)
     builtin_error ("Try '%s --help' for more information.", bos_shim_prog_name ("cmp"));
 }
 
-static int
-bcm_bad_option (const char *word, int c)
-{
-    fflush (stdout);
-    if (word[0] == '-' && word[1] == '-')
-        builtin_error ("unrecognized option '%s'", word);
-    else
-        builtin_error ("invalid option -- '%c'", c);
-    builtin_error ("Try '%s --help' for more information.", bos_shim_prog_name ("cmp"));
-    return 2;
-}
 
 int
 cmp_builtin (WORD_LIST *list)
 {
-    int lflag = 0, sflag = 0;
+    int lflag = 0, sflag = 0, bflag = 0, c;
     const char *paths[2] = { NULL, NULL };
     int npath = 0;
     uint64_t skip[2] = { 0, 0 };
-    int nskip = 0;
     uint64_t limit = UINT64_MAX;
+    static const struct bos_longopt longopts[] = {
+        { "print-bytes", BOS_NO_ARG, 'b' }, { "ignore-initial", BOS_REQ_ARG, 'i' },
+        { "verbose", BOS_NO_ARG, 'l' }, { "bytes", BOS_REQ_ARG, 'n' },
+        { "quiet", BOS_NO_ARG, 's' }, { "silent", BOS_NO_ARG, 's' },
+        { "help", BOS_NO_ARG, BOS_OPT_HELP }, { "version", BOS_NO_ARG, 'v' },
+        { NULL, 0, 0 }
+    };
+    bos_getopt g;
 
-    for (WORD_LIST *p = list; p; p = p->next) {
-        const char *w = p->word->word;
-        if (strcmp (w, "--help") == 0) {
-            builtin_usage ();
-            return EXECUTION_SUCCESS;
-        }
-        if (strcmp (w, "--version") == 0) {
-            puts ("cmp 1.0 (bash-loadable)");
-            return EXECUTION_SUCCESS;
-        }
-        if (strncmp (w, "--bytes=", 8) == 0) {
-            if (bcm_parse_skip (w + 8, &limit) < 0) {
-                builtin_error ("invalid --bytes value '%s'", w + 8);
-                return 2;
-            }
-            continue;
-        }
-        if (strcmp (w, "--") == 0) {
-            for (p = p->next; p; p = p->next) {
-                if (npath < 2) paths[npath++] = p->word->word;
-                else if (nskip < 2) {
-                    if (bcm_parse_skip (p->word->word, &skip[nskip]) < 0) {
-                        builtin_error ("invalid --ignore-initial value '%s'", p->word->word);
-                        bcm_try ();
-                        return EX_USAGE;
-                    }
-                    nskip++;
-                } else {
-                    builtin_error ("extra operand '%s'", p->word->word);
-                    bcm_try ();
-                    return EX_USAGE;
+    /* GNU cmp's getopt_long, with diffutils' "cmp: Try ..." line. */
+    bos_getopt_init (&g, bos_shim_prog_name ("cmp"), "bi:ln:sv", longopts, list);
+    g.no_hint = 1;
+    while ((c = bos_getopt_next (&g)) != -1) {
+        switch (c) {
+        case 'b': bflag = 1; break;
+        case 'l': lflag = 1; break;
+        case 's': sflag = 1; break;
+        case 'i': {
+            /* SKIP, or SKIP1:SKIP2 */
+            const char *colon = strchr (g.optarg, ':');
+            char first[64];
+            int ok;
+            if (colon) {
+                size_t len = (size_t) (colon - g.optarg);
+                ok = len < sizeof first;
+                if (ok) {
+                    memcpy (first, g.optarg, len);
+                    first[len] = '\0';
+                    ok = bcm_parse_skip (first, &skip[0]) == 0
+                         && bcm_parse_skip (colon + 1, &skip[1]) == 0;
                 }
+            } else {
+                ok = bcm_parse_skip (g.optarg, &skip[0]) == 0;
+                skip[1] = skip[0];
+            }
+            if (!ok) {
+                builtin_error ("invalid --ignore-initial value '%s'", g.optarg);
+                bcm_try ();
+                bos_getopt_free (&g);
+                return 2;
             }
             break;
         }
-        if (npath >= 2) {
-            if (nskip < 2) {
-                if (bcm_parse_skip (w, &skip[nskip]) < 0) {
-                    builtin_error ("invalid --ignore-initial value '%s'", w);
-                    bcm_try ();
-                    return EX_USAGE;
-                }
-                nskip++;
-            } else {
-                builtin_error ("extra operand '%s'", p->word->word);
+        case 'n':
+            if (bcm_parse_skip (g.optarg, &limit) < 0) {
+                builtin_error ("invalid --bytes value '%s'", g.optarg);
                 bcm_try ();
-                return EX_USAGE;
+                bos_getopt_free (&g);
+                return 2;
             }
-            continue;
-        }
-        if (w[0] == '-' && w[1] == '-')
-            return bcm_bad_option (w, 0);
-        if (w[0] == '-' && w[1] && strcmp (w, "-") != 0) {
-            for (int i = 1; w[i]; i++) {
-                if (w[i] == 'n') {
-                    /* -n LIMIT: the count is the rest of the word, or the
-                       next word. */
-                    const char *count = w[i + 1] ? &w[i + 1] : NULL;
-                    if (!count) {
-                        if (!p->next) {
-                            builtin_error ("option requires an argument -- 'n'");
-                            bcm_try ();
-                            return 2;
-                        }
-                        p = p->next;
-                        count = p->word->word;
-                    }
-                    if (bcm_parse_skip (count, &limit) < 0) {
-                        builtin_error ("invalid --bytes value '%s'", count);
-                        return 2;
-                    }
-                    break;
-                }
-                switch (w[i]) {
-                case 'l': lflag = 1; break;
-                case 's': sflag = 1; break;
-                default:
-                    return bcm_bad_option (w, w[i]);
-                }
-            }
-        } else {
-            if (npath < 2) paths[npath++] = w;
-            else if (nskip < 2) {
-                if (bcm_parse_skip (w, &skip[nskip]) < 0) {
-                    builtin_error ("invalid --ignore-initial value '%s'", w);
-                    bcm_try ();
-                    return EX_USAGE;
-                }
-                nskip++;
-            }
-            else { builtin_error ("extra operand '%s'", w); bcm_try (); return EX_USAGE; }
+            break;
+        case BOS_OPT_HELP:
+            bos_getopt_free (&g);
+            builtin_usage ();
+            return EXECUTION_SUCCESS;
+        case 'v':
+            bos_getopt_free (&g);
+            puts ("cmp 1.0 (bash-loadable)");
+            return EXECUTION_SUCCESS;
+        default:
+            bcm_try ();
+            bos_getopt_free (&g);
+            return 2;
         }
     }
+    for (int i = 0; i < g.noperands; i++) {
+        const char *w = g.operands[i];
+        if (npath < 2) paths[npath++] = w;
+        else if (i < 4) {
+            if (bcm_parse_skip (w, &skip[i - 2]) < 0) {
+                builtin_error ("invalid --ignore-initial value '%s'", w);
+                bcm_try ();
+                bos_getopt_free (&g);
+                return EX_USAGE;
+            }
+        } else {
+            builtin_error ("extra operand '%s'", w);
+            bcm_try ();
+            bos_getopt_free (&g);
+            return EX_USAGE;
+        }
+    }
+    bos_getopt_free (&g);
     if (npath != 2) {
         builtin_error ("missing operand after '%s'", npath ? paths[0] : bos_shim_prog_name ("cmp"));
         bcm_try ();
@@ -320,7 +335,10 @@ cmp_builtin (WORD_LIST *list)
         }
         if (eof[0] || eof[1]) {
             if (eof[0] != eof[1]) {
-                if (!sflag)
+                if (!sflag && off == 1)
+                    fprintf (stderr, "cmp: EOF on %s which is empty\n",
+                             eof[0] ? paths[0] : paths[1]);
+                else if (!sflag)
                     fprintf (stderr,
                              "cmp: EOF on %s after byte %" PRIu64 ", in line %" PRIu64 "\n",
                              eof[0] ? paths[0] : paths[1], off - 1, line);
@@ -334,12 +352,24 @@ cmp_builtin (WORD_LIST *list)
         for (size_t i = 0; i < lim; i++) {
             unsigned char a = buf[0][used[0] + i], b = buf[1][used[1] + i];
             if (a != b) {
-                if (lflag) {
+                char ta[8], tb[8];
+                bcm_byte_text (a, ta);
+                bcm_byte_text (b, tb);
+                if (lflag && bflag) {
+                    printf ("%*" PRIu64 " %3o %-4s %3o %s\n",
+                            offset_width, off + (uint64_t) i,
+                            (unsigned) a, ta, (unsigned) b, tb);
+                } else if (lflag) {
                     printf ("%*" PRIu64 " %3o %3o\n",
                             offset_width, off + (uint64_t) i,
                             (unsigned) a, (unsigned) b);
                 } else {
-                    if (!sflag)
+                    /* -b's form says "byte" in every locale. */
+                    if (!sflag && bflag)
+                        printf ("%s %s differ: byte %" PRIu64 ", line %" PRIu64 " is %3o %s %3o %s\n",
+                                paths[0], paths[1], off + (uint64_t) i, line,
+                                (unsigned) a, ta, (unsigned) b, tb);
+                    else if (!sflag)
                         printf ("%s %s differ: %s %" PRIu64 ", line %" PRIu64 "\n",
                                 paths[0], paths[1], bcm_unit_word (),
                                 off + (uint64_t) i, line);
@@ -369,14 +399,18 @@ done:
 char *cmp_doc[] = {
     "Byte-compare two files.",
     "",
-    "    bashcmp [-l|-s] [-n LIMIT] FILE1 FILE2 [SKIP1 [SKIP2]]",
+    "    bashcmp [-b] [-l|-s] [-i SKIP[:SKIP2]] [-n LIMIT] FILE1 FILE2 [SKIP1 [SKIP2]]",
     "        Default: print 'FILE1 FILE2 differ: byte N, line M' on first",
     "        diff ('char' instead of 'byte' in the C/POSIX locale, as GNU).",
     "        Exit 0 (same), 1 (differ), 2 (error).",
-    "    -l   list every diff as 'offset oct1 oct2'",
-    "    -s   silent: only exit code",
+    "    -b, --print-bytes   also show the differing bytes (octal and as text)",
+    "    -i SKIP, --ignore-initial=SKIP   skip SKIP bytes of both inputs;",
+    "         -i SKIP1:SKIP2 skips SKIP1 of FILE1 and SKIP2 of FILE2",
+    "    -l, --verbose   list every diff as 'offset oct1 oct2'",
+    "    -s, --quiet, --silent   only exit code",
     "    -n LIMIT, --bytes=LIMIT   compare at most LIMIT bytes",
-    "    SKIP — skip leading bytes (default 0).",
+    "    SKIP — skip leading bytes (default 0). SKIP and LIMIT may end in",
+    "    K, M, G, T, P, E (powers of 1024) or kB, MB, ... (powers of 1000).",
     "",
     "Either file may be '-' to read stdin (but only one).",
     (char *)NULL
@@ -387,6 +421,6 @@ struct builtin bashcmp_struct = {
     cmp_builtin,
     BUILTIN_ENABLED,
     cmp_doc,
-    "bashcmp [-ls] [-n LIMIT] FILE1 FILE2 [SKIP1 [SKIP2]]",
+    "bashcmp [-bls] [-i SKIP[:SKIP2]] [-n LIMIT] FILE1 FILE2 [SKIP1 [SKIP2]]",
     0
 };

@@ -258,6 +258,28 @@
       "script": "rc=0\nwc --files0-from || rc=$?\necho \"rc=$rc\"",
       "expected_status": 0,
       "stderr": "exact"
+    },
+    {
+      "id": "pass9-total-when",
+      "kind": "parity",
+      "purpose": "Docker parity text/wc-total: --total=auto|always|only|never (or a unique prefix, also as the next word): only prints just the total, unpadded and unnamed; always adds it for one file or standard input; never drops it.",
+      "requires": [
+        "wc"
+      ],
+      "script": "printf 'one two\\nthree\\n' > a; printf 'no newline' > b; printf 'a\\0b\\0' > l\nwc --total=never a b; echo --; wc --total=only a b; echo --; wc --total=always a; echo --\nwc --total=auto a b; wc --total=auto a; wc --total=only a; wc --total=only -l a b; wc --total=only -c < a; wc --total=always < a\nwc --tot=al a; wc --total nev a b; wc -c --total=only a b; wc --total=always -L a b\nwc --files0-from=l --total=only; wc --files0-from=l --total=never; wc --total=always --files0-from=l",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass9-total-errors",
+      "kind": "parity",
+      "purpose": "Docker parity text/wc-total: an invalid or ambiguous --total argument prints GNU's argmatch message with the valid arguments and the Try line, status 1; a missing argument is getopt's message; with only, a missing file is still diagnosed.",
+      "requires": [
+        "wc"
+      ],
+      "script": "printf 'one two\\nthree\\n' > a\nwc --total=bogus a || echo \"rc=$?\"\nwc --total=a a || echo \"rc=$?\"\nwc --total= a || echo \"rc=$?\"\nwc --total </dev/null || echo \"rc=$?\"\nwc --total=only nosuch a || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

@@ -294,6 +294,21 @@
       "expected_status": 0,
       "stdout": "ln ok\nmktemp ok\ncp ok\nsort ok\ntail ok\nwc ok\ntr ok\nxargs ok\nstat ok\nmkdir ok\nchmod ok\nuniq ok\n",
       "stderr": "empty"
+    },
+    {
+      "id": "pass9-backup-type-list",
+      "kind": "parity",
+      "purpose": "Docker parity errors/ln: an invalid or ambiguous --backup argument, or a bad VERSION_CONTROL, lists the valid keywords before the Try line; unique prefixes are accepted. The rejected calls run in a scratch directory that is removed: GNU coreutils 9.7 ln (and mv) still make the link after this fatal-looking diagnostic and exit 1, while bash-os stops; that side effect is a recorded, deliberate difference, the diagnostics and statuses are compared here.",
+      "requires": [
+        "ln",
+        "touch",
+        "ls",
+        "mkdir",
+        "rm"
+      ],
+      "script": "touch a\nmkdir t\nln --backup=bad a t/b || echo \"rc=$?\"\nln --backup=n a t/b || echo \"rc=$?\"\nVERSION_CONTROL=bad ln -b a t/c || echo \"rc=$?\"\nrm -r t\nln --backup=nu a d || echo \"rc=$?\"\nln --backup=nu a d || echo \"rc=$?\"\nln -S .x --backup=s a e || echo \"rc=$?\"\nln -S .x --backup=s a e || echo \"rc=$?\"\nls",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

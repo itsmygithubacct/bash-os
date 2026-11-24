@@ -67,6 +67,17 @@
       "purpose": "Cover command-mode limit inheritance, parent-state preservation, child exit/signal propagation, and exec failure status.",
       "kind": "deferred",
       "reason": "Command mode forks, changes a child's resource limit, and execs a command. A future fixture needs a disposable VM or controlled syscall/process mock plus a private reporting helper to verify inherited limits, parent preservation, and status mapping without involving host commands or processes."
+    },
+    {
+      "id": "pass9-option-errors",
+      "kind": "parity",
+      "purpose": "G129: util-linux prlimit reports unknown options and a missing --pid/-p argument with getopt wording and the Try line, status 1.",
+      "requires": [
+        "prlimit"
+      ],
+      "script": "prlimit --bogus </dev/null || echo \"rc=$?\"\nprlimit -@ </dev/null || echo \"rc=$?\"\nprlimit -@x </dev/null || echo \"rc=$?\"\nprlimit --bogus=1 </dev/null || echo \"rc=$?\"\nprlimit --pid </dev/null || echo \"rc=$?\"\nprlimit -p </dev/null || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

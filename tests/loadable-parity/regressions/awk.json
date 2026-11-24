@@ -487,6 +487,115 @@
       "stdout": "rc=1\n",
       "stderr": "exact",
       "stderr_text": "awk: invalid option -- 'Y'\nUsage: awk [-F SEP] [-v VAR=VAL] [-e SCRIPT] [-f FILE] [SCRIPT] [FILE...]\n"
+    },
+    {
+      "id": "pass9-getline-main-input",
+      "kind": "parity",
+      "purpose": "Docker parity awk/awk-getline-file: plain getline and getline VAR read the next record of the file operands (not standard input), move on to the next operand, open the first operand in BEGIN, count NR and FNR, return 0 at the end and keep reading in END after exit; VAR=VALUE operands apply when the walk reaches them.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else (exec -a awk gawk \"$@\"); fi; }\nprintf 'l1\\nl2\\nl3\\n' > f; printf 'm1\\nm2\\n' > g\nawk_cmd 'NR==1{getline; print \"after getline:\", $0, NR}' f; awk_cmd 'NR==1{getline v; print v, NR, $0}' f; awk_cmd '{getline; print}' f\necho stdin | awk_cmd 'BEGIN{getline; print \"B\", $0, NR, FNR, FILENAME; getline x; print x}{print \"M\", $0, NR, FNR, FILENAME}' f g\nawk_cmd 'FNR==3{r=getline; print r, $0, NR, FNR, FILENAME}' f g\nawk_cmd '{r=getline; print r, $0, NR, FNR}' f\nawk_cmd 'END{r=getline; print r, $0, NR; r=getline v; print r, v}' f\nawk_cmd 'NR==1{exit} END{r=getline v; print r, v, NR}' f\nawk_cmd 'FNR==3{getline; print $0, x, FILENAME}' f x=5 g\nawk_cmd 'FNR==1{getline; print; nextfile}' f g\nawk_cmd 'BEGIN{while ((getline line) > 0) n++; print n, NR, line}' f g\nprintf 's1\\ns2\\n' | awk_cmd 'BEGIN{getline; print \"B\", $0, NR, FILENAME}{print \"M\", $0, \"[\" FILENAME \"]\"}'\nprintf 'a b c\\n' > h; awk_cmd '{getline v; print NF, v}' h",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass9-getline-file-counters",
+      "kind": "parity",
+      "purpose": "getline < FILE and getline VAR < FILE leave NR and FNR alone (gawk, mawk); only the main-input forms count records.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else (exec -a awk gawk \"$@\"); fi; }\nprintf 'l1\\nl2\\nl3\\n' > f; printf 'm1\\nm2\\n' > g\nawk_cmd 'BEGIN{getline < \"f\"; print NR, FNR, NF, $0}' f\nawk_cmd 'BEGIN{getline v < \"f\"; print NR, FNR, v}' f\nawk_cmd 'NR==1{getline < \"g\"; print NR, FNR, $0}' f",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass9-input-open-errors",
+      "kind": "parity",
+      "purpose": "Docker parity awk/awk-errors: an operand that cannot be opened is gawk's fatal \"cannot open file `F' for reading: ERR\", status 2, with the running statement's \"cmd. line:N:\" or \"FILE:N:\" location once any rule has run (also from getline in BEGIN); a directory operand is skipped with gawk's warning.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else (exec -a awk gawk \"$@\"); fi; }\nprintf 'l1\\nl2\\n' > f\nprintf 'BEGIN{x=1}\\n\\n{print}\\n' > p.awk\nawk_cmd '{print}' nosuch || echo \"rc=$?\"\nawk_cmd '{print}' f nosuch f || echo \"rc=$?\"\nawk_cmd 'END{print NR}' nosuch || echo \"rc=$?\"\nawk_cmd 'BEGIN{x=1}{print}' nosuch || echo \"rc=$?\"\nawk_cmd 'BEGIN{getline; print}' nosuch || echo \"rc=$?\"\nawk_cmd -f p.awk f nosuch || echo \"rc=$?\"\nawk_cmd '{print}' . f || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass9-syntax-errors",
+      "kind": "parity",
+      "purpose": "Docker parity awk/awk-errors: a syntax error is reported as gawk does, the source line then a caret line under the offending token (\"syntax error\") or after the end of the line (\"unexpected newline or end of string\"), status 1.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else (exec -a awk gawk \"$@\"); fi; }\nawk_cmd 'BEGIN{print 1' || echo \"rc=$?\"\nawk_cmd 'BEGIN{print (1}' || echo \"rc=$?\"\nawk_cmd 'BEGIN{x = }' || echo \"rc=$?\"\nawk_cmd 'BEGIN{print 1)}' || echo \"rc=$?\"\nawk_cmd '{print' || echo \"rc=$?\"\nawk_cmd 'BEGIN {\n  print 1\n' || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass9-environ-exports",
+      "kind": "parity",
+      "purpose": "Docker parity awk/awk-environ-prefix: ENVIRON holds VAR=VALUE prefixes of the awk command and variables exported in the running shell.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "# No command substitution or fork before the awk calls: either makes bash\n# rebuild the C environ, which would hide the bug this case covers.\nif help awk >/dev/null 2>&1; then A=awk; else A=gawk; fi\nFOO=bar $A 'BEGIN{print \"[\" ENVIRON[\"FOO\"] \"]\"}'\nX=1 $A 'BEGIN{print (\"X\" in ENVIRON)}'\nexport LATER=set\n$A 'BEGIN{print \"[\" ENVIRON[\"LATER\"] \"]\"}'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass9-decimal-input",
+      "kind": "parity",
+      "purpose": "Docker parity awk/awk-hex-input: input and string data convert to numbers as decimal only: hexadecimal reads as its leading 0, inf/nan words without a sign are not numbers, and such fields compare as strings.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else (exec -a awk gawk \"$@\"); fi; }\necho '0x10 0x1A' | awk_cmd '{print ($1==16), $1+0, $2+1}'\nfor v in 0x10 0X1A 0x1p3 -0x10 inf nan infinity +infinity +infx '-nan(1)' 1e3 ' 12 ' 010 1e .5 +.5 .; do printf '%s\\n' \"$v\" | awk_cmd '{printf \"[%s] %s %d\\n\", $0, $0+0, ($0<2)}'; done\nawk_cmd 'BEGIN{print \"0x10\"+0, \"inf\"+0, \" 0x5\"+1}'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass9-substr-start-below-one",
+      "kind": "parity",
+      "purpose": "Docker parity awk/awk-substr-range: substr with a start below 1 counts from 1 and keeps the length (gawk, BWK awk); start and length truncate.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else (exec -a awk gawk \"$@\"); fi; }\nawk_cmd 'BEGIN{s=\"Hello\"; print substr(s,0,3), substr(s,-1,3), substr(s,0), substr(s,1.5,2)}'\nawk_cmd 'BEGIN{s=\"Hello\"; print substr(s,-1), substr(s,2,-1) \"|\", substr(s,0.5,1), substr(s,1.5), substr(s,2.5,1.5), substr(s,1,1.5), substr(s,1,2.5), substr(s,5,10), substr(s,6) \"|\" substr(s,-1e10,1e10+2)}'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass9-convfmt-integer",
+      "kind": "parity",
+      "purpose": "Docker parity awk/awk-convfmt-int: an integer conversion in CONVFMT or OFMT takes the value truncated toward zero, in string conversion, array subscripts and print.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else (exec -a awk gawk \"$@\"); fi; }\nawk_cmd 'BEGIN{CONVFMT=\"%d\"; y=2.7; z=y \"\"; print z; a[y]=1; for (k in a) print k}'\nawk_cmd 'BEGIN{CONVFMT=\"%d\"; y=-2.7; print y \"\"; CONVFMT=\"%x\"; print 255.5 \"\"; CONVFMT=\"%5.2d|\"; print 3.9 \"\"; OFMT=\"%d\"; print 7.9; OFMT=\"%ld\"; print 8.2; CONVFMT=\"%.2f\"; print 3.14159 \"\"}'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass9-version",
+      "kind": "parity",
+      "purpose": "Docker parity avail/version-awk-hexdump: awk --version, -V and -W version print a version and exit 0.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else (exec -a awk gawk \"$@\"); fi; }\nawk_cmd --version </dev/null >/dev/null && echo ok1\nawk_cmd -V </dev/null >/dev/null && echo ok2\nawk_cmd -W version </dev/null >/dev/null && echo ok3",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass9-option-argument-errors",
+      "kind": "contract",
+      "purpose": "Docker parity errors/awk: -f, -F, -v and -e without an argument print gawk's \"option requires an argument -- C\" and the usage line, status 1; -f naming a missing file is gawk's fatal \"cannot open source file\", status 2; -v without VAR=VALUE and with an illegal name use gawk's wording (gawk's long usage text is not reproduced).",
+      "script": "for o in -f -F -v -e; do rc=0; awk $o </dev/null || rc=$?; echo \"$o rc=$rc\"; done\nrc=0; awk -f nosuch </dev/null || rc=$?; echo \"nosuch rc=$rc\"\nrc=0; awk -v x 1 </dev/null || rc=$?; echo \"x rc=$rc\"\nrc=0; awk -v 1x=2 'BEGIN{}' </dev/null || rc=$?; echo \"1x rc=$rc\"",
+      "expected_status": 0,
+      "stdout": "-f rc=1\n-F rc=1\n-v rc=1\n-e rc=1\nnosuch rc=2\nx rc=1\n1x rc=2\n",
+      "stderr": "exact",
+      "stderr_text": "awk: option requires an argument -- f\nUsage: awk [-F SEP] [-v VAR=VAL] [-e SCRIPT] [-f FILE] [SCRIPT] [FILE...]\nawk: option requires an argument -- F\nUsage: awk [-F SEP] [-v VAR=VAL] [-e SCRIPT] [-f FILE] [SCRIPT] [FILE...]\nawk: option requires an argument -- v\nUsage: awk [-F SEP] [-v VAR=VAL] [-e SCRIPT] [-f FILE] [SCRIPT] [FILE...]\nawk: option requires an argument -- e\nUsage: awk [-F SEP] [-v VAR=VAL] [-e SCRIPT] [-f FILE] [SCRIPT] [FILE...]\nawk: fatal: cannot open source file `nosuch' for reading: No such file or directory\nawk: `x' argument to `-v' not in `var=value' form\n\nUsage: awk [-F SEP] [-v VAR=VAL] [-e SCRIPT] [-f FILE] [SCRIPT] [FILE...]\nawk: fatal: `1x' is not a legal variable name\n"
     }
   ]
 }

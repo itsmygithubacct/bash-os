@@ -4,7 +4,8 @@
   "reference": "curl 8.x file:// handling as documented by curl(1) and RFC 8089: the candidate and the reference curl read the same private relative fixture through an absolute file:// URL.",
   "coverage": [
     "file:// reads, -o, localhost host form, percent decoding, errors 37 and 3.",
-    "G36: -w/--write-out variables (%{size_download}, %{content_type}, %{url_effective}, %{redirect_url}, %{num_redirects}, %{size_header}, ...), %header{}, @FILE, %{onerror}, -w output on -f failures, and --fail-with-body, against GNU curl on a loopback peer."
+    "G36: -w/--write-out variables (%{size_download}, %{content_type}, %{url_effective}, %{redirect_url}, %{num_redirects}, %{size_header}, ...), %header{}, @FILE, %{onerror}, -w output on -f failures, and --fail-with-body, against GNU curl on a loopback peer.",
+    "Pass 9 G136: -i, -e, --url, --create-dirs, -K, --resolve, -R, -z, -n/--netrc, --noproxy, --proto, --stderr, accepted -g/-N/-4/-q, curl: (N) transfer errors and curl's option diagnostics, against curl on a loopback peer."
   ],
   "exclusions": [
     "-I and -C on file:// URLs, directory listings."
@@ -84,6 +85,45 @@
       "script": "trap 'rm -f srv.py sock' EXIT\ncat > srv.py <<'PY2'\nimport socket, sys\n# Unix-domain HTTP peer: echo the request line and Host header in the body.\ns = socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); s.listen(4)\nprint('ready', flush=True)\nfor _ in range(int(sys.argv[2])):\n    c, _ = s.accept(); c.settimeout(4)\n    data = b''\n    while b'\\r\\n\\r\\n' not in data:\n        part = c.recv(4096)\n        if not part: break\n        data += part\n    lines = data.split(b'\\r\\n')\n    host = [l for l in lines if l.lower().startswith(b'host:')]\n    body = lines[0] + b'|' + (host[0] if host else b'') + b'\\n'\n    c.sendall(b'HTTP/1.1 200 OK\\r\\nContent-Length: %d\\r\\nConnection: close\\r\\n\\r\\n' % len(body) + body)\n    c.close()\nPY2\ncoproc SRV { /usr/bin/python3 srv.py sock 2; }\nread -r -t 5 ready <&\"${SRV[0]}\"\ncurl -s --unix-socket sock 'http://example.test/p?q=1' -w '[%{http_code} %{remote_ip} %{remote_port}]\\n'\ncurl -s --unix-socket sock http://h:8080/x\nwait \"$SRV_PID\" || true\ncurl -s --unix-socket missing http://x/ || echo \"rc=$?\"\ncurl -s --unix-socket '' http://x/ 2>/dev/null || echo \"rc=$?\"\nrm -f srv.py sock",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass9-common-options",
+      "kind": "parity",
+      "requires": [
+        "curl",
+        "python3",
+        "stat"
+      ],
+      "timeout": 15,
+      "purpose": "G136: -i/--include writes the response head before the body; -e/--referer, --url, --create-dirs, -K/--config (quoted url =, bare long names, comments, short options), --resolve HOST:PORT:ADDR, -R/--remote-time, and the accepted -g -N -4 -q and --noproxy '*' (which bypasses -x) behave as curl does against a loopback peer.",
+      "script": "cat > srv.py <<'PY2'\nimport socket\n# Loopback peer: echoes the request line and the Referer, If-Modified-Since,\n# If-Unmodified-Since and Authorization headers; fixed Last-Modified.\ns = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\ns.bind(('127.0.0.1', 18191)); s.listen(8)\nprint('ready', flush=True)\nwhile True:\n    c, _ = s.accept(); c.settimeout(4)\n    data = b''\n    while b'\\r\\n\\r\\n' not in data:\n        part = c.recv(4096)\n        if not part: break\n        data += part\n    lines = data.split(b'\\r\\n')\n    path = lines[0].split(b' ')[1].decode() if lines[0].count(b' ') else '/'\n    if path == '/quit': c.close(); break\n    keep = [l for l in lines[1:] if l.split(b':')[0].lower() in (b'referer', b'if-modified-since', b'if-unmodified-since', b'authorization')]\n    body = b'\\n'.join([lines[0]] + keep) + b'\\n'\n    c.sendall(b'HTTP/1.1 200 OK\\r\\nContent-Type: text/plain\\r\\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT\\r\\nContent-Length: %d\\r\\nConnection: close\\r\\n\\r\\n' % len(body) + body)\n    c.close()\ns.close()\nPY2\ncoproc SRV { /usr/bin/python3 srv.py; }\nread -r -t 5 ready <&\"${SRV[0]}\"\nU=http://127.0.0.1:18191\ncurl -s -i $U/include\ncurl -s -e http://referer.example/page $U/referer\ncurl -s --url $U/url\ncurl -s --create-dirs -o d1/d2/out $U/dirs && cat d1/d2/out\nprintf 'url = \"%s/config\"\\nsilent\\n# comment\\n-e http://from-config/\\n' \"$U\" > cfg\ncurl -K cfg\ncurl -s --resolve name.invalid:18191:127.0.0.1 http://name.invalid:18191/resolve\ncurl -s -g -N -4 -q --noproxy '*' -x http://127.0.0.1:1 $U/flags\ncurl -s -R -o rt $U/remote-time && stat -c %Y rt\ncurl -s $U/quit >/dev/null 2>&1 || true\nwait \"$SRV_PID\" || true\nrm -f srv.py\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass9-time-cond-netrc",
+      "kind": "parity",
+      "requires": [
+        "curl",
+        "python3",
+        "touch"
+      ],
+      "timeout": 15,
+      "purpose": "G136: -z DATE sends If-Modified-Since and drops a document that is not newer; -z -DATE sends If-Unmodified-Since; -z FILE uses the file's time; -n/--netrc takes the login from $HOME/.netrc unless -u is given.",
+      "script": "cat > srv.py <<'PY2'\nimport socket\n# Loopback peer: echoes the request line and the Referer, If-Modified-Since,\n# If-Unmodified-Since and Authorization headers; fixed Last-Modified.\ns = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\ns.bind(('127.0.0.1', 18191)); s.listen(8)\nprint('ready', flush=True)\nwhile True:\n    c, _ = s.accept(); c.settimeout(4)\n    data = b''\n    while b'\\r\\n\\r\\n' not in data:\n        part = c.recv(4096)\n        if not part: break\n        data += part\n    lines = data.split(b'\\r\\n')\n    path = lines[0].split(b' ')[1].decode() if lines[0].count(b' ') else '/'\n    if path == '/quit': c.close(); break\n    keep = [l for l in lines[1:] if l.split(b':')[0].lower() in (b'referer', b'if-modified-since', b'if-unmodified-since', b'authorization')]\n    body = b'\\n'.join([lines[0]] + keep) + b'\\n'\n    c.sendall(b'HTTP/1.1 200 OK\\r\\nContent-Type: text/plain\\r\\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT\\r\\nContent-Length: %d\\r\\nConnection: close\\r\\n\\r\\n' % len(body) + body)\n    c.close()\ns.close()\nPY2\ncoproc SRV { /usr/bin/python3 srv.py; }\nread -r -t 5 ready <&\"${SRV[0]}\"\nU=http://127.0.0.1:18191\ncurl -s -z 'Wed, 21 Oct 2015 07:28:00 GMT' $U/same; echo \"rc=$?\"\ncurl -s -z 'Tue, 20 Oct 2015 07:28:00 GMT' $U/older\ncurl -s -z '-Tue, 20 Oct 2015 07:28:00 GMT' $U/unmodified; echo \"rc=$?\"\ncurl -s -z '-Thu, 22 Oct 2015 07:28:00 GMT' $U/unmodified-later\ntouch -d '2015-10-20 00:00:00 UTC' stamp\ncurl -s -z stamp $U/file-stamp\nprintf 'machine 127.0.0.1 login alice password s3cret\\n' > .netrc\nHOME=$PWD curl -s -n $U/netrc\nHOME=$PWD curl -s --netrc -u bob:pw $U/netrc-user\ncurl -s $U/quit >/dev/null 2>&1 || true\nwait \"$SRV_PID\" || true\nrm -f srv.py\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass9-curl-errors",
+      "kind": "parity",
+      "requires": [
+        "curl"
+      ],
+      "purpose": "G136: transfer errors are curl's 'curl: (N) ...' lines (7 for a refused connection), --stderr - sends them to stdout, --proto disables a protocol with error 1, a bad --resolve entry is error 49, an unreadable -K file is 26, and option errors are 'curl: option X: is unknown/requires parameter/is badly used here' with curl's hint (exit 2).",
+      "script": "curl -sS http://127.0.0.1:1/ || echo \"rc=$?\"\ncurl -sS --stderr - http://127.0.0.1:1/ 2>/dev/null || echo \"rc=$?\"\ncurl -sS --proto =https http://127.0.0.1:1/ || echo \"rc=$?\"\ncurl -sS --proto -all,+https http://127.0.0.1:1/ || echo \"rc=$?\"\ncurl -sS --resolve bad http://127.0.0.1:1/ || echo \"rc=$?\"\ncurl -sS -K no-such-config http://127.0.0.1:1/ || echo \"rc=$?\"\ncurl -sS --limit-rate x http://127.0.0.1:1/ || echo \"rc=$?\"\ncurl --bogus-option || echo \"rc=$?\"\ncurl -o || echo \"rc=$?\"\ncurl -sS -e || echo \"rc=$?\"\n",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

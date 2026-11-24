@@ -81,6 +81,7 @@
 #include <utmp.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 #define BW_UTMP_DEFAULT     "/var/run/utmp"
 #define BW_DEV_DIR_DEFAULT  "/dev"
@@ -597,7 +598,7 @@ wall_builtin (WORD_LIST *list)
         {
           list = list->next;
           if (!list)
-            { builtin_error ("option requires an argument: %s", w); return EXECUTION_FAILURE; }
+            { bos_shim_missing_arg (w, w[1], "wall"); return EXECUTION_FAILURE; }
           group = list->word->word;
           list = list->next;
           continue;
@@ -625,7 +626,7 @@ wall_builtin (WORD_LIST *list)
         {
           list = list->next;
           if (!list)
-            { builtin_error ("option requires an argument: %s", w); return EXECUTION_FAILURE; }
+            { bos_shim_missing_arg (w, w[1], "wall"); return EXECUTION_FAILURE; }
           if (!bw_parse_long_field (list->word->word, &timeout) || timeout < 1)
             { builtin_error ("invalid timeout: %s", list->word->word); return EXECUTION_FAILURE; }
           list = list->next;
@@ -645,7 +646,8 @@ wall_builtin (WORD_LIST *list)
         }
       if (w[0] == '-' && w[1] != '\0')
         {
-          builtin_error ("unknown option: %s", w);
+          /* util-linux: getopt's wording and the Try line, status 1. */
+          bos_shim_bad_option (w, (unsigned char) w[1], "wall");
           return EXECUTION_FAILURE;
         }
       break;

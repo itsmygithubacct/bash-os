@@ -17,7 +17,8 @@
     "Additional bounded regular-file, hardlink, symlink and multi-operand error continuation regressions.",
     "-newermt/-newerXY/-anewer/-cnewer, -samefile, -inum and -links (guest compatibility pass 1).",
     "Guest pass 4 G57: find -newermt shares date's parser, with TZ=\"ZONE\" prefixes and zone-plus-offset items.",
-    "Guest pass 7 G110/G105: -size unit rounding, -ls/-fls, -xtype and type lists, -ok/-okdir, -used, -fstype, -noleaf, -[no]ignore_readdir_race, -version, and GNU's missing-start-point message."
+    "Guest pass 7 G110/G105: -size unit rounding, -ls/-fls, -xtype and type lists, -ok/-okdir, -used, -fstype, -noleaf, -[no]ignore_readdir_race, -version, and GNU's missing-start-point message.",
+    "Pass 9 (docker suite AN): pass9-errors"
   ],
   "exclusions": [
     "No host or system paths, mount operations, network activity, devices, credentials, or process-control operations are used.",
@@ -602,6 +603,17 @@
         "mkdir"
       ],
       "script": "mkdir d\nrc=0; find nosuch d -maxdepth 0 || rc=$?; echo rc=$rc\nrc=0; find d 'a b' \"it's\" 'x\\y' -maxdepth 0 || rc=$?; echo rc=$rc\nrc=0; find d/x '' || rc=$?; echo rc=$rc",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass9-errors",
+      "kind": "parity",
+      "purpose": "Docker suite find/find-errors and errors/find: GNU find's 'unknown predicate `X'' and 'Expected a positive decimal integer argument to -maxdepth, but got 'X'' diagnostics, a range error, and their status 1.",
+      "requires": [
+        "find"
+      ],
+      "script": "e() { printf '$ %s\\n' \"$*\"; \"$@\" </dev/null || echo \"rc=$?\"; }\nmkdir x; touch x/f\ne find x nosuch -name f\ne find x -bogus\ne find x -name\ne find x -maxdepth z\ne find . -maxdepth -1\ne find . -maxdepth 99999999999\ne find . -mindepth x\ne find --bogus\ne find -@\ne find . -maxdepth 03 -prune\n",
       "expected_status": 0,
       "stderr": "exact"
     }

@@ -73,6 +73,17 @@
       "script": "printf 'a\\nb\\n' > cf\nrc=0\ncsplit -Y || rc=$?\necho \"rc=$rc\"\nrc=0\ncsplit --bogus || rc=$?\necho \"rc=$rc\"",
       "expected_status": 0,
       "stderr": "exact"
+    },
+    {
+      "id": "pass9-c-locale-quotes",
+      "kind": "parity",
+      "purpose": "Docker parity text/csplit-errors: pattern diagnostics quote the pattern in the locale's quotation marks, ASCII apostrophes in the C locale.",
+      "requires": [
+        "csplit"
+      ],
+      "script": "seq 1 5 > f\ncsplit f '/9/' 2>err || echo \"rc=$?\"; cat err >&2; n=0; for x in xx*; do [ -e \"$x\" ] && n=$((n+1)); done; echo \"files=$n\"\ncsplit -k f 2 '/9/' 2>err || echo \"rc=$?\"; cat err >&2; ls xx*; rm -f xx*\ncsplit f 9 2>err || echo \"rc=$?\"; cat err >&2\ncsplit f '%9%' 2>err || echo \"rc=$?\"; cat err >&2\ncsplit f '/1/' '{9}' 2>err || echo \"rc=$?\"; cat err >&2; rm -f xx*",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

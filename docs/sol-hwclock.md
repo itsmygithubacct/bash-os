@@ -24,7 +24,11 @@ range fail before a setter.
 
 A successful systohc resets adjustment/calibration timestamps to the sampled
 system time, clears the remainder and records the selected mode. `--noadjfile`
-bypasses this update. Writers replace an adjfile only after successful write
+bypasses this update. As in util-linux 2.41, `--noadjfile` needs `--utc` or `--localtime`, and
+`--utc`/`--localtime`, two different actions, or `--adjfile`/`--noadjfile` are
+mutually exclusive; each of these usage errors, an operand, and an empty `--rtc`
+path (no usable clock) fail with status 1 before any device or adjtime access.
+An empty `--adjfile` path reads as a missing file. Writers replace an adjfile only after successful write
 and close, preserve an existing file's owner and permission bits, and follow an
 existing symlink without replacing the link. New files have mode 0600. Failed
 writes, closes or renames remove their temporary files and preserve the old

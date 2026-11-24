@@ -169,6 +169,17 @@
       ],
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass9-usage-errors",
+      "kind": "parity",
+      "purpose": "G132: missing operand and unknown options end with the coreutils Try line; an argument to --zero is rejected; options after operands are still options.",
+      "requires": [
+        "dirname"
+      ],
+      "script": "dirname </dev/null || echo \"rc=$?\"\ndirname -z </dev/null || echo \"rc=$?\"\ndirname --bogus </dev/null || echo \"rc=$?\"\ndirname -@ </dev/null || echo \"rc=$?\"\ndirname -z@ </dev/null || echo \"rc=$?\"\ndirname a --bogus </dev/null || echo \"rc=$?\"\ndirname --zero=1 </dev/null || echo \"rc=$?\"\ndirname --he=1 </dev/null || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

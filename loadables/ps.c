@@ -1,23 +1,11 @@
-/* bashps.c — POSIX-shape ps(1) via /proc walking.
+/* bashps.c — procps-shaped ps(1) via /proc walking.
  *
- *   bashps [-e] [-f] [-o COL,COL,...] [PID...]
- *   bashps aux [PID...]
+ *   bashps [-efFjlLy] [-o KEY,...] [-p PIDLIST] [PID...]
+ *   bashps [aux] [j|l|u] [PID...]
  *
- *   -e         all processes (default if no PID given)
- *   -f         "full" format: USER PID PPID S TIME CMD
- *              (subset of POSIX -f: no TTY, no STIME — bashps's TTY
- *              detection isn't implemented; use -o pid,stime for STIME)
- *   -o LIST    custom column list. Repeat -o to append columns; use
- *              field= for each column to suppress the header row.
- *              Recognized columns:
- *              pid, ppid, pgrp, sid, uid, user, state, ttybytes,
- *              comm, args, time, stime, lstart, %cpu, %mem, rss, vsz,
- *              etime, etimes, ni, lwp, nlwp
- *
- * Output is one line per matching PID. `aux` is a bounded procps/BSD-key
- * compatibility surface with a fixed USER/PID/%CPU/%MEM/VSZ/RSS/TTY/STAT/
- * START/TIME/COMMAND layout. POSIX-shape otherwise (single-line CMD,
- * no -ww wide mode); for richer output use system+ procps.
+ * Output keys, the -f/-F/-l/-j formats and the BSD u/j/l formats follow
+ * procps ps(1) (STANDARD FORMAT SPECIFIERS) and the observed procps-ng
+ * column layout. BASHOS_PROC_ROOT names another /proc for tests.
  *
  * --- LICENSE --- MIT, same boilerplate as binhex.c.
  */
@@ -36,6 +24,7 @@
 #include <dirent.h>
 #include <langinfo.h>
 #include <pwd.h>
+#include <grp.h>
 #include <strings.h>
 #include <sys/stat.h>
 #if defined (__linux__)
@@ -47,50 +36,22 @@
 #include "shim-prog-name.h"
 
 #define BPS_BUF 4096
-#define BPS_MAX_COLS 32
+#define BPS_MAX_COLS 64
 #define BPS_PATH_MAX 1024
-
-typedef enum {
-    BPS_COL_PID,
-    BPS_COL_PPID,
-    BPS_COL_PGRP,
-    BPS_COL_SID,
-    BPS_COL_UID,
-    BPS_COL_RUID,
-    BPS_COL_USER,
-    BPS_COL_STATE,
-    BPS_COL_STAT,
-    BPS_COL_TTYBYTES,
-    BPS_COL_COMM,
-    BPS_COL_ARGS,
-    BPS_COL_TIME,
-    BPS_COL_STIME,
-    BPS_COL_LSTART,
-    BPS_COL_PCPU,
-    BPS_COL_RSS,
-    BPS_COL_VSZ,
-    BPS_COL_ETIMES,
-    BPS_COL_ETIME,
-    BPS_COL_PMEM,
-    BPS_COL_NI,
-    BPS_COL_LWP,
-    BPS_COL_NLWP
-} bps_col;
-
-typedef struct {
-    bps_col col;
-    const char *header;
-    char header_override[32];   /* procps -o field=HEADER custom/empty header */
-    int  has_override;          /* 1 when '=' was present */
-} bps_colspec;
 
 typedef struct {
     int pid, ppid, pgrp, sid;
     int   lwp;               /* thread id (-L), else the pid */
     int   tty_nr;            /* /proc/[pid]/stat field 7 */
     int   tpgid;             /* /proc/[pid]/stat field 8  (for STAT '+') */
-    uid_t uid;
-    uid_t ruid;
+    uid_t uid;               /* effective */
+    uid_t ruid, suid, fsuid;
+    gid_t egid, rgid, sgid, fsgid;
+    unsigned long flags;     /* field 9 */
+    long  priority;          /* field 18 */
+    long  processor;         /* field 39 */
+    long  rt_priority;       /* field 40 */
+    long  policy;            /* field 41 */
     char  state;
     char  comm[64];
     char  args[256];
@@ -229,18 +190,29 @@ bps_read_task (int pid, int tid, bps_proc *p)
        (9) flags ... (14) utime, (15) stime, (18) priority, (19) nice,
        (20) num_threads, ... (22) starttime, (23) vsize, (24) rss.
        We capture tpgid/nice/num_threads for the procps STAT flag chars. */
-    int got = sscanf (rest,
-        "%c %d %d %d "                  /* state(3) ppid(4) pgrp(5) session(6) */
-        "%d %d %*u %*u %*u %*u %*u "   /* tty_nr(7) [tpgid(8)] flags..cmajflt (9-13) */
-        "%ld %ld "                      /* utime(14) stime(15) */
-        "%*d %*d %*d %ld %ld %*d "      /* cutime cstime priority [nice(19)] [num_threads(20)] itrealvalue */
-        "%ld %ld %ld",                  /* starttime(22) vsize(23) rss(24) */
-        &p->state, &p->ppid, &p->pgrp, &p->sid,
-        &p->tty_nr, &p->tpgid,
-        &p->utime, &p->stime,
-        &p->nice, &p->num_threads,
-        &p->starttime_ticks, &p->vsize_bytes, &p->rss_pages);
-    if (got != 13) return -1;
+    /* Numeric fields from (4) on; records may stop after (24). */
+    long long f[53];
+    memset (f, 0, sizeof f);
+    if (!*rest) return -1;
+    p->state = *rest;
+    char *q = rest + 1;
+    int nf;
+    for (nf = 4; nf < 53; nf++) {
+        while (*q == ' ') q++;
+        if (!*q || *q == '\n') break;
+        char *e;
+        f[nf] = strtoll (q, &e, 10);
+        if (e == q) return -1;
+        q = e;
+    }
+    if (nf < 25) return -1;
+    p->ppid = (int) f[4]; p->pgrp = (int) f[5]; p->sid = (int) f[6];
+    p->tty_nr = (int) f[7]; p->tpgid = (int) f[8];
+    p->flags = (unsigned long) f[9];
+    p->utime = (long) f[14]; p->stime = (long) f[15];
+    p->priority = (long) f[18]; p->nice = (long) f[19]; p->num_threads = (long) f[20];
+    p->starttime_ticks = (long) f[22]; p->vsize_bytes = (long) f[23]; p->rss_pages = (long) f[24];
+    p->processor = (long) f[39]; p->rt_priority = (long) f[40]; p->policy = (long) f[41];
     p->vmrss_kb = -1;
 
     /* uid: read /proc/PID/status. */
@@ -262,12 +234,24 @@ bps_read_task (int pid, int tid, bps_proc *p)
                 u = sbuf;
             }
             if (u) {
-                long uid_val = 0, ruid_val = 0;
+                long uid_val = 0, ruid_val = 0, suid_val = 0, fsuid_val = 0;
                 u += 4;
                 while (*u == ' ' || *u == '\t') u++;
-                sscanf (u, "%ld %ld", &ruid_val, &uid_val);
+                int nu = sscanf (u, "%ld %ld %ld %ld", &ruid_val, &uid_val, &suid_val, &fsuid_val);
+                if (nu < 3) suid_val = uid_val;
+                if (nu < 4) fsuid_val = uid_val;
                 p->uid = (uid_t) uid_val;
                 p->ruid = (uid_t) ruid_val;
+                p->suid = (uid_t) suid_val;
+                p->fsuid = (uid_t) fsuid_val;
+            }
+            char *gl = strstr (sbuf, "\nGid:");
+            if (gl) {
+                long g[4] = { 0, 0, 0, 0 };
+                int ng = sscanf (gl + 5, "%ld %ld %ld %ld", &g[0], &g[1], &g[2], &g[3]);
+                for (int i = ng < 0 ? 0 : ng; i < 4; i++) g[i] = i ? g[1] : 0;
+                p->rgid = (gid_t) g[0]; p->egid = (gid_t) g[1];
+                p->sgid = (gid_t) g[2]; p->fsgid = (gid_t) g[3];
             }
             /* VmLck: locked pages -> STAT 'L' (rarely nonzero). Never the
                first status line (Name: is), so anchoring on '\n' is safe. */
@@ -327,27 +311,6 @@ bps_user (uid_t uid)
     if (pw) return pw->pw_name;
     snprintf (buf, sizeof buf, "%u", (unsigned) uid);
     return buf;
-}
-
-static void
-bps_print (const bps_proc *p, int full)
-{
-    long ticks_per_sec = sysconf (_SC_CLK_TCK);
-    if (ticks_per_sec <= 0) ticks_per_sec = 100;
-    long total_secs = (p->utime + p->stime) / ticks_per_sec;
-    int hh = (int) (total_secs / 3600);
-    int mm = (int) ((total_secs % 3600) / 60);
-    int ss = (int) (total_secs % 60);
-    if (full) {
-        printf ("%-8s %5d %5d %c %02d:%02d:%02d %s\n",
-                bps_user (p->uid), p->pid, p->ppid,
-                p->state, hh, mm, ss,
-                p->args[0] ? p->args : p->comm);
-    } else {
-        printf ("%5d %c %02d:%02d:%02d %s\n",
-                p->pid, p->state, hh, mm, ss,
-                p->args[0] ? p->args : p->comm);
-    }
 }
 
 static int
@@ -417,151 +380,6 @@ bps_add_pid_list (const char *s, int *explicit_pids, int *n_pids, int max_pids)
         p = comma + 1;
     }
     return 0;
-}
-
-static int
-bps_col_from_name (const char *name, bps_colspec *out)
-{
-    struct {
-        const char *name;
-        bps_col col;
-        const char *header;
-    } map[] = {
-        { "pid",      BPS_COL_PID,      "PID" },
-        { "ppid",     BPS_COL_PPID,     "PPID" },
-        { "pgrp",     BPS_COL_PGRP,     "PGRP" },
-        { "pgid",     BPS_COL_PGRP,     "PGID" },
-        { "sid",      BPS_COL_SID,      "SID" },
-        { "uid",      BPS_COL_UID,      "UID" },
-        { "ruid",     BPS_COL_RUID,     "RUID" },
-        { "user",     BPS_COL_USER,     "USER" },
-        { "state",    BPS_COL_STATE,    "S" },
-        { "stat",     BPS_COL_STAT,     "STAT" },
-        { "s",        BPS_COL_STATE,    "S" },
-        { "ttybytes", BPS_COL_TTYBYTES, "TTYBYTES" },
-        { "comm",     BPS_COL_COMM,     "COMMAND" },
-        { "command",  BPS_COL_ARGS,     "COMMAND" },
-        { "cmd",      BPS_COL_ARGS,     "COMMAND" },
-        { "args",     BPS_COL_ARGS,     "COMMAND" },
-        { "time",     BPS_COL_TIME,     "TIME" },
-        { "stime",    BPS_COL_STIME,    "STIME" },
-        { "lstart",   BPS_COL_LSTART,   "STARTED" },
-        { "%cpu",     BPS_COL_PCPU,     "%CPU" },
-        { "pcpu",     BPS_COL_PCPU,     "%CPU" },
-        { "rss",      BPS_COL_RSS,      "RSS" },
-        { "vsz",      BPS_COL_VSZ,      "VSZ" },
-        { "etimes",   BPS_COL_ETIMES,   "ELAPSED" },
-        { "etime",    BPS_COL_ETIME,    "ELAPSED" },
-        { "%mem",     BPS_COL_PMEM,     "%MEM" },
-        { "pmem",     BPS_COL_PMEM,     "%MEM" },
-        { "ni",       BPS_COL_NI,       "NI" },
-        { "nice",     BPS_COL_NI,       "NI" },
-        { "lwp",      BPS_COL_LWP,      "LWP" },
-        { "tid",      BPS_COL_LWP,      "TID" },
-        { "spid",     BPS_COL_LWP,      "SPID" },
-        { "nlwp",     BPS_COL_NLWP,     "NLWP" },
-        { "thcount",  BPS_COL_NLWP,     "THCNT" },
-    };
-
-    for (size_t i = 0; i < sizeof map / sizeof map[0]; i++) {
-        if (strcmp (name, map[i].name) == 0) {
-            out->col = map[i].col;
-            out->header = map[i].header;
-            return 0;
-        }
-    }
-    return -1;
-}
-
-static int
-bps_add_o_list (const char *list, bps_colspec *cols, int *n_cols)
-{
-    char buf[256];
-    size_t n = strlen (list);
-    if (n == 0 || n >= sizeof buf) {
-        builtin_error ("invalid -o list: %s", list);
-        return -1;
-    }
-    memcpy (buf, list, n + 1);
-
-    char *save = NULL;
-    for (char *tok = strtok_r (buf, ",", &save); tok; tok = strtok_r (NULL, ",", &save)) {
-        while (isspace ((unsigned char)*tok)) tok++;
-        char *end = tok + strlen (tok);
-        while (end > tok && isspace ((unsigned char)end[-1])) *--end = '\0';
-        const char *ovr = NULL;
-        char *eq = strchr (tok, '=');
-        if (eq) {
-            ovr = eq + 1;
-            *eq = '\0';
-            while (eq > tok && isspace ((unsigned char)eq[-1])) *--eq = '\0';
-        }
-        if (*tok == '\0') {
-            builtin_error ("empty -o column");
-            return -1;
-        }
-        if (*n_cols >= BPS_MAX_COLS) {
-            builtin_error ("too many -o columns");
-            return -1;
-        }
-        if (bps_col_from_name (tok, &cols[*n_cols]) < 0) {
-            builtin_error ("unknown -o column: %s", tok);
-            return -1;
-        }
-        cols[*n_cols].has_override = ovr ? 1 : 0;
-        if (ovr)
-            snprintf (cols[*n_cols].header_override,
-                      sizeof cols[*n_cols].header_override, "%s", ovr);
-        else
-            cols[*n_cols].header_override[0] = '\0';
-        (*n_cols)++;
-    }
-    return 0;
-}
-
-static void
-bps_print_time_field (long ticks)
-{
-    long ticks_per_sec = sysconf (_SC_CLK_TCK);
-    if (ticks_per_sec <= 0) ticks_per_sec = 100;
-    long total_secs = ticks / ticks_per_sec;
-    printf ("%02ld:%02ld:%02ld", total_secs / 3600,
-            (total_secs % 3600) / 60, total_secs % 60);
-}
-
-static int
-bps_custom_col_width (const bps_colspec *cols, int i, int n_cols)
-{
-    /* procps uses a 24-character lstart field and a left-aligned STAT
-       field in the stat/lstart layout. Keep the compact layout elsewhere. */
-    int width;
-    if (cols[i].col == BPS_COL_LSTART)
-        width = 24;
-    else if (cols[i].col == BPS_COL_STAT && i + 1 < n_cols &&
-             cols[i + 1].col == BPS_COL_LSTART)
-        width = 4;
-    else
-        return 0;
-    int header_width = (int) strlen (cols[i].header_override);
-    return header_width > width ? header_width : width;
-}
-
-static void
-bps_print_custom_header (const bps_colspec *cols, int n_cols)
-{
-    int any = 0;
-    for (int i = 0; i < n_cols; i++) {
-        const char *h = cols[i].has_override ? cols[i].header_override : cols[i].header;
-        if (h && *h) { any = 1; break; }
-    }
-    if (!any) return;
-    for (int i = 0; i < n_cols; i++) {
-        const char *h = cols[i].has_override ? cols[i].header_override : cols[i].header;
-        if (i) putchar (' ');
-        int width = bps_custom_col_width (cols, i, n_cols);
-        printf ("%*s", cols[i].col == BPS_COL_LSTART ? width : -width, h);
-    }
-    putchar ('\n');
 }
 
 /* Convert /proc/PID/stat start ticks using btime from the current proc root. */
@@ -695,51 +513,6 @@ bps_fmt_etime (long secs, char *buf, size_t bufsz)
     else snprintf (buf, bufsz, "%02ld:%02ld", m, sec);
 }
 
-static void
-bps_print_custom (const bps_proc *p, const bps_colspec *cols, int n_cols)
-{
-    for (int i = 0; i < n_cols; i++) {
-        if (i) putchar (' ');
-        switch (cols[i].col) {
-            case BPS_COL_PID:      printf ("%d", p->pid); break;
-            case BPS_COL_PPID:     printf ("%d", p->ppid); break;
-            case BPS_COL_PGRP:     printf ("%d", p->pgrp); break;
-            case BPS_COL_SID:      printf ("%d", p->sid); break;
-            case BPS_COL_UID:      printf ("%u", (unsigned) p->uid); break;
-            case BPS_COL_RUID:     printf ("%u", (unsigned) p->ruid); break;
-            case BPS_COL_USER:     printf ("%s", bps_user (p->uid)); break;
-            case BPS_COL_STATE:    printf ("%c", p->state); break;
-            case BPS_COL_STAT: {
-                char sb[16];
-                bps_build_stat (p, sb, sizeof sb);
-                printf ("%-*s", bps_custom_col_width (cols, i, n_cols), sb);
-                break;
-            }
-            case BPS_COL_TTYBYTES: printf ("?"); break;
-            case BPS_COL_COMM:     printf ("%s", p->comm); break;
-            case BPS_COL_ARGS:     printf ("%s", p->args[0] ? p->args : p->comm); break;
-            case BPS_COL_TIME:     bps_print_time_field (p->utime + p->stime); break;
-            case BPS_COL_STIME:    { char sb[16]; bps_fmt_stime (p->starttime_ticks, sb, sizeof sb); fputs (sb, stdout); } break;
-            case BPS_COL_LSTART: {
-                char sb[128];
-                bps_fmt_lstart (p->starttime_ticks, sb, sizeof sb);
-                printf ("%*s", bps_custom_col_width (cols, i, n_cols), sb);
-                break;
-            }
-            case BPS_COL_PCPU:     printf ("%.1f", bps_cpu_percent (p)); break;
-            case BPS_COL_RSS:      printf ("%ld", bps_rss_kb (p)); break;
-            case BPS_COL_VSZ:      printf ("%ld", p->vsize_bytes / 1024); break;
-            case BPS_COL_ETIMES:   printf ("%ld", bps_elapsed (p)); break;
-            case BPS_COL_ETIME:    { char eb[32]; bps_fmt_etime (bps_elapsed (p), eb, sizeof eb); fputs (eb, stdout); } break;
-            case BPS_COL_PMEM:     printf ("%.1f", bps_mem_percent (p)); break;
-            case BPS_COL_NI:       printf ("%ld", p->nice); break;
-            case BPS_COL_LWP:      printf ("%d", p->lwp); break;
-            case BPS_COL_NLWP:     printf ("%ld", p->num_threads); break;
-        }
-    }
-    putchar ('\n');
-}
-
 static long
 bps_mem_total_kb (void)
 {
@@ -771,12 +544,6 @@ bps_fmt_aux_time (long ticks, char *buf, size_t bufsz)
     if (ticks_per_sec <= 0) ticks_per_sec = 100;
     long total_secs = ticks / ticks_per_sec;
     snprintf (buf, bufsz, "%ld:%02ld", total_secs / 60, total_secs % 60);
-}
-
-static void
-bps_print_aux_header (void)
-{
-    puts ("USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND");
 }
 
 /* Procps reports lifetime CPU usage, truncated to one decimal place. */
@@ -838,72 +605,6 @@ bps_command (const bps_proc *p, int arguments, char *buf, size_t size)
         snprintf (buf, size, "[%s] <defunct>", p->comm);
     else
         snprintf (buf, size, "%s", arguments ? (p->args[0] ? p->args : p->comm) : p->comm);
-}
-
-static void
-bps_print_table_row (const bps_proc *p, int full, int threads)
-{
-    char command[320], start[32], timebuf[32], tty[128];
-    bps_tty_name (p, tty, sizeof tty);
-    long hz = sysconf (_SC_CLK_TCK);
-    if (hz <= 0) hz = 100;
-    long secs = (p->utime + p->stime) / hz;
-    snprintf (timebuf, sizeof timebuf, "%02ld:%02ld:%02ld", secs / 3600,
-              secs / 60 % 60, secs % 60);
-    bps_command (p, full, command, sizeof command);
-    if (full) {
-        bps_fmt_stime (p->starttime_ticks, start, sizeof start);
-        if (threads)
-            printf ("%-8s %7d %7d %7d %2d %4ld %5s %-8s %s %s\n", bps_user (p->uid),
-                    p->pid, p->ppid, p->lwp, (int) bps_cpu_percent (p), p->num_threads,
-                    start, tty, timebuf, command);
-        else
-            printf ("%-8s %7d %7d %2d %5s %-8s %s %s\n", bps_user (p->uid),
-                    p->pid, p->ppid, (int) bps_cpu_percent (p), start, tty, timebuf, command);
-    } else if (threads)
-        printf ("%7d %7d %-8s %s %s\n", p->pid, p->lwp, tty, timebuf, command);
-    else
-        printf ("%7d %-8s %s %s\n", p->pid, tty, timebuf, command);
-}
-
-static void
-bps_print_aux_row (const bps_proc *p)
-{
-    long rss_kb = bps_rss_kb (p);
-    long vsz_kb = p->vsize_bytes / 1024;
-    double pmem = bps_mem_percent (p);
-
-    char stat[16];
-    char start[16];
-    char timebuf[32];
-    char command[320], tty[128];
-    bps_tty_name (p, tty, sizeof tty);
-    bps_command (p, 1, command, sizeof command);
-    bps_build_stat (p, stat, sizeof stat);
-    bps_fmt_stime (p->starttime_ticks, start, sizeof start);
-    bps_fmt_aux_time (p->utime + p->stime, timebuf, sizeof timebuf);
-
-    printf ("%-10s %5d %4.1f %4.1f %6ld %5ld %-8s %-4s %5s %6s %s\n",
-            bps_user (p->uid), p->pid, bps_cpu_percent (p), pmem, vsz_kb, rss_kb,
-            tty, stat, start, timebuf, command);
-}
-
-static int
-bps_is_aux_bsd_key (const char *s)
-{
-    int have_a = 0, have_u = 0, have_x = 0;
-
-    if (!s || !*s)
-        return 0;
-    for (const char *p = s; *p; p++) {
-        switch (*p) {
-            case 'a': have_a = 1; break;
-            case 'u': have_u = 1; break;
-            case 'x': have_x = 1; break;
-            default: return 0;
-        }
-    }
-    return have_a && (have_u || have_x);
 }
 
 /* -u/-U USERLIST: comma or blank separated names or numeric IDs. */
@@ -1010,93 +711,6 @@ bps_add_name_list (const char *s, char names[][64], int *n, int max)
     return 0;
 }
 
-#define BPS_MAX_SORT 16
-typedef struct { bps_col col; int desc; } bps_sortkey;
-static bps_sortkey bps_sort_keys[BPS_MAX_SORT];
-static int bps_n_sort;
-
-/* --sort=[+|-]KEY[,[+|-]KEY]...; KEY is any -o column name. */
-static int
-bps_add_sort (const char *spec)
-{
-    char buf[256];
-    size_t len = strlen (spec);
-    if (len == 0 || len >= sizeof buf) goto bad;
-    memcpy (buf, spec, len + 1);
-    for (char *save = NULL, *tok = strtok_r (buf, ",", &save); tok;
-         tok = strtok_r (NULL, ",", &save)) {
-        int desc = 0;
-        if (*tok == '+' || *tok == '-') desc = *tok++ == '-';
-        bps_colspec c;
-        if (bps_n_sort >= BPS_MAX_SORT || bps_col_from_name (tok, &c) < 0) goto bad;
-        bps_sort_keys[bps_n_sort].col = c.col;
-        bps_sort_keys[bps_n_sort++].desc = desc;
-    }
-    return 0;
-bad:
-    builtin_error ("unknown sort specifier");
-    builtin_usage ();
-    return -1;
-}
-
-static int
-bps_cmp_long (long a, long b)
-{
-    return a < b ? -1 : a > b;
-}
-
-static int
-bps_compare_col (const bps_proc *a, const bps_proc *b, bps_col col)
-{
-    switch (col) {
-        case BPS_COL_PID:      return bps_cmp_long (a->pid, b->pid);
-        case BPS_COL_PPID:     return bps_cmp_long (a->ppid, b->ppid);
-        case BPS_COL_PGRP:     return bps_cmp_long (a->pgrp, b->pgrp);
-        case BPS_COL_SID:      return bps_cmp_long (a->sid, b->sid);
-        case BPS_COL_UID:      return bps_cmp_long ((long) a->uid, (long) b->uid);
-        case BPS_COL_RUID:     return bps_cmp_long ((long) a->ruid, (long) b->ruid);
-        case BPS_COL_USER: {
-            char ua[64];
-            snprintf (ua, sizeof ua, "%s", bps_user (a->uid));
-            return strcmp (ua, bps_user (b->uid));
-        }
-        case BPS_COL_STATE:
-        case BPS_COL_STAT:     return bps_cmp_long (a->state, b->state);
-        case BPS_COL_COMM:     return strcmp (a->comm, b->comm);
-        case BPS_COL_ARGS:     return strcmp (a->args, b->args);
-        case BPS_COL_TIME:     return bps_cmp_long (a->utime + a->stime, b->utime + b->stime);
-        case BPS_COL_STIME:
-        case BPS_COL_LSTART:   return bps_cmp_long (a->starttime_ticks, b->starttime_ticks);
-        case BPS_COL_ETIMES:
-        case BPS_COL_ETIME:    return bps_cmp_long (b->starttime_ticks, a->starttime_ticks);
-        case BPS_COL_PCPU: {
-            double x = bps_cpu_percent (a), y = bps_cpu_percent (b);
-            return x < y ? -1 : x > y;
-        }
-        case BPS_COL_RSS:
-        case BPS_COL_PMEM:     return bps_cmp_long (bps_rss_kb (a), bps_rss_kb (b));
-        case BPS_COL_VSZ:      return bps_cmp_long (a->vsize_bytes, b->vsize_bytes);
-        case BPS_COL_NI:       return bps_cmp_long (a->nice, b->nice);
-        case BPS_COL_LWP:      return bps_cmp_long (a->lwp, b->lwp);
-        case BPS_COL_NLWP:     return bps_cmp_long (a->num_threads, b->num_threads);
-        case BPS_COL_TTYBYTES: return 0;
-    }
-    return 0;
-}
-
-static int
-bps_compare (const void *x, const void *y)
-{
-    const bps_proc *a = x, *b = y;
-    for (int i = 0; i < bps_n_sort; i++) {
-        int c = bps_compare_col (a, b, bps_sort_keys[i].col);
-        if (c) return bps_sort_keys[i].desc ? -c : c;
-    }
-    /* Keep /proc order (pid, then thread id) between equal keys. */
-    int c = bps_cmp_long (a->pid, b->pid);
-    return c ? c : bps_cmp_long (a->lwp, b->lwp);
-}
-
 /* procps ps's usage error: "error: WHY" with no command prefix, then its
    usage block, all on stderr; the caller returns 1. */
 static void
@@ -1111,12 +725,562 @@ bps_usage_error (const char *why)
              "For more details see ps(1).\n", why, name, name, name);
 }
 
+/* Output keys, from procps ps(1)'s STANDARD FORMAT SPECIFIERS and the
+   observed procps-ng layout: each key has a header, a minimum width and an
+   alignment. Columns are separated by one blank. A left-aligned text value
+   wider than its column is cut to the width unless it is the last column;
+   user and group names are cut with a '+' mark everywhere. A right-aligned
+   value wider than its column takes blanks from the left, keeping one
+   blank after the previous value, and later columns move over by what it
+   could not take. */
+typedef enum {
+    K_PID, K_PPID, K_PGRP, K_SID, K_TPGID, K_LWP, K_NLWP,
+    K_EUID, K_RUID, K_SUID, K_FSUID, K_EGID, K_RGID, K_SGID, K_FSGID,
+    K_EUSER, K_RUSER, K_SUSER, K_FSUSER, K_EGROUP, K_RGROUP, K_SGROUP, K_FSGROUP,
+    K_STATE, K_STAT, K_COMM, K_FNAME, K_ARGS,
+    K_TIME, K_BSDTIME, K_STIME, K_START, K_BSDSTART, K_LSTART, K_ETIME, K_ETIMES,
+    K_PCPU, K_PMEM, K_C, K_RSS, K_VSZ, K_SZ,
+    K_NI, K_PRI, K_OPRI, K_PRIORITY, K_PSR, K_CLS, K_POLICY, K_SCHED, K_RTPRIO, K_F,
+    K_TTY, K_WCHAN, K_ADDR, K_EXE, K_TTYBYTES
+} bps_col;
+
+#define BPS_NUM   0x1     /* sorts numerically */
+#define BPS_NAME  0x2     /* a user or group name: cut with '+' */
+#define BPS_CUT   0x4     /* text cut to the width unless last */
+
+typedef struct {
+    const char *name;     /* -o name; '_' names are internal to the built-in formats */
+    const char *header;
+    int width;
+    char align;           /* 'L' or 'R' */
+    int flags;
+    bps_col col;
+} bps_key;
+
+static const bps_key bps_keys[] = {
+    { "pid",        "PID",      7, 'R', BPS_NUM, K_PID },
+    { "ppid",       "PPID",     7, 'R', BPS_NUM, K_PPID },
+    { "pgrp",       "PGRP",     7, 'R', BPS_NUM, K_PGRP },
+    { "pgid",       "PGID",     7, 'R', BPS_NUM, K_PGRP },
+    { "sid",        "SID",      7, 'R', BPS_NUM, K_SID },
+    { "sess",       "SESS",     7, 'R', BPS_NUM, K_SID },
+    { "session",    "SESS",     7, 'R', BPS_NUM, K_SID },
+    { "tpgid",      "TPGID",    7, 'R', BPS_NUM, K_TPGID },
+    { "lwp",        "LWP",      7, 'R', BPS_NUM, K_LWP },
+    { "tid",        "TID",      7, 'R', BPS_NUM, K_LWP },
+    { "spid",       "SPID",     7, 'R', BPS_NUM, K_LWP },
+    { "nlwp",       "NLWP",     4, 'R', BPS_NUM, K_NLWP },
+    { "thcount",    "THCNT",    5, 'R', BPS_NUM, K_NLWP },
+    { "uid",        "UID",      5, 'R', BPS_NUM, K_EUID },
+    { "euid",       "EUID",     5, 'R', BPS_NUM, K_EUID },
+    { "ruid",       "RUID",     5, 'R', BPS_NUM, K_RUID },
+    { "suid",       "SUID",     5, 'R', BPS_NUM, K_SUID },
+    { "svuid",      "SVUID",    5, 'R', BPS_NUM, K_SUID },
+    { "fsuid",      "FSUID",    5, 'R', BPS_NUM, K_FSUID },
+    { "gid",        "GID",      5, 'R', BPS_NUM, K_EGID },
+    { "egid",       "EGID",     5, 'R', BPS_NUM, K_EGID },
+    { "rgid",       "RGID",     5, 'R', BPS_NUM, K_RGID },
+    { "sgid",       "SGID",     5, 'R', BPS_NUM, K_SGID },
+    { "svgid",      "SVGID",    5, 'R', BPS_NUM, K_SGID },
+    { "fsgid",      "FSGID",    5, 'R', BPS_NUM, K_FSGID },
+    { "fgid",       "FGID",     5, 'R', BPS_NUM, K_FSGID },
+    { "user",       "USER",     8, 'L', BPS_NAME, K_EUSER },
+    { "euser",      "EUSER",    8, 'L', BPS_NAME, K_EUSER },
+    { "uname",      "USER",     8, 'L', BPS_NAME, K_EUSER },
+    { "_uidname",   "UID",      8, 'L', BPS_NAME, K_EUSER },
+    { "ruser",      "RUSER",    8, 'L', BPS_NAME, K_RUSER },
+    { "suser",      "SUSER",    8, 'L', BPS_NAME, K_SUSER },
+    { "svuser",     "SVUSER",   8, 'L', BPS_NAME, K_SUSER },
+    { "fsuser",     "FSUSER",   8, 'L', BPS_NAME, K_FSUSER },
+    { "fuser",      "FUSER",    8, 'L', BPS_NAME, K_FSUSER },
+    { "group",      "GROUP",    8, 'L', BPS_NAME, K_EGROUP },
+    { "egroup",     "EGROUP",   8, 'L', BPS_NAME, K_EGROUP },
+    { "rgroup",     "RGROUP",   8, 'L', BPS_NAME, K_RGROUP },
+    { "sgroup",     "SGROUP",   8, 'L', BPS_NAME, K_SGROUP },
+    { "svgroup",    "SVGROUP",  8, 'L', BPS_NAME, K_SGROUP },
+    { "fsgroup",    "FSGROUP",  8, 'L', BPS_NAME, K_FSGROUP },
+    { "fgroup",     "FGROUP",   8, 'L', BPS_NAME, K_FSGROUP },
+    { "state",      "S",        1, 'L', 0, K_STATE },
+    { "s",          "S",        1, 'L', 0, K_STATE },
+    { "stat",       "STAT",     4, 'L', 0, K_STAT },
+    { "comm",       "COMMAND", 15, 'L', BPS_CUT, K_COMM },
+    { "ucmd",       "CMD",     15, 'L', BPS_CUT, K_COMM },
+    { "ucomm",      "COMMAND", 15, 'L', BPS_CUT, K_COMM },
+    { "fname",      "COMMAND",  8, 'L', BPS_CUT, K_FNAME },
+    { "args",       "COMMAND", 27, 'L', BPS_CUT, K_ARGS },
+    { "command",    "COMMAND", 27, 'L', BPS_CUT, K_ARGS },
+    { "cmd",        "CMD",     27, 'L', BPS_CUT, K_ARGS },
+    { "time",       "TIME",     8, 'R', BPS_NUM, K_TIME },
+    { "cputime",    "TIME",     8, 'R', BPS_NUM, K_TIME },
+    { "bsdtime",    "TIME",     6, 'R', BPS_NUM, K_BSDTIME },
+    { "stime",      "STIME",    5, 'R', BPS_NUM, K_STIME },
+    { "start_time", "START",    5, 'R', BPS_NUM, K_STIME },
+    { "start",      "STARTED",  8, 'R', BPS_NUM, K_START },
+    { "bsdstart",   "START",    6, 'R', BPS_NUM, K_BSDSTART },
+    { "lstart",     "STARTED", 24, 'R', BPS_NUM, K_LSTART },
+    { "etime",      "ELAPSED", 11, 'R', BPS_NUM, K_ETIME },
+    { "etimes",     "ELAPSED",  7, 'R', BPS_NUM, K_ETIMES },
+    { "%cpu",       "%CPU",     4, 'R', BPS_NUM, K_PCPU },
+    { "pcpu",       "%CPU",     4, 'R', BPS_NUM, K_PCPU },
+    { "%mem",       "%MEM",     4, 'R', BPS_NUM, K_PMEM },
+    { "pmem",       "%MEM",     4, 'R', BPS_NUM, K_PMEM },
+    { "c",          "C",        2, 'R', BPS_NUM, K_C },
+    { "rss",        "RSS",      5, 'R', BPS_NUM, K_RSS },
+    { "rssize",     "RSS",      5, 'R', BPS_NUM, K_RSS },
+    { "rsz",        "RSZ",      5, 'R', BPS_NUM, K_RSS },
+    { "vsz",        "VSZ",      6, 'R', BPS_NUM, K_VSZ },
+    { "vsize",      "VSZ",      6, 'R', BPS_NUM, K_VSZ },
+    { "sz",         "SZ",       5, 'R', BPS_NUM, K_SZ },
+    { "_szl",       "SZ",       2, 'R', BPS_NUM, K_SZ },
+    { "ni",         "NI",       3, 'R', BPS_NUM, K_NI },
+    { "nice",       "NI",       3, 'R', BPS_NUM, K_NI },
+    { "pri",        "PRI",      3, 'R', BPS_NUM, K_PRI },
+    { "_opri",      "PRI",      3, 'R', BPS_NUM, K_OPRI },
+    { "priority",   "PRI",      3, 'R', BPS_NUM, K_PRIORITY },
+    { "psr",        "PSR",      3, 'R', BPS_NUM, K_PSR },
+    { "cls",        "CLS",      3, 'R', 0, K_CLS },
+    { "class",      "CLS",      3, 'L', 0, K_CLS },
+    { "policy",     "POL",      3, 'L', 0, K_POLICY },
+    { "sched",      "SCH",      3, 'R', BPS_NUM, K_SCHED },
+    { "rtprio",     "RTPRIO",   6, 'R', BPS_NUM, K_RTPRIO },
+    { "f",          "F",        1, 'R', BPS_NUM, K_F },
+    { "flags",      "F",        1, 'R', BPS_NUM, K_F },
+    { "tty",        "TT",       8, 'L', BPS_CUT, K_TTY },
+    { "tt",         "TT",       8, 'L', BPS_CUT, K_TTY },
+    { "tname",      "TTY",      8, 'L', BPS_CUT, K_TTY },
+    { "wchan",      "WCHAN",    6, 'L', BPS_CUT, K_WCHAN },
+    { "addr",       "ADDR",     4, 'R', 0, K_ADDR },
+    { "_addrl",     "ADDR",     4, 'L', 0, K_ADDR },
+    { "exe",        "EXE",     27, 'L', BPS_CUT, K_EXE },
+    { "ttybytes",   "TTYBYTES", 8, 'L', 0, K_TTYBYTES },
+};
+
+typedef struct {
+    const bps_key *key;
+    char header[64];      /* the key's, or the -o NAME=HEADER text */
+    int width;
+} bps_colspec;
+
+static const bps_key *
+bps_key_find (const char *name, int internal)
+{
+    if (name[0] == '_' && !internal) return NULL;
+    for (size_t i = 0; i < sizeof bps_keys / sizeof bps_keys[0]; i++)
+        if (strcmp (name, bps_keys[i].name) == 0)
+            return &bps_keys[i];
+    return NULL;
+}
+
+static int
+bps_col_set (bps_colspec *c, const bps_key *k, const char *header)
+{
+    c->key = k;
+    snprintf (c->header, sizeof c->header, "%s", header ? header : k->header);
+    int hl = (int) strlen (c->header);
+    c->width = hl > k->width ? hl : k->width;
+    return 0;
+}
+
+/* Append the built-in format NAMES (blank separated, internal names allowed). */
+static void
+bps_add_format (const char *names, bps_colspec *cols, int *n_cols)
+{
+    char buf[512];
+    snprintf (buf, sizeof buf, "%s", names);
+    for (char *save = NULL, *tok = strtok_r (buf, " ", &save); tok; tok = strtok_r (NULL, " ", &save)) {
+        const bps_key *k = bps_key_find (tok, 1);
+        if (k && *n_cols < BPS_MAX_COLS) bps_col_set (&cols[(*n_cols)++], k, NULL);
+    }
+}
+
+/* -o LIST: comma or blank separated names, each optionally NAME=HEADER. */
+static int
+bps_add_o_list (const char *list, bps_colspec *cols, int *n_cols)
+{
+    char buf[512];
+    size_t n = strlen (list);
+    if (n >= sizeof buf) {
+        bps_usage_error ("improper list");
+        return -1;
+    }
+    memcpy (buf, list, n + 1);
+    char *save = NULL;
+    for (char *tok = strtok_r (buf, ", \t", &save); tok; tok = strtok_r (NULL, ", \t", &save)) {
+        const char *ovr = NULL;
+        char *eq = strchr (tok, '=');
+        if (eq) { ovr = eq + 1; *eq = '\0'; }
+        const bps_key *k = *tok ? bps_key_find (tok, 0) : NULL;
+        if (!k) {
+            char why[320];
+            snprintf (why, sizeof why, "unknown user-defined format specifier \"%s\"", tok);
+            bps_usage_error (why);
+            return -1;
+        }
+        if (*n_cols >= BPS_MAX_COLS) {
+            bps_usage_error ("too many output columns");
+            return -1;
+        }
+        bps_col_set (&cols[(*n_cols)++], k, ovr);
+    }
+    return 0;
+}
+
+static const char *
+bps_group (gid_t gid)
+{
+    static char buf[32];
+    struct group *gr = getgrgid (gid);
+    if (gr) return gr->gr_name;
+    snprintf (buf, sizeof buf, "%u", (unsigned) gid);
+    return buf;
+}
+
+static const char *
+bps_policy_name (long policy)
+{
+    switch (policy) {
+        case 0: return "TS";
+        case 1: return "FF";
+        case 2: return "RR";
+        case 3: return "B";
+        case 5: return "IDL";
+        case 6: return "DLN";
+    }
+    return "?";
+}
+
+/* procps cumulative CPU time: [DD-]hh:mm:ss. */
+static void
+bps_fmt_cputime (long ticks, char *buf, size_t bufsz)
+{
+    long hz = sysconf (_SC_CLK_TCK);
+    if (hz <= 0) hz = 100;
+    long t = ticks / hz;
+    long d = t / 86400, h = t / 3600 % 24, m = t / 60 % 60, s = t % 60;
+    if (d) snprintf (buf, bufsz, "%ld-%02ld:%02ld:%02ld", d, h, m, s);
+    else snprintf (buf, bufsz, "%02ld:%02ld:%02ld", h, m, s);
+}
+
+/* START (start) shows hh:mm:ss within a day, else "Mmm dd"; bsdstart
+   shows hh:mm within a day, else "Mmm dd". */
+static void
+bps_fmt_start (long ticks_since_boot, int bsd, char *buf, size_t bufsz)
+{
+    struct tm tm_start;
+    long hz = sysconf (_SC_CLK_TCK);
+    if (hz <= 0) hz = 100;
+    if (!bps_start_localtime (ticks_since_boot, &tm_start)) { snprintf (buf, bufsz, "?"); return; }
+    long age = bps_uptime () - (double) ticks_since_boot / hz;
+    if (age < 86400)
+        strftime (buf, bufsz, bsd ? "%H:%M" : "%H:%M:%S", &tm_start);
+    else
+        strftime (buf, bufsz, "%b %d", &tm_start);
+}
+
+static void
+bps_read_small (const bps_proc *p, const char *name, int link, char *buf, size_t bufsz)
+{
+    char path[BPS_PATH_MAX];
+    buf[0] = '\0';
+    if (bps_proc_pid_path (path, sizeof path, p->pid, name) < 0) return;
+    if (link) {
+        ssize_t n = readlink (path, buf, bufsz - 1);
+        buf[n > 0 ? n : 0] = '\0';
+        return;
+    }
+    int fd = open (path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return;
+    ssize_t n = read (fd, buf, bufsz - 1);
+    close (fd);
+    buf[n > 0 ? n : 0] = '\0';
+    buf[strcspn (buf, "\n")] = '\0';
+}
+
+static int
+bps_is_rt (const bps_proc *p)
+{
+    return p->policy == 1 || p->policy == 2;
+}
+
+/* Numeric sort value of a key; text keys compare as formatted. */
+static long long
+bps_num_value (const bps_proc *p, bps_col col)
+{
+    switch (col) {
+        case K_PID: return p->pid;
+        case K_PPID: return p->ppid;
+        case K_PGRP: return p->pgrp;
+        case K_SID: return p->sid;
+        case K_TPGID: return p->tpgid;
+        case K_LWP: return p->lwp;
+        case K_NLWP: return p->num_threads;
+        case K_EUID: return p->uid;
+        case K_RUID: return p->ruid;
+        case K_SUID: return p->suid;
+        case K_FSUID: return p->fsuid;
+        case K_EGID: return p->egid;
+        case K_RGID: return p->rgid;
+        case K_SGID: return p->sgid;
+        case K_FSGID: return p->fsgid;
+        case K_TIME: case K_BSDTIME: return p->utime + p->stime;
+        case K_STIME: case K_START: case K_BSDSTART: case K_LSTART: return p->starttime_ticks;
+        case K_ETIME: case K_ETIMES: return -p->starttime_ticks;
+        case K_PCPU: case K_C: return (long long) (bps_cpu_percent (p) * 10);
+        case K_PMEM: case K_RSS: return bps_rss_kb (p);
+        case K_VSZ: case K_SZ: return p->vsize_bytes;
+        case K_NI: return p->nice;
+        case K_PRI: case K_OPRI: case K_PRIORITY: return -p->priority;
+        case K_PSR: return p->processor;
+        case K_SCHED: return p->policy;
+        case K_RTPRIO: return p->rt_priority;
+        case K_F: return (long long) p->flags;
+        default: return 0;
+    }
+}
+
+static void
+bps_value (const bps_proc *p, bps_col col, char *buf, size_t n)
+{
+    long page = sysconf (_SC_PAGESIZE);
+    if (page <= 0) page = 4096;
+    switch (col) {
+        case K_PID:   snprintf (buf, n, "%d", p->pid); break;
+        case K_PPID:  snprintf (buf, n, "%d", p->ppid); break;
+        case K_PGRP:  snprintf (buf, n, "%d", p->pgrp); break;
+        case K_SID:   snprintf (buf, n, "%d", p->sid); break;
+        case K_TPGID: snprintf (buf, n, "%d", p->tpgid); break;
+        case K_LWP:   snprintf (buf, n, "%d", p->lwp); break;
+        case K_NLWP:  snprintf (buf, n, "%ld", p->num_threads); break;
+        case K_EUID:  snprintf (buf, n, "%u", (unsigned) p->uid); break;
+        case K_RUID:  snprintf (buf, n, "%u", (unsigned) p->ruid); break;
+        case K_SUID:  snprintf (buf, n, "%u", (unsigned) p->suid); break;
+        case K_FSUID: snprintf (buf, n, "%u", (unsigned) p->fsuid); break;
+        case K_EGID:  snprintf (buf, n, "%u", (unsigned) p->egid); break;
+        case K_RGID:  snprintf (buf, n, "%u", (unsigned) p->rgid); break;
+        case K_SGID:  snprintf (buf, n, "%u", (unsigned) p->sgid); break;
+        case K_FSGID: snprintf (buf, n, "%u", (unsigned) p->fsgid); break;
+        case K_EUSER:  snprintf (buf, n, "%s", bps_user (p->uid)); break;
+        case K_RUSER:  snprintf (buf, n, "%s", bps_user (p->ruid)); break;
+        case K_SUSER:  snprintf (buf, n, "%s", bps_user (p->suid)); break;
+        case K_FSUSER: snprintf (buf, n, "%s", bps_user (p->fsuid)); break;
+        case K_EGROUP:  snprintf (buf, n, "%s", bps_group (p->egid)); break;
+        case K_RGROUP:  snprintf (buf, n, "%s", bps_group (p->rgid)); break;
+        case K_SGROUP:  snprintf (buf, n, "%s", bps_group (p->sgid)); break;
+        case K_FSGROUP: snprintf (buf, n, "%s", bps_group (p->fsgid)); break;
+        case K_STATE: snprintf (buf, n, "%c", p->state); break;
+        case K_STAT:  bps_build_stat (p, buf, n); break;
+        case K_COMM:  bps_command (p, 0, buf, n); break;
+        case K_FNAME: snprintf (buf, n, "%.8s", p->comm); break;
+        case K_ARGS:  bps_command (p, 1, buf, n); break;
+        case K_TIME:  bps_fmt_cputime (p->utime + p->stime, buf, n); break;
+        case K_BSDTIME: bps_fmt_aux_time (p->utime + p->stime, buf, n); break;
+        case K_STIME: bps_fmt_stime (p->starttime_ticks, buf, n); break;
+        case K_START: bps_fmt_start (p->starttime_ticks, 0, buf, n); break;
+        case K_BSDSTART: bps_fmt_start (p->starttime_ticks, 1, buf, n); break;
+        case K_LSTART: bps_fmt_lstart (p->starttime_ticks, buf, n); break;
+        case K_ETIME: bps_fmt_etime (bps_elapsed (p), buf, n); break;
+        case K_ETIMES: snprintf (buf, n, "%ld", bps_elapsed (p)); break;
+        case K_PCPU:  snprintf (buf, n, "%.1f", bps_cpu_percent (p)); break;
+        case K_PMEM:  snprintf (buf, n, "%.1f", bps_mem_percent (p)); break;
+        case K_C:     snprintf (buf, n, "%d", (int) bps_cpu_percent (p)); break;
+        case K_RSS:   snprintf (buf, n, "%ld", bps_rss_kb (p)); break;
+        case K_VSZ:   snprintf (buf, n, "%ld", p->vsize_bytes / 1024); break;
+        case K_SZ:    snprintf (buf, n, "%ld", p->vsize_bytes / page); break;
+        case K_NI:
+            if (bps_is_rt (p)) snprintf (buf, n, "-");
+            else snprintf (buf, n, "%ld", p->nice);
+            break;
+        case K_PRI:   snprintf (buf, n, "%ld", 39 - p->priority); break;
+        case K_OPRI:  snprintf (buf, n, "%ld", 60 + p->priority); break;
+        case K_PRIORITY: snprintf (buf, n, "%ld", p->priority); break;
+        case K_PSR:   snprintf (buf, n, "%ld", p->processor); break;
+        case K_CLS:
+        case K_POLICY: snprintf (buf, n, "%s", bps_policy_name (p->policy)); break;
+        case K_SCHED: snprintf (buf, n, "%ld", p->policy); break;
+        case K_RTPRIO:
+            if (bps_is_rt (p)) snprintf (buf, n, "%ld", p->rt_priority);
+            else snprintf (buf, n, "-");
+            break;
+        /* PF_FORKNOEXEC (1) and PF_SUPERPRIV (4), as ps -l shows them. */
+        case K_F:     snprintf (buf, n, "%lu", (p->flags >> 6) & 5); break;
+        case K_TTY:   bps_tty_name (p, buf, n); break;
+        case K_WCHAN:
+            bps_read_small (p, "wchan", 0, buf, n);
+            if (!buf[0] || !strcmp (buf, "0")) snprintf (buf, n, "-");
+            break;
+        case K_ADDR:  snprintf (buf, n, "-"); break;
+        case K_EXE:
+            bps_read_small (p, "exe", 1, buf, n);
+            if (!buf[0]) snprintf (buf, n, "-");
+            break;
+        case K_TTYBYTES: snprintf (buf, n, "?"); break;
+    }
+}
+
+/* Lay out one line of TEXTS (values or headers) in COLS. */
+static void
+bps_print_line (const bps_colspec *cols, int n_cols, char texts[][512])
+{
+    char line[BPS_MAX_COLS * 520];
+    size_t len = 0;           /* bytes in line, including padding */
+    size_t content = 0;       /* end of the last nonblank value */
+    size_t pos = 0;           /* nominal end of the previous column */
+    for (int i = 0; i < n_cols; i++) {
+        const bps_key *k = cols[i].key;
+        int last = i == n_cols - 1;
+        char *t = texts[i];
+        size_t w = (size_t) cols[i].width, l = strlen (t);
+        size_t start = i ? pos + 1 : 0;
+        if ((k->flags & BPS_NAME) && l > w && w > 0) {
+            t[w - 1] = '+';
+            t[w] = '\0';
+            l = w;
+        } else if ((k->flags & BPS_CUT) && !last && l > w) {
+            t[w] = '\0';
+            l = w;
+        }
+        /* At least one blank after the previous value. */
+        size_t min = i ? content + 1 : 0;
+        size_t at;
+        if (k->align == 'R') {
+            size_t end = start + w;
+            at = end >= l ? end - l : 0;
+            if (at < min) at = min;
+            pos = at + l > end ? at + l : end;
+        } else {
+            at = start > min ? start : min;
+            pos = at + w > at + l ? at + w : at + l;
+        }
+        while (len < at && len < sizeof line - 1) line[len++] = ' ';
+        if (len > at) len = at;
+        if (len + l >= sizeof line) l = sizeof line - 1 - len;
+        memcpy (line + len, t, l);
+        len += l;
+        if (l) content = len;
+    }
+    /* Right-aligned values already end at their column; left-aligned last
+       values stop at their text. */
+    line[len] = '\0';
+    puts (line);
+}
+
+static void
+bps_print_header (const bps_colspec *cols, int n_cols)
+{
+    static char texts[BPS_MAX_COLS][512];
+    int any = 0;
+    for (int i = 0; i < n_cols; i++) {
+        snprintf (texts[i], sizeof texts[i], "%s", cols[i].header);
+        if (cols[i].header[0]) any = 1;
+    }
+    if (any) bps_print_line (cols, n_cols, texts);
+}
+
+static void
+bps_print_row (const bps_proc *p, const bps_colspec *cols, int n_cols)
+{
+    static char texts[BPS_MAX_COLS][512];
+    for (int i = 0; i < n_cols; i++)
+        bps_value (p, cols[i].key->col, texts[i], sizeof texts[i]);
+    bps_print_line (cols, n_cols, texts);
+}
+
+#define BPS_MAX_SORT 16
+typedef struct { const bps_key *key; int desc; } bps_sortkey;
+static bps_sortkey bps_sort_keys[BPS_MAX_SORT];
+static int bps_n_sort;
+
+/* --sort=[+|-]KEY[,[+|-]KEY]...; KEY is any -o key name. */
+static int
+bps_add_sort (const char *spec)
+{
+    char buf[256];
+    size_t len = strlen (spec);
+    if (len == 0 || len >= sizeof buf) goto bad;
+    memcpy (buf, spec, len + 1);
+    for (char *save = NULL, *tok = strtok_r (buf, ",", &save); tok;
+         tok = strtok_r (NULL, ",", &save)) {
+        int desc = 0;
+        if (*tok == '+' || *tok == '-') desc = *tok++ == '-';
+        const bps_key *k = bps_key_find (tok, 0);
+        if (bps_n_sort >= BPS_MAX_SORT || !k) goto bad;
+        bps_sort_keys[bps_n_sort].key = k;
+        bps_sort_keys[bps_n_sort++].desc = desc;
+    }
+    return 0;
+bad:
+    builtin_error ("unknown sort specifier");
+    builtin_usage ();
+    return -1;
+}
+
+static int
+bps_compare_key (const bps_proc *a, const bps_proc *b, const bps_key *k)
+{
+    if (k->flags & BPS_NUM) {
+        long long x = bps_num_value (a, k->col), y = bps_num_value (b, k->col);
+        return x < y ? -1 : x > y;
+    }
+    char x[512], y[512];
+    bps_value (a, k->col, x, sizeof x);
+    bps_value (b, k->col, y, sizeof y);
+    return strcmp (x, y);
+}
+
+static int
+bps_cmp_long (long a, long b)
+{
+    return a < b ? -1 : a > b;
+}
+
+static int
+bps_compare (const void *x, const void *y)
+{
+    const bps_proc *a = x, *b = y;
+    for (int i = 0; i < bps_n_sort; i++) {
+        int c = bps_compare_key (a, b, bps_sort_keys[i].key);
+        if (c) return bps_sort_keys[i].desc ? -c : c;
+    }
+    /* Keep /proc order (pid, then thread id) between equal keys. */
+    int c = bps_cmp_long (a->pid, b->pid);
+    return c ? c : bps_cmp_long (a->lwp, b->lwp);
+}
+
+/* A BSD-syntax option word (no dash): procps' a, u, x, j, l and w. */
+static int
+bps_bsd_word (const char *s)
+{
+    if (!s[0] || !isalpha ((unsigned char) s[0])) return 0;
+    for (const char *p = s; *p; p++)
+        if (!strchr ("auxjlw", *p)) return -1;
+    return 1;
+}
+
+/* Replace the blank-delimited word FROM in S with TO. */
+static void
+bps_format_replace (char *s, size_t size, const char *from, const char *to)
+{
+    char pat[64], out[512];
+    snprintf (pat, sizeof pat, " %s ", from);
+    char padded[512];
+    snprintf (padded, sizeof padded, " %s ", s);
+    char *hit = strstr (padded, pat);
+    if (!hit) return;
+    *hit = '\0';
+    snprintf (out, sizeof out, "%s %s %s", padded, to, hit + strlen (pat));
+    /* trim the padding again */
+    char *b = out;
+    while (*b == ' ') b++;
+    size_t n = strlen (b);
+    while (n && b[n - 1] == ' ') b[--n] = '\0';
+    snprintf (s, size, "%s", b);
+}
+
 int
 ps_builtin (WORD_LIST *list)
 {
-    int all = 0;
-    int full = 0;
-    int aux_mode = 0;
+    int all = 0, full = 0, Full = 0, longf = 0, jobs = 0, yflag = 0;
+    int bsd = 0, bsd_a = 0, bsd_x = 0, bsd_u = 0, bsd_j = 0, bsd_l = 0, bsd_operand = 0;
     bps_colspec cols[BPS_MAX_COLS];
     int n_cols = 0;
     int explicit_pids[256];
@@ -1127,14 +1291,39 @@ ps_builtin (WORD_LIST *list)
     int n_cmds = 0;
     int ppids[256];
     int n_ppids = 0;
-    int no_headers = 0, threads = 0;
+    int no_headers = 0, threads = 0, end_options = 0;
     bps_list procs = { 0 };
     int rc = EXECUTION_SUCCESS;
 
     bps_n_sort = 0;
-    while (list && list->word->word[0] == '-' && list->word->word[1]) {
+    for (; list; list = list->next) {
         const char *w = list->word->word;
-        if (!strcmp (w, "--")) { list = list->next; break; }
+        if (end_options || w[0] != '-' || !w[1]) {
+            int b = bps_bsd_word (w);
+            if (b < 0) {
+                bps_usage_error ("unsupported option (BSD syntax)");
+                return EXECUTION_FAILURE;
+            }
+            if (b > 0) {
+                bsd = 1;
+                for (const char *c = w; *c; c++)
+                    switch (*c) {
+                        case 'a': bsd_a = 1; break;
+                        case 'x': bsd_x = 1; break;
+                        case 'u': bsd_u = 1; break;
+                        case 'j': bsd_j = 1; break;
+                        case 'l': bsd_l = 1; break;
+                    }
+                continue;
+            }
+            /* A bare PID selects it, as -p does, with BSD-style output. */
+            if (bps_add_pid_operand (w, explicit_pids, &n_pids,
+                                     (int) (sizeof explicit_pids / sizeof explicit_pids[0])) < 0)
+                return EXECUTION_FAILURE;
+            bsd_operand = 1;
+            continue;
+        }
+        if (!strcmp (w, "--")) { end_options = 1; continue; }
         if (!strcmp (w, "--help")) {
             builtin_usage ();
             return EXECUTION_SUCCESS;
@@ -1146,10 +1335,10 @@ ps_builtin (WORD_LIST *list)
         if (!strcmp (w, "--no-headers") || !strcmp (w, "--no-heading") ||
             !strcmp (w, "--noheaders") || !strcmp (w, "--noheading")) {
             no_headers = 1;
-            list = list->next;
             continue;
         }
-        if (!strcmp (w, "--pid") || !strcmp (w, "--ppid") || !strcmp (w, "--sort")) {
+        if (!strcmp (w, "--pid") || !strcmp (w, "--ppid") || !strcmp (w, "--sort")
+            || !strcmp (w, "--format")) {
             const char *opt = w;
             list = list->next;
             if (!list) {
@@ -1158,39 +1347,40 @@ ps_builtin (WORD_LIST *list)
                 return EXECUTION_FAILURE;
             }
             int bad = opt[2] == 's' ? bps_add_sort (list->word->word)
+                    : opt[2] == 'f' ? bps_add_o_list (list->word->word, cols, &n_cols)
                     : opt[3] == 'i' ? bps_add_pid_list (list->word->word, explicit_pids, &n_pids,
                                                         (int) (sizeof explicit_pids / sizeof explicit_pids[0]))
                     : bps_add_pid_list (list->word->word, ppids, &n_ppids,
                                         (int) (sizeof ppids / sizeof ppids[0]));
             if (bad < 0)
                 return EXECUTION_FAILURE;
-            list = list->next;
             continue;
         }
         if (!strncmp (w, "--pid=", 6)) {
             if (bps_add_pid_list (w + 6, explicit_pids, &n_pids,
                                   (int) (sizeof explicit_pids / sizeof explicit_pids[0])) < 0)
                 return EXECUTION_FAILURE;
-            list = list->next;
             continue;
         }
         if (!strncmp (w, "--ppid=", 7)) {
             if (bps_add_pid_list (w + 7, ppids, &n_ppids, (int) (sizeof ppids / sizeof ppids[0])) < 0)
                 return EXECUTION_FAILURE;
-            list = list->next;
             continue;
         }
         if (!strncmp (w, "--sort=", 7)) {
             if (bps_add_sort (w + 7) < 0)
                 return EXECUTION_FAILURE;
-            list = list->next;
+            continue;
+        }
+        if (!strncmp (w, "--format=", 9)) {
+            if (bps_add_o_list (w + 9, cols, &n_cols) < 0)
+                return EXECUTION_FAILURE;
             continue;
         }
         if (!strncmp (w, "--user=", 7) || !strncmp (w, "--User=", 7)) {
             if (bps_add_user_list (w + 7, w[2] == 'u' ? euids : ruids,
                                    w[2] == 'u' ? &n_euids : &n_ruids, 64) < 0)
                 return EXECUTION_FAILURE;
-            list = list->next;
             continue;
         }
         if (w[1] == '-') {
@@ -1201,13 +1391,17 @@ ps_builtin (WORD_LIST *list)
             switch (*c) {
                 case 'e': case 'A': all = 1; break;
                 case 'f':           full = 1; break;
+                case 'F':           Full = 1; break;
+                case 'l':           longf = 1; break;
+                case 'j':           jobs = 1; break;
+                case 'y':           yflag = 1; break;
+                case 'w':           break;
                 case 'L':           threads = 1; break;
                 case 'o': case 'p': case 'u': case 'U': case 'C': {
                     /* Argument-taking options inside a combined token, e.g.
                        procps `ps -eo comm` or `ps -ep PID`. The remainder of
                        the token after this letter is the argument; if empty
-                       the next word is consumed. Either way the rest of the
-                       token is now used up, so we break the per-letter loop. */
+                       the next word is consumed. */
                     char opt = *c;
                     const char *arg = c + 1;
                     if (*arg == '\0') {
@@ -1231,10 +1425,8 @@ ps_builtin (WORD_LIST *list)
                         if (bps_add_name_list (arg, cmds, &n_cmds, 64) < 0)
                             return EXECUTION_FAILURE;
                     } else if (opt == 'o') {
-                        if (bps_add_o_list (arg, cols, &n_cols) < 0) {
-                            builtin_usage ();
+                        if (bps_add_o_list (arg, cols, &n_cols) < 0)
                             return EXECUTION_FAILURE;
-                        }
                     } else {
                         if (bps_add_pid_list (arg, explicit_pids, &n_pids,
                                               (int) (sizeof explicit_pids / sizeof explicit_pids[0])) < 0)
@@ -1255,85 +1447,93 @@ ps_builtin (WORD_LIST *list)
             }
         }
     next_word:
-        list = list->next;
+        ;
     }
-    if (list && bps_is_aux_bsd_key (list->word->word)) {
-        aux_mode = 1;
-        all = 1;
-        list = list->next;
-    }
-    /* Explicit PID list. */
-    while (list) {
-        if (bps_add_pid_operand (list->word->word, explicit_pids, &n_pids,
-                                 (int) (sizeof explicit_pids / sizeof explicit_pids[0])) < 0)
-            return EXECUTION_FAILURE;
-        list = list->next;
-    }
-    /* procps selections add up: a process is listed when it matches any of
-       -p, -u, -U, -C or --ppid (or every process with -e). */
-    int by_select = n_euids > 0 || n_ruids > 0 || n_cmds > 0 || n_ppids > 0;
-    int explicit_all = all;
-    if (n_pids == 0 && !by_select) all = 1;
-    /* The historical `PID S TIME CMD` layout for bare PID operands. */
-    int pid_layout = n_pids > 0 && !by_select && !explicit_all && !aux_mode && n_cols == 0 && !threads;
 
-    if (n_pids > 0 && !by_select && !explicit_all) {
-        for (int i = 0; i < n_pids; i++) {
-            bps_proc p = { 0 };
-            if (bps_read_stat (explicit_pids[i], &p) == 0) {
-                if (bps_list_add_tasks (&procs, &p, threads) < 0) { free (procs.v); return EXECUTION_FAILURE; }
-            }
-            else builtin_error ("pid %d: %s", explicit_pids[i], strerror (errno));
-        }
-    } else {
-        DIR *d = opendir (bps_proc_root ());
-        if (!d) { builtin_error ("opendir %s: %s", bps_proc_root (), strerror (errno)); return EXECUTION_FAILURE; }
-        struct dirent *de;
-        while ((de = readdir (d))) {
-            if (de->d_name[0] < '0' || de->d_name[0] > '9') continue;
-            int pid = atoi (de->d_name);
-            if (pid <= 0) continue;
-            bps_proc p = { 0 };
-            if (bps_read_stat (pid, &p) != 0) continue;
-            if (by_select && !explicit_all) {
-                int keep = bps_uid_in (p.uid, euids, n_euids) ||
-                           bps_uid_in (p.ruid, ruids, n_ruids);
-                for (int i = 0; !keep && i < n_pids; i++)
-                    keep = explicit_pids[i] == pid;
-                for (int i = 0; !keep && i < n_ppids; i++)
-                    keep = ppids[i] == p.ppid;
-                for (int i = 0; !keep && i < n_cmds; i++)
-                    keep = strncmp (cmds[i], p.comm, 15) == 0 && strlen (p.comm) == (strlen (cmds[i]) < 15 ? strlen (cmds[i]) : 15);
-                if (!keep) continue;
-            }
-            if (bps_list_add_tasks (&procs, &p, threads) < 0) { closedir (d); free (procs.v); return EXECUTION_FAILURE; }
-        }
-        closedir (d);
-        if (by_select && procs.n == 0) rc = EXECUTION_FAILURE;
+    if (n_cols > 0 && (longf || Full || jobs || bsd_u || bsd_j || bsd_l)) {
+        bps_usage_error ("conflicting format options");
+        return EXECUTION_FAILURE;
     }
-    /* Sort when asked; a /proc walk is listed in pid order, as procps does. */
-    /* procs.v is NULL when nothing matched; qsort must not see it. */
-    if (procs.n > 1 && (bps_n_sort > 0 || !(n_pids > 0 && !by_select && !explicit_all)))
+    if (n_cols == 0) {
+        char fmt[512];
+        int sysv_full = full || Full;
+        if (bsd_u)
+            snprintf (fmt, sizeof fmt, "user pid pcpu pmem vsz rss tname stat start_time bsdtime args");
+        else if (bsd_j)
+            snprintf (fmt, sizeof fmt, "ppid pid pgid sid tname tpgid stat uid bsdtime args");
+        else if (bsd_l)
+            snprintf (fmt, sizeof fmt, "f uid pid ppid priority ni vsz rss wchan stat tname bsdtime args");
+        else if (longf)
+            snprintf (fmt, sizeof fmt, "%s state %s pid ppid%s c%s _opri ni %s wchan%s%s tname time %s",
+                      yflag ? "" : "f", sysv_full ? "_uidname" : "uid",
+                      threads ? " lwp" : "", threads && sysv_full ? " nlwp" : "",
+                      yflag ? "rss sz" : "_addrl _szl",
+                      Full ? " rss psr" : "", sysv_full ? " stime" : "",
+                      sysv_full ? "cmd" : "ucmd");
+        else if (Full)
+            snprintf (fmt, sizeof fmt, "_uidname pid ppid%s c%s sz rss psr stime tname time cmd",
+                      threads ? " lwp" : "", threads ? " nlwp" : "");
+        else if (full)
+            snprintf (fmt, sizeof fmt, "_uidname pid ppid%s%s c%s stime tname time cmd",
+                      jobs ? " pgid sid" : "", threads ? " lwp" : "", threads ? " nlwp" : "");
+        else if (jobs)
+            snprintf (fmt, sizeof fmt, "pid%s pgid sid tname time ucmd", threads ? " lwp" : "");
+        else if (bsd || bsd_operand)
+            snprintf (fmt, sizeof fmt, "pid%s tname stat bsdtime args", threads ? " lwp" : "");
+        else
+            snprintf (fmt, sizeof fmt, "pid%s tname time ucmd", threads ? " lwp" : "");
+        /* procps switches a SysV format to BSD times and the full command
+           for bare PID operands; formats other than -l also show STAT. */
+        if (bsd_operand && !bsd && (sysv_full || longf || jobs)) {
+            bps_format_replace (fmt, sizeof fmt, "time", longf ? "bsdtime" : "stat bsdtime");
+            bps_format_replace (fmt, sizeof fmt, "ucmd", longf ? "cmd" : "args");
+        }
+        bps_add_format (fmt, cols, &n_cols);
+    }
+
+    /* procps selections add up: a process is listed when it matches any of
+       -p, -u, -U, -C, --ppid, or BSD a (has a terminal) / x (own process);
+       every process with -e or ax, or when nothing selects. */
+    int by_select = n_pids > 0 || n_euids > 0 || n_ruids > 0 || n_cmds > 0 || n_ppids > 0
+                    || bsd_a || bsd_x;
+    if ((bsd_a && bsd_x) || !by_select) all = 1;
+    uid_t self = geteuid ();
+
+    DIR *d = opendir (bps_proc_root ());
+    if (!d) { builtin_error ("opendir %s: %s", bps_proc_root (), strerror (errno)); return EXECUTION_FAILURE; }
+    struct dirent *de;
+    while ((de = readdir (d))) {
+        if (de->d_name[0] < '0' || de->d_name[0] > '9') continue;
+        int pid = atoi (de->d_name);
+        if (pid <= 0) continue;
+        bps_proc p = { 0 };
+        if (bps_read_stat (pid, &p) != 0) continue;
+        if (!all) {
+            int keep = bps_uid_in (p.uid, euids, n_euids) ||
+                       bps_uid_in (p.ruid, ruids, n_ruids) ||
+                       (bsd_x && p.uid == self) || (bsd_a && p.tty_nr != 0);
+            for (int i = 0; !keep && i < n_pids; i++)
+                keep = explicit_pids[i] == pid;
+            for (int i = 0; !keep && i < n_ppids; i++)
+                keep = ppids[i] == p.ppid;
+            for (int i = 0; !keep && i < n_cmds; i++)
+                keep = strncmp (cmds[i], p.comm, 15) == 0 && strlen (p.comm) == (strlen (cmds[i]) < 15 ? strlen (cmds[i]) : 15);
+            if (!keep) continue;
+        }
+        if (bps_list_add_tasks (&procs, &p, threads) < 0) { closedir (d); free (procs.v); return EXECUTION_FAILURE; }
+    }
+    closedir (d);
+    /* procps exits 1 when no process is listed; the header still prints. */
+    if (procs.n == 0) rc = EXECUTION_FAILURE;
+    /* A /proc walk is listed in pid order, as procps does. procs.v is NULL
+       when nothing matched; qsort must not see it. */
+    if (procs.n > 1)
         qsort (procs.v, procs.n, sizeof *procs.v, bps_compare);
 
-    if (!no_headers) {
-        if (aux_mode) bps_print_aux_header ();
-        else if (n_cols > 0) bps_print_custom_header (cols, n_cols);
-        else if (pid_layout) {
-            if (full) printf ("USER       PID  PPID S TIME     CMD\n");
-            else printf ("  PID S TIME     CMD\n");
-        } else if (full && threads) puts ("UID          PID    PPID     LWP  C NLWP STIME TTY          TIME CMD");
-        else if (full) puts ("UID          PID    PPID  C STIME TTY          TIME CMD");
-        else if (threads) puts ("    PID     LWP TTY          TIME CMD");
-        else puts ("    PID TTY          TIME CMD");
-    }
-    for (size_t i = 0; i < procs.n; i++) {
-        const bps_proc *p = &procs.v[i];
-        if (aux_mode) bps_print_aux_row (p);
-        else if (n_cols > 0) bps_print_custom (p, cols, n_cols);
-        else if (pid_layout) bps_print (p, full);
-        else bps_print_table_row (p, full, threads);
-    }
+    if (!no_headers)
+        bps_print_header (cols, n_cols);
+    for (size_t i = 0; i < procs.n; i++)
+        bps_print_row (&procs.v[i], cols, n_cols);
     free (procs.v);
     return rc;
 }
@@ -1341,34 +1541,45 @@ ps_builtin (WORD_LIST *list)
 char *ps_doc[] = {
     "List processes via /proc (POSIX-shape ps).",
     "",
-    "    bashps [-efL] [-o COL,COL,...] [-p PIDLIST] [-u|-U USERLIST] [-C CMDLIST]",
+    "    bashps [-efFjlLy] [-o KEY[=HEADER],...] [-p PIDLIST] [-u|-U USERLIST] [-C CMDLIST]",
     "           [--ppid PIDLIST] [--sort=[+|-]KEY,...] [--no-headers] [PID...]",
-    "    bashps aux [PID...]",
+    "    bashps [aux] [j|l|u] [PID...]",
     "",
-    "    -e        all processes (default if no PID given)",
-    "    -f        full format: USER PID PPID STATE TIME CMD",
-    "    aux       BSD/procps-style USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND",
+    "    -e        all processes (default if nothing selects)",
+    "    -f        full format: UID PID PPID C STIME TTY TIME CMD",
+    "    -F        extra full format: adds SZ RSS PSR",
+    "    -l        long format: F S UID PID PPID C PRI NI ADDR SZ WCHAN TTY TIME CMD",
+    "              (-y with -l: RSS and SZ in place of F and ADDR)",
+    "    -j        jobs format: PID PGID SID TTY TIME CMD",
+    "    a x       BSD selection: processes with a terminal, your own processes",
+    "    u j l     BSD user, job and long formats (aux: everything, user format)",
     "    -p LIST   select comma-separated process IDs (also --pid=LIST)",
     "    -u LIST   select by effective user name or ID (also --user=LIST)",
     "    -U LIST   select by real user name or ID (also --User=LIST)",
     "    -C LIST   select by command name (comm)",
     "    --ppid LIST  select by parent process ID (selections add up)",
     "    -L        one line per thread (adds the LWP column)",
-    "    --sort=[+|-]KEY,...  order by -o column names (- descending)",
+    "    --sort=[+|-]KEY,...  order by -o key names (- descending)",
     "    --no-headers  omit the header row (also --no-heading)",
-    "    -o LIST   custom columns: pid,ppid,pgrp,sid,uid,ruid,user,state,stat,comm,args,time,stime,lstart,",
-    "              %cpu,%mem,rss,vsz,etime,etimes,ni,lwp,nlwp",
-    "              repeat -o to append columns; use field= to leave a heading blank",
+    "    -o LIST   custom columns (also --format=LIST); procps keys:",
+    "              pid ppid pgrp pgid sid sess tpgid lwp tid spid nlwp thcount",
+    "              uid euid ruid suid fsuid gid egid rgid sgid fsgid",
+    "              user euser ruser suser fsuser group egroup rgroup sgroup fsgroup",
+    "              state s stat comm ucmd fname args command cmd exe",
+    "              time cputime bsdtime stime start_time start bsdstart lstart",
+    "              etime etimes %cpu pcpu %mem pmem c rss rsz vsz sz",
+    "              ni pri priority psr cls class policy sched rtprio f flags",
+    "              tty tt tname wchan addr ttybytes",
+    "              repeat -o to append columns; use key= to leave a heading blank",
     "              if all headings are blank, omit the header row",
     "    --help    print usage information and exit",
     "    -V, --version",
     "              print version information and exit",
     "",
-    "Without -f, output is `PID STATE TIME CMD`. CMD comes from",
-    "/proc/PID/cmdline (or [comm] for kernel threads).",
-    "TTY is resolved from the controlling device when available.",
-    "The lstart column (STARTED) shows the full local start date and time.",
-    "POSIX-shape — for richer formats use system+ procps.",
+    "Columns are laid out as procps does. Without a format, output is",
+    "`PID TTY TIME CMD` (`PID TTY STAT TIME COMMAND` for BSD forms and bare",
+    "PID operands). CMD comes from /proc/PID/cmdline (or [comm] for kernel",
+    "threads). ps exits 1 when no process is listed.",
     (char *)NULL
 };
 
@@ -1377,6 +1588,6 @@ struct builtin bashps_struct = {
     ps_builtin,
     BUILTIN_ENABLED,
     ps_doc,
-    "bashps [-efL] [-o COL,COL,...] [-p PIDLIST] [-u|-U USERLIST] [-C CMDLIST] [--ppid PIDLIST] [--sort=KEYS] [--no-headers] [PID...] | bashps aux [PID...]",
+    "bashps [-efFjlLy] [-o KEYS] [-p PIDLIST] [-u|-U USERLIST] [-C CMDLIST] [--ppid PIDLIST] [--sort=KEYS] [--no-headers] [PID...] | bashps [aux] [j|l|u] [PID...]",
     0
 };

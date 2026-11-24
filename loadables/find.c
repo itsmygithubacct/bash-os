@@ -683,7 +683,7 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
     }
     else
     {
-        builtin_error ("unknown predicate: %s", t);
+        builtin_error ("unknown predicate `%s'", t);
         return NULL;
     }
     bf_advance (p);
@@ -814,7 +814,24 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
         }
         else if (k == BF_MAXDEPTH || k == BF_MINDEPTH)
         {
-            int d = atoi (arg);
+            /* GNU: decimal digits only, no sign or blanks. */
+            const char *q = arg;
+            long long v = 0;
+            while (*q >= '0' && *q <= '9') {
+                if (v <= INT_MAX) v = v * 10 + (*q - '0');
+                q++;
+            }
+            if (q == arg || *q) {
+                bf_free (e);
+                builtin_error ("Expected a positive decimal integer argument to %s, but got '%s'", t, arg);
+                return NULL;
+            }
+            if (v > INT_MAX) {
+                bf_free (e);
+                builtin_error ("%s: %s", arg, strerror (ERANGE));
+                return NULL;
+            }
+            int d = (int) v;
             if (k == BF_MAXDEPTH) ctx->maxdepth = d;
             else                  ctx->mindepth = d;
         }

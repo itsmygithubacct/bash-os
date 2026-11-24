@@ -3823,7 +3823,7 @@ sed_builtin (WORD_LIST *list)
                 return failed ? 4 : EXECUTION_SUCCESS;
             }
             /* GNU long spellings and attached option arguments. */
-            const char *long_value = NULL;
+            const char *long_value = NULL, *given = w;
             if (!strcmp (w, "--quiet") || !strcmp (w, "--silent")) w = "-n";
             else if (!strcmp (w, "--separate")) w = "-s";
             else if (!strcmp (w, "--regexp-extended")) w = "-E";
@@ -3843,7 +3843,8 @@ sed_builtin (WORD_LIST *list)
             else if (!strcmp (w, "--sandbox")) { bs_sandbox = 1; goto next_word; }
             else if (!strcmp (w, "--follow-symlinks")) { bs_follow_symlinks = 1; goto next_word; }
             else if (w[1] == '-') {
-                builtin_error ("unsupported option: %s", w);
+                /* glibc getopt's wording; GNU sed then prints its usage. */
+                builtin_error ("unrecognized option '%s'", w);
                 builtin_usage ();
                 free (files); free (script);
                 return 1;
@@ -3874,7 +3875,11 @@ sed_builtin (WORD_LIST *list)
                         const char *value = long_value ? long_value : c[1] ? c + 1 : NULL;
                         if (!value) {
                             if (!p->next) {
-                                builtin_error ("-%c needs an argument", opt);
+                                if (given[1] == '-')
+                                    builtin_error ("option '%s' requires an argument", given);
+                                else
+                                    builtin_error ("option requires an argument -- '%c'", opt);
+                                builtin_usage ();
                                 free (files); free (script); return 1;
                             }
                             p = p->next;
@@ -3923,7 +3928,7 @@ sed_builtin (WORD_LIST *list)
                         goto next_word;
                     }
                     default:
-                        builtin_error ("unknown flag: -%c", *c);
+                        builtin_error ("invalid option -- '%c'", *c);
                         builtin_usage ();
                         free (files); free (script);
                         return 1;

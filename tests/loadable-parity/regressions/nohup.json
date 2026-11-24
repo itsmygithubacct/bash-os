@@ -136,6 +136,17 @@
       "kind": "deferred",
       "purpose": "Verify the child ignores SIGHUP across a controlled controlling-terminal disconnect.",
       "reason": "Requires a disposable PTY session and a helper that closes the PTY master to generate hangup only for the fixture's foreground process group, then observes the child's completion and status. This runner has no PTY control interface; no process signal is sent by this suite."
+    },
+    {
+      "id": "pass9-usage-errors",
+      "kind": "parity",
+      "purpose": "G132: nohup with no command says \"missing operand\" with the Try line; unknown options get glibc wording; only --help/--version (or prefixes) are options; status 125.",
+      "requires": [
+        "nohup"
+      ],
+      "script": "nohup </dev/null || echo \"rc=$?\"\nnohup -- </dev/null || echo \"rc=$?\"\nnohup --bogus </dev/null || echo \"rc=$?\"\nnohup -@ </dev/null || echo \"rc=$?\"\nnohup -h </dev/null || echo \"rc=$?\"\nnohup -n true </dev/null || echo \"rc=$?\"\nnohup --help=1 </dev/null || echo \"rc=$?\"\nnohup --bogus=1 </dev/null || echo \"rc=$?\"\nnohup --h >/dev/null </dev/null || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

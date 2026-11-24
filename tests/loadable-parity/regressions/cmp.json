@@ -13,7 +13,8 @@
     "Missing input and invalid skip count errors",
     "Bash builtin type and help metadata contract",
     "GNU diffutils >= 3.4 'differ: byte N, line M' wording (guest pass 2 G35)",
-    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status."
+    "Pass 8 (G120): option errors in GNU form, naming the command only, with the GNU status.",
+    "Pass 9 (docker suite AN): pass9-gnu-options"
   ],
   "exclusions": [
     "No deferred cases: all selected operations use small private fixture files or bounded shell pipelines and require no privilege, hardware, network, terminal driver, or external mock.",
@@ -235,6 +236,17 @@
         "cmp"
       ],
       "script": "rc=0\ncmp -n || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass9-gnu-options",
+      "kind": "parity",
+      "purpose": "Docker suite diff/cmp-gnu-options and errors/cmp: -b byte rendering, -l -b, -i SKIP and SKIP1:SKIP2 with suffixes and hex, --verbose, an empty file's EOF message, and option errors with the cmp: prefixed hint (exit 2).",
+      "requires": [
+        "cmp"
+      ],
+      "script": "e() { printf '$ %s\\n' \"$*\"; \"$@\" </dev/null || echo \"rc=$?\"; }\nprintf 'abcdef' > a; printf 'abXdeY' > b; printf 'abc' > c1; printf 'abd' > c2; : > empty\ne cmp -b a b\ne cmp -i 3 a b\ne cmp --verbose a b\ne cmp -i 1:1 a b\ne cmp -l -b c1 c2\ne cmp -i 1K c1 c2\ne cmp -i 0x1 c1 c2\ne cmp -n 2 c1 c2\ne cmp empty c1\ne cmp --bogus\ne cmp -@\ne cmp\ne cmp -n\ne cmp -n x a b\ne cmp -i x a b\ne cmp nosuch a\n",
       "expected_status": 0,
       "stderr": "exact"
     }

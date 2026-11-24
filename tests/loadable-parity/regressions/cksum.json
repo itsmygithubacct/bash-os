@@ -14,7 +14,8 @@
     "Same-shell parser failures leave input unread and reset options for later invocations.",
     "Missing/directory/closed-input failures retain failure status while later checksums work.",
     "--check over tagged lines of every supported digest and untagged lines with -a, with --quiet/--status/--strict/--warn/--ignore-missing and GNU option conflicts; blake2b digests (guest pass 3 G47)",
-    "Pass 8 (G120, G122): -c names 'standard input'; option errors in GNU form."
+    "Pass 8 (G120, G122): -c names 'standard input'; option errors in GNU form.",
+    "Pass 9 (docker suite AN): pass9-legacy-and-sm3"
   ],
   "exclusions": [
     "GNU --raw, --base64, --length, legacy sysv/bsd/crc32b modes, and algorithms outside the documented set",
@@ -342,6 +343,17 @@
         "cksum"
       ],
       "script": "rc=0\ncksum -a || rc=$?\necho \"rc=$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass9-legacy-and-sm3",
+      "kind": "parity",
+      "purpose": "Docker suite checksum/cksum-sysv-bsd and errors/cksum: -a sysv, bsd and crc32b checksums and sizes, their --raw forms, the SM3 digest (tagged, untagged, base64, check mode), and GNU's keyword errors.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "e() { printf '$ %s\\n' \"$*\"; \"$@\" </dev/null || echo \"rc=$?\"; }\nprintf 'The quick brown fox\\n' > f; printf abc > c1; head -c 100000 /dev/zero > z\ncksum -a sysv f; cksum -a bsd f; printf '' | cksum -a sysv; cksum -a crc32b c1 f\ncksum -a sysv --raw c1 | od -An -tx1; cksum -a crc32b --raw c1 | od -An -tx1\ncksum -a sm3 c1 z; cksum -a sm3 --untagged c1; cksum -a sm3 --base64 c1; cksum -a sm3 c1 > l; cksum -c l\ne cksum --bogus\ne cksum -@\ne cksum -a\ne cksum -a bad\ne cksum -l 7 -a blake2b\ne cksum -a sm3 -l 128 c1\ne cksum nosuch\n",
       "expected_status": 0,
       "stderr": "exact"
     }

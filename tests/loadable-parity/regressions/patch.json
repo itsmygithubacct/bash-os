@@ -298,6 +298,17 @@
       ],
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass9-option-errors",
+      "kind": "parity",
+      "purpose": "Docker parity errors/patch: a missing option argument ends with patch's prefixed Try line; bad strip counts and fuzz factors are fatal \"****\" errors, negative ones say so, and the value is shell-quoted when needed.",
+      "requires": [
+        "patch"
+      ],
+      "script": "patch -p </dev/null || echo \"rc=$?\"\npatch --strip </dev/null || echo \"rc=$?\"\npatch -i </dev/null || echo \"rc=$?\"\npatch --input </dev/null || echo \"rc=$?\"\npatch -p x </dev/null || echo \"rc=$?\"\npatch --strip=x </dev/null || echo \"rc=$?\"\npatch -F x </dev/null || echo \"rc=$?\"\npatch -p -1 </dev/null || echo \"rc=$?\"\npatch -F -1 </dev/null || echo \"rc=$?\"\npatch -p ' 1' </dev/null || echo \"rc=$?\"\npatch -p '' </dev/null || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

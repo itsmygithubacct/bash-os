@@ -121,6 +121,17 @@
       "expected_status": 0,
       "stdout": "write failure reported\n",
       "stderr": "nonempty"
+    },
+    {
+      "id": "pass9-option-errors",
+      "kind": "parity",
+      "purpose": "G129: util-linux wall reports unknown options and missing -t/-g arguments with getopt wording and the Try line, status 1.",
+      "requires": [
+        "wall"
+      ],
+      "script": "wall --bogus </dev/null || echo \"rc=$?\"\nwall -@ </dev/null || echo \"rc=$?\"\nwall --bogus=1 </dev/null || echo \"rc=$?\"\nwall -t </dev/null || echo \"rc=$?\"\nwall -g </dev/null || echo \"rc=$?\"\nwall --timeout </dev/null || echo \"rc=$?\"\nwall --group </dev/null || echo \"rc=$?\"",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

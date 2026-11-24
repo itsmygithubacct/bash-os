@@ -1,6 +1,6 @@
 --- builtins/sleep.c
 +++ builtins/sleep.c
-@@ -44,6 +44,10 @@
+@@ -44,9 +44,25 @@
  #endif
  
  #include <stdio.h>
@@ -11,7 +11,22 @@
  #include "chartypes.h"
  
  #include "loadables.h"
-@@ -121,50 +125,80 @@
++#include "shim-prog-name.h"
++#include "gnu-quote.h"
++
++/* coreutils' "invalid time interval 'X'" for one operand. */
++static void
++sleep_invalid (const char *arg)
++{
++  char *quoted = bos_quote (arg);
++
++  builtin_error ("invalid time interval %s", quoted ? quoted : arg);
++  free (quoted);
++}
+ 
+ #define S_SEC	1
+ #define S_MIN	(60*S_SEC)
+@@ -121,50 +137,118 @@
  int
  sleep_builtin (WORD_LIST *list)
  {
@@ -56,37 +71,78 @@
 +  long sec, usec, total_sec = 0, total_usec = 0;
 +  char *ep, *arg;
 +  WORD_LIST *word;
-+  int r;
++  int r, options = 1, bad = 0;
++  SHELL_VAR *posix_var = find_variable ("POSIXLY_CORRECT");
++  int posix = posix_var && exported_p (posix_var);
 +
-+  if (list && strcmp (list->word->word, "--help") == 0)
-+    { builtin_help (); return sh_chkwrite (EXECUTION_SUCCESS); }
-+  if (list && strcmp (list->word->word, "--version") == 0)
-+    { printf ("sleep (bash-os builtin)\n"); return sh_chkwrite (EXECUTION_SUCCESS); }
-+  if (list == 0)
-+    { builtin_error ("missing operand"); return EXECUTION_FAILURE; }
-+  if (strcmp (list->word->word, "--") == 0)
-+    list = list->next;
-+
-+  /* Validate and add all operands before waiting. */
++  /* Options first, wherever they are, as getopt permutes: only --help and
++     --version (or a prefix of them) exist; "--" ends the options; any
++     other word starting with '-' (except "-" itself) is a usage error. */
 +  for (word = list; word; word = word->next)
 +    {
 +      arg = word->word->word;
-+      if (*arg == 0 || *arg == '-')
-+        goto invalid;
++      if (options && strcmp (arg, "--") == 0)
++        { options = 0; continue; }
++      if (!options || arg[0] != '-' || arg[1] == 0)
++        {
++          if (posix) options = 0;
++          continue;
++        }
++      if (arg[1] == '-')
++        {
++          size_t length = strcspn (arg + 2, "=");
++          const char *name = 0;
++
++          if (length && length <= 4 && strncmp (arg + 2, "help", length) == 0)
++            name = "help";
++          else if (length && length <= 7 && strncmp (arg + 2, "version", length) == 0)
++            name = "version";
++          if (name && arg[2 + length])
++            {
++              builtin_error ("option '--%s' doesn't allow an argument", name);
++              bos_shim_try_help ("sleep");
++              return EXECUTION_FAILURE;
++            }
++          if (name && *name == 'h')
++            { builtin_help (); return sh_chkwrite (EXECUTION_SUCCESS); }
++          if (name)
++            { printf ("sleep (bash-os builtin)\n"); return sh_chkwrite (EXECUTION_SUCCESS); }
++        }
++      bos_shim_bad_option (arg, (unsigned char) arg[1], "sleep");
++      return EXECUTION_FAILURE;
++    }
++
++  /* Validate and add all operands before waiting: each bad one is
++     reported, then a single Try line. */
++  options = 1;
++  for (word = list; word; word = word->next)
++    {
++      arg = word->word->word;
++      if (options && strcmp (arg, "--") == 0)
++        { options = 0; continue; }
++      if (posix) options = 0;
 +      sec = usec = 0;
-+      r = uconvert (arg, &sec, &usec, &ep);
-+      if (r == 0 && (strchr ("dhms", *ep) || strpbrk (arg, "dhms")))
++      r = *arg && *arg != '-' ? uconvert (arg, &sec, &usec, &ep) : 0;
++      if (*arg && *arg != '-' && r == 0 && (strchr ("dhms", *ep) || strpbrk (arg, "dhms")))
 +        r = parse_gnutimefmt (arg, &sec, &usec);
 +      if (r == 0 || sec < 0 || usec < 0 || sec > LONG_MAX - total_sec)
-+        goto invalid;
++        { sleep_invalid (arg); bad = 1; continue; }
 +      total_sec += sec;
 +      total_usec += usec;
 +      if (total_usec >= 1000000)
 +        {
-+          if (total_sec == LONG_MAX) goto invalid;
++          if (total_sec == LONG_MAX) { sleep_invalid (arg); bad = 1; continue; }
 +          total_sec++;
 +          total_usec -= 1000000;
 +        }
++    }
++  /* As GNU: only a bare "sleep" lacks an operand ("sleep --" waits 0). */
++  if (list == 0)
++    builtin_error ("missing operand");
++  if (list == 0 || bad)
++    {
++      bos_shim_try_help ("sleep");
++      return EXECUTION_FAILURE;
 +    }
 +#if defined (HAVE_NANOSLEEP)
 +  {
@@ -117,9 +173,6 @@
 +#endif
 +  QUIT;
 +  return EXECUTION_SUCCESS;
-+invalid:
-+  builtin_error ("%s: bad sleep interval", arg);
-+  return EXECUTION_FAILURE;
  }
  
  char *sleep_doc[] = {
@@ -131,7 +184,7 @@
  	"As an extension, sleep accepts GNU-style time intervals (e.g., 2m30s).",
  	(char *)NULL
  };
-@@ -174,6 +207,6 @@
+@@ -174,6 +258,6 @@
  	sleep_builtin,
  	BUILTIN_ENABLED,
  	sleep_doc,
