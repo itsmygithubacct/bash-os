@@ -3118,6 +3118,14 @@
       "evidence": "tests/loadable-parity/regressions/tinfo.json",
       "status": "Parity",
       "scope": "10 bounded reference comparisons and 7 documented contracts; 0 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions."
+    },
+    {
+      "names": [
+        "ramdisk"
+      ],
+      "status": "Contract",
+      "evidence": "tests/ramdisk-smoke.py",
+      "scope": "Mount lifecycle and settings in private namespaces, with a fixture for zram control."
     }
   ],
   "sanitizer_groups": [
@@ -4319,7 +4327,7 @@
     "index": {
       "evidence": "docs/sol-index.md",
       "note": "Listings match git 2.47.3 wherever git's own ls-files --stage result is deterministic. Errors exit 1, where git exits 128. Three index shapes are refused, where git's result varies or does not finish: mapped-page overruns, a two-word split bitmap literal that has already reached the shared index, and three untracked-cache shapes. The version-4 overlap listing for tests/fixtures/sol-index-parity/indexes/m00895.index follows a measured allocator placement, which another host can place differently. No valgrind or ASan git was used. FSMN, sha256 repositories and mutating sharedindex.* are not covered. There is no new performance result.",
-      "next": "Remeasure index-read on the current build (1.93\u00d7 external time in the historical snapshot)."
+      "next": "Remeasure index-read on the current build (1.93× external time in the historical snapshot)."
     },
     "grep": {
       "evidence": "docs/sol-grep.md",
@@ -4981,9 +4989,9 @@
       }
     ],
     "validation_limits": "The full harness was not rerun after the final focused fixes. These correctness results add no new command timings. Coverage labels identify available fixtures; they do not imply that every referenced suite or conditional branch ran on the reviewed commit. Optional interpreter builds, hardware-dependent paths and credential transitions have their own prerequisites, and this record does not establish current cross-platform or complete CLI conformance.",
-    "catalog_sha256": "116dae193ef8df392bdac42ffbaa72aa42e3d078adbbb6293bdcb38496f7525b",
+    "catalog_sha256": "8c50c4deed41fc5741a8e83f9e7843164c2c7f31794a4264ef20a872740ebb30",
     "optional_catalog_sha256": "7eb20c2a057d82f8110dcb880fc424552d13581ec1baedc6d2608586d4031bde",
-    "catalog_refresh_note": "2026-10-20: updated only the uclampset description for implemented setters. The validation summary above remains historical; new focused evidence is recorded in the uclampset coverage entries. 2026-10-22: added bashclear and clear in core and inherited profiles plus full; refreshed catalog membership and focused coverage only. The broad inventory review and historical measurements retain their original dates and source commits. 2026-10-23: added base64, sha256sum, gzip and tar in core and inherited profiles; added GNU interface regression coverage and documented limits. Historical timings and broad release validation remain unchanged. 2026-10-23: refreshed help syntax and focused isolated parity fixtures for the GNU compatibility corrections. Historical timing and broad inventory records retain their original dates and commits. 2026-10-23: refreshed additional command synopses, formatting/CLI fixtures and the w explicit-file migration. The dated broad review and command measurements remain historical; no new timings are inferred. 2026-10-23: aligned additional static/package synopses and added array, FIFO, JSON, gzip-stream and ordinary-file regression fixtures. Historical broad-review dates, commits and timings remain unchanged. 2026-10-23: aligned more static/package help and recorded focused Unicode, raw-log, offline known_hosts and writable awk-counter fixtures. Broad review records and timings remain historical. 2026-10-23: aligned mail, sshd and slabtop synopses and added selected gzip, editor, Unicode and offline-parser fixtures. Historical review dates and performance measurements retain their original provenance. 2026-11-20: added md5sum, iconv and patch to the full catalog. Historical timings and the broad review retain their original dates and commits.",
+    "catalog_refresh_note": "2026-10-20: updated only the uclampset description for implemented setters. The validation summary above remains historical; new focused evidence is recorded in the uclampset coverage entries. 2026-10-22: added bashclear and clear in core and inherited profiles plus full; refreshed catalog membership and focused coverage only. The broad inventory review and historical measurements retain their original dates and source commits. 2026-10-23: added base64, sha256sum, gzip and tar in core and inherited profiles; added GNU interface regression coverage and documented limits. Historical timings and broad release validation remain unchanged. 2026-10-23: refreshed help syntax and focused isolated parity fixtures for the GNU compatibility corrections. Historical timing and broad inventory records retain their original dates and commits. 2026-10-23: refreshed additional command synopses, formatting/CLI fixtures and the w explicit-file migration. The dated broad review and command measurements remain historical; no new timings are inferred. 2026-10-23: aligned additional static/package synopses and added array, FIFO, JSON, gzip-stream and ordinary-file regression fixtures. Historical broad-review dates, commits and timings remain unchanged. 2026-10-23: aligned more static/package help and recorded focused Unicode, raw-log, offline known_hosts and writable awk-counter fixtures. Broad review records and timings remain historical. 2026-10-23: aligned mail, sshd and slabtop synopses and added selected gzip, editor, Unicode and offline-parser fixtures. Historical review dates and performance measurements retain their original provenance. 2026-11-20: added md5sum, iconv and patch to the full catalog. Historical timings and the broad review retain their original dates and commits. 2026-11-27: refreshed the 0.1.5 command synopses and added ramdisk coverage.",
     "historical_validation_summary": "On 2026-10-19, `tests/run.sh` recorded **212 passed, 0 failed** on `85c1f72609c46ea58e265934272abf52e4889c9e` plus the reviewed working-tree changes (tracked diff SHA-256 `6b1e58659a53475de550108104ba265e752827091e2eb0893ad95783982a7abc`; native binary SHA-256 `6f78739d29acea39800d49948ba71bbf35ad8b887831d60e242ee37021d4f883`). That full run preceded the final Git long-line and package-index byte-verification fixes. The focused checks below passed later that day with those fixes, now committed in the reviewed source above. Their native binary SHA-256 was `25bacd907a13baa8c8a4cbe96f178ae20e4e3cbadd5c902175906b29f65dd5cf`; the package sanitizer check used separately instrumented modules."
   },
   "optional_integrations": {
