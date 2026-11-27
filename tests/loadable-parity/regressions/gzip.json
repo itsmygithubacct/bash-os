@@ -262,7 +262,7 @@
         "gzip"
       ],
       "purpose": "G30: -r compresses and decompresses every file below a directory; without -r a directory is skipped with exit 2; already-suffixed files are skipped quietly inside the tree.",
-      "script": "/usr/bin/mkdir -p d/e\nprintf 'q\\n' > d/q; printf 'x\\n' > d/e/x\ngzip d 2>&1 | /usr/bin/sed 's/^.*gzip: /gzip: /' || echo rc=$?\ngzip -r d && /usr/bin/find d -type f | /usr/bin/sort\nprintf 'z\\n' > d/z; gzip -r d && /usr/bin/find d -type f | /usr/bin/sort\ngzip -rd d && /usr/bin/find d -type f | /usr/bin/sort\ngzip -rv d 2>&1 | /usr/bin/sort\n",
+      "script": "/usr/bin/mkdir -p d/e\nprintf 'q\\n' > d/q; printf 'x\\n' > d/e/x\n/usr/bin/touch -m -d @1700000000 d/q d/e/x\ngzip d 2>&1 | /usr/bin/sed 's/^.*gzip: /gzip: /' || echo rc=$?\ngzip -r d && /usr/bin/find d -type f | /usr/bin/sort\nprintf 'z\\n' > d/z; /usr/bin/touch -m -d @1700000000 d/z; gzip -r d && /usr/bin/find d -type f | /usr/bin/sort\ngzip -rd d && /usr/bin/find d -type f | /usr/bin/sort\ngzip -rv d 2>&1 | /usr/bin/sort\n",
       "expected_status": 0,
       "stderr": "empty"
     },
