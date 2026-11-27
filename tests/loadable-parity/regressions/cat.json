@@ -30,7 +30,7 @@
       "requires": [
         "cat"
       ],
-      "script": "cat --bogus </dev/null || echo \"rc=$?\"\ncat -n@ </dev/null || echo \"rc=$?\"\ncat --number=3 </dev/null || echo \"rc=$?\"\ncat --num </dev/null || echo \"rc=$?\"\ncat a --bogus </dev/null || echo \"rc=$?\"\nprintf 'x\\ty\\n' | cat --show-t </dev/null || echo \"rc=$?\"",
+      "script": "cat --bogus </dev/null || echo \"rc=$?\"\ncat -n@ </dev/null || echo \"rc=$?\"\ncat --number=3 </dev/null || echo \"rc=$?\"\ncat --num </dev/null || echo \"rc=$?\"\ncat a --bogus </dev/null || echo \"rc=$?\"\nprintf 'x\\ty\\n' | cat --show-t || echo \"rc=$?\"",
       "expected_status": 0,
       "stderr": "exact"
     },

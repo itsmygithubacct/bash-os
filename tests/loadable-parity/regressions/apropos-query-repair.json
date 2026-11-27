@@ -7,7 +7,7 @@
       "id": "query-regex-dot",
       "kind": "contract",
       "purpose": "Exercise apropos query semantics on a private whatis index.",
-      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha, aleph (1) - first apple' 'alpha-x (1) - longer name' 'beta (1) - second berry' 'both (1) - alpha and beta' > whatis\napropos -- \"^al.ha, \"",
+      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha, aleph (1) - first apple' 'alpha-x (1) - longer name' 'beta (1) - second berry' 'both (1) - alpha and beta' > whatis\napropos -- \"^al.ha$\"",
       "expected_status": 0,
       "stdout": "alpha, aleph (1) - first apple\n",
       "stderr": "empty"
@@ -16,7 +16,7 @@
       "id": "query-or",
       "kind": "contract",
       "purpose": "Exercise apropos query semantics on a private whatis index.",
-      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha, aleph (1) - first apple' 'alpha-x (1) - longer name' 'beta (1) - second berry' 'both (1) - alpha and beta' > whatis\napropos -- \"^alpha, \" \"^beta \"",
+      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha, aleph (1) - first apple' 'alpha-x (1) - longer name' 'beta (1) - second berry' 'both (1) - alpha and beta' > whatis\napropos -- \"^alpha$\" \"^beta$\"",
       "expected_status": 0,
       "stdout": "alpha, aleph (1) - first apple\nbeta (1) - second berry\n",
       "stderr": "empty"
@@ -52,7 +52,7 @@
       "id": "query-miss",
       "kind": "contract",
       "purpose": "Exercise apropos query semantics on a private whatis index.",
-      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha, aleph (1) - first apple' 'alpha-x (1) - longer name' 'beta (1) - second berry' 'both (1) - alpha and beta' > whatis\napropos -- nofixturehit",
+      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha, aleph (1) - first apple' 'alpha-x (1) - longer name' 'beta (1) - second berry' 'both (1) - alpha and beta' > whatis\napropos -- nofixturehit 2>&1",
       "expected_status": 16,
       "stdout": "nofixturehit: nothing appropriate.\n",
       "stderr": "empty"

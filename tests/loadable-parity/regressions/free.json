@@ -68,20 +68,20 @@
     {
       "id": "human-readable-scaling",
       "kind": "contract",
-      "purpose": "Check -h scales representative GiB and MiB values with the documented one-decimal unit labels.",
+      "purpose": "Check procps-style binary human-readable unit labels and precision.",
       "script": "printf '%s\\n' 'MemTotal:     16777216 kB' 'MemFree:      2097152 kB' 'MemAvailable:      8388608 kB' 'Buffers:      1048576 kB' 'Cached:      5242880 kB' 'SwapCached:       999999 kB' 'SwapTotal:      4194304 kB' 'SwapFree:      3145728 kB' 'Shmem:       524288 kB' 'SReclaimable:      1048576 kB' > meminfo\nexport BASHOS_PROC_ROOT=.\nfree -h",
       "expected_status": 0,
       "stderr": "empty",
-      "stdout": "               total        used        free      shared  buff/cache   available\nMem:           16.0G        8.0G        2.0G      512.0M        7.0G        8.0G\nSwap:           4.0G        1.0G        3.0G\n"
+      "stdout": "               total        used        free      shared  buff/cache   available\nMem:            16Gi       8.0Gi       2.0Gi       512Mi       7.0Gi       8.0Gi\nSwap:          4.0Gi       1.0Gi       3.0Gi\n"
     },
     {
       "id": "missing-available-fallback",
       "kind": "contract",
-      "purpose": "Check only the used column against the legacy MemTotal-MemFree-buff/cache fallback when MemAvailable is absent; other columns are covered by the complete default fixture case.",
+      "purpose": "Check the procps MemTotal minus MemFree fallback when MemAvailable is absent.",
       "script": "printf '%s\\n' 'MemTotal:     16777216 kB' 'MemFree:      2097152 kB' 'Buffers:      1048576 kB' 'Cached:      5242880 kB' 'SwapCached:       999999 kB' 'SwapTotal:      4194304 kB' 'SwapFree:      3145728 kB' 'Shmem:       524288 kB' 'SReclaimable:      1048576 kB' > meminfo\nexport BASHOS_PROC_ROOT=.\noutput=$(free -k)\nmemrow=${output#*$'\\n'}\nread -r _ _ used _ <<< \"$memrow\"\nprintf 'used=%s\\n' \"$used\"",
       "expected_status": 0,
       "stderr": "empty",
-      "stdout": "used=7340032\n"
+      "stdout": "used=14680064\n"
     },
     {
       "id": "repeat-count",

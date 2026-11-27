@@ -47,7 +47,7 @@
       "purpose": "Check wipefs --help prints the documented mode descriptions and signature-family scope without opening a target.",
       "script": "wipefs --help",
       "expected_status": 0,
-      "stdout": "Detect or wipe filesystem / swap signatures.\n\n    wipefs device       list detected signatures (offset, type)\n    wipefs -a device    erase all detected signatures\n    wipefs -n device    dry-run: show what -a would erase\n\nRecognises swap, ext, xfs, btrfs, ntfs, vfat and iso9660 magics.\n",
+      "stdout": "List or erase filesystem, swap and partition-table signatures.\n\n    wipefs device          table of detected signatures\n    wipefs -a device       erase every detected signature\n    wipefs -o OFF device   erase the signature at offset OFF\n    -n  write nothing      -q  no erase messages    -f  erase a device in use\n    -i  no table heading   -p  parsable listing\n\nRecognises vfat, swap, xfs, ext2/3/4, iso9660, ntfs, btrfs, dos and gpt.\n",
       "stderr": "empty"
     },
     {

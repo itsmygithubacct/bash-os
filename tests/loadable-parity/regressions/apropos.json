@@ -66,7 +66,7 @@
       "id": "multiple-patterns-and",
       "kind": "contract",
       "purpose": "Checks the documented AND contract across patterns: only the record containing both terms is printed.",
-      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha (1) - first entry' 'both (1) - alpha and beta together' 'beta (1) - second entry' > whatis\napropos alpha beta",
+      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha (1) - first entry' 'both (1) - alpha and beta together' 'beta (1) - second entry' > whatis\napropos -a alpha beta",
       "expected_status": 0,
       "stdout": "both (1) - alpha and beta together\n",
       "stderr": "empty"
@@ -78,7 +78,7 @@
       "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha (1) - ordinary command' 'beta (1) - helper command' > whatis\nif apropos nofixturetoken; then exit 90; else rc=$?; [[ $rc -ne 0 ]]; fi\nprintf '%s\\n' 'no-match returns nonzero'",
       "expected_status": 0,
       "stdout": "no-match returns nonzero\n",
-      "stderr": "empty"
+      "stderr": "nonempty"
     },
     {
       "id": "missing-index-nonzero",

@@ -294,7 +294,7 @@
       "requires": [
         "tar"
       ],
-      "script": "/usr/bin/mkdir -p s out\nprintf hi > s/f\n/usr/bin/chmod 4755 s/f\n/usr/bin/tar --owner=12345 --group=12345 -cf other.tar s\ntar -xf other.tar -C out\n/usr/bin/stat -c '%a %n' out/s/f\n/usr/bin/mkdir p\ntar -p -xf other.tar -C p\n/usr/bin/stat -c '%a %n' p/s/f\n",
+      "script": "/usr/bin/mkdir -p s out\nprintf hi > s/f\n/usr/bin/chmod 4755 s/f\n/usr/bin/tar --mtime=@1700000000 --owner=12345 --group=12345 -cf other.tar s\ntar -xf other.tar -C out\n/usr/bin/stat -c '%a %n' out/s/f\n/usr/bin/mkdir p\ntar -p -xf other.tar -C p\n/usr/bin/stat -c '%a %n' p/s/f\n",
       "expected_status": 0,
       "stderr": "empty"
     },

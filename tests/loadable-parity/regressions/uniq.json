@@ -210,7 +210,7 @@
       "requires": [
         "uniq"
       ],
-      "script": "uniq a b c </dev/null || echo \"rc=$?\"\nuniq nosuch b c </dev/null || echo \"rc=$?\"\nuniq --all-repeated=x </dev/null || echo \"rc=$?\"\nuniq --all-repeated= </dev/null || echo \"rc=$?\"\nuniq --group=x </dev/null || echo \"rc=$?\"\nuniq -c -D </dev/null || echo \"rc=$?\"\nuniq --group -c </dev/null || echo \"rc=$?\"\nprintf 'a\\na\\nb\\n' | uniq --all-repeated=p </dev/null || echo \"rc=$?\"\nprintf 'a\\na\\nb\\n' | uniq --group=b </dev/null || echo \"rc=$?\"",
+      "script": "uniq a b c </dev/null || echo \"rc=$?\"\nuniq nosuch b c </dev/null || echo \"rc=$?\"\nuniq --all-repeated=x </dev/null || echo \"rc=$?\"\nuniq --all-repeated= </dev/null || echo \"rc=$?\"\nuniq --group=x </dev/null || echo \"rc=$?\"\nuniq -c -D </dev/null || echo \"rc=$?\"\nuniq --group -c </dev/null || echo \"rc=$?\"\nprintf 'a\\na\\nb\\n' | uniq --all-repeated=p || echo \"rc=$?\"\nprintf 'a\\na\\nb\\n' | uniq --group=b || echo \"rc=$?\"",
       "expected_status": 0,
       "stderr": "exact"
     }
