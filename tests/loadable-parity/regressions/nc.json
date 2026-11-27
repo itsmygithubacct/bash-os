@@ -13,7 +13,7 @@
       "id": "unix-stream-roundtrip",
       "kind": "contract",
       "purpose": "A listener on a socket file receives what a -U client sends, the client gets the reply, and the socket file stays behind after the session.",
-      "script": "rm -f s\n( printf 'reply\\n' | nc listen s -U > got ) &\nfor i in 1 2 3 4 5 6 7 8 9 10; do [[ -S s ]] && break; read -rt 0.1 <> <(:) || :; done\nprintf 'hello\\n' | nc connect s -U\nwait\ncat got\n[[ -S s ]] && echo socket-left\nrm -f s",
+      "script": "trap 'rm -f s' EXIT\nprintf 'reply\\n' > server-input\nprintf 'hello\\n' > client-input\n# Each side sends its regular-file input before it handles peer EOF.\nnc listen s -U -w 3 < server-input > got &\nlistener=$!\nready=0\nfor ((attempt=0; attempt<100; attempt++)); do\n  while read -r num ref protocol flags type state inode path; do\n    if [[ $flags == 00010000 && $path == s ]]; then ready=1; break; fi\n  done < /proc/net/unix\n  if ((ready)); then break; fi\n  /usr/bin/sleep 0.02\ndone\n((ready))\nnc connect s -U -w 3 < client-input\nwait \"$listener\"\ncat got\n[[ -S s ]]\necho socket-left",
       "stdout": "reply\nhello\nsocket-left\n",
       "expected_status": 0,
       "stderr": "empty",
