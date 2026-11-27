@@ -128,7 +128,8 @@ prefix under `out/builtin-deps`. Both executable types embed the archives.
 For static glibc builds, `coreutils install -o/-g` resolves account names from
 `/etc/passwd` and `/etc/group`, and also accepts numeric IDs. It does not load
 host NSS plugins for these lookups; a missing name produces an error. Dynamic
-builds retain the host's NSS lookup behavior.
+builds retain the host's NSS lookup behavior. Static glibc builds also use
+`/etc/passwd` for `ps` user lookups and display numeric IDs for unknown users.
 
 `build-deps.sh` builds pinned static archives for all external command libraries.
 It additionally needs CMake and Python 3.12+. URLs and SHA-256 checksums are in

@@ -303,11 +303,30 @@ bps_rss_kb (const bps_proc *p)
     return p->vmrss_kb >= 0 ? p->vmrss_kb : p->rss_pages * page_size / 1024;
 }
 
+/* Static glibc cannot safely load NSS modules from a different host libc. */
+static struct passwd *
+bps_lookup_user (const char *name, uid_t uid)
+{
+#if defined (BASHOS_STATIC) && defined (__GLIBC__)
+    FILE *accounts = fopen ("/etc/passwd", "r");
+    struct passwd *entry = NULL;
+    if (accounts) {
+        while ((entry = fgetpwent (accounts)) != NULL)
+            if (name ? strcmp (entry->pw_name, name) == 0 : entry->pw_uid == uid)
+                break;
+        fclose (accounts);
+    }
+    return entry;
+#else
+    return name ? getpwnam (name) : getpwuid (uid);
+#endif
+}
+
 static const char *
 bps_user (uid_t uid)
 {
     static char buf[32];
-    struct passwd *pw = getpwuid (uid);
+    struct passwd *pw = bps_lookup_user (NULL, uid);
     if (pw) return pw->pw_name;
     snprintf (buf, sizeof buf, "%u", (unsigned) uid);
     return buf;
@@ -616,7 +635,7 @@ bps_add_user_list (const char *s, uid_t *uids, int *n, int max)
     int rc = 0, any = 0;
     for (char *save = NULL, *tok = strtok_r (copy, ", \t", &save); tok;
          tok = strtok_r (NULL, ", \t", &save)) {
-        struct passwd *pw = getpwnam (tok);
+        struct passwd *pw = bps_lookup_user (tok, 0);
         uid_t uid;
         if (pw) uid = pw->pw_uid;
         else {
