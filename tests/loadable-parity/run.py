@@ -3,6 +3,7 @@
 """Run reviewed JSON fixtures through the mandatory isolated parity runner."""
 
 import argparse
+from collections import Counter
 import hashlib
 import json
 from pathlib import Path
@@ -24,14 +25,11 @@ def main():
     if not files:
         parser.error("no fixture files found")
     suites = []
-    names = set()
     for path in files:
         data = path.read_bytes()
         suite = validate(json.loads(data))
-        if suite["loadable"] in names:
-            parser.error("duplicate suite for " + suite["loadable"])
-        names.add(suite["loadable"])
-        suites.append((suite, hashlib.sha256(data).hexdigest()))
+        suites.append((path, suite, hashlib.sha256(data).hexdigest()))
+    counts = Counter(suite["loadable"] for _, suite, _ in suites)
     binary = args.binary.resolve(strict=True)
     binary_hash = hashlib.sha256(binary.read_bytes()).hexdigest()
     output = args.output.resolve()
@@ -39,8 +37,14 @@ def main():
     totals = dict.fromkeys(("PASS", "FAIL", "ERROR", "SKIP", "DEFERRED", "MIGRATED"), 0)
     by_kind = {kind: totals.copy() for kind in ("parity", "contract", "deferred", "migrated")}
     reports = []
-    for suite, digest in suites:
-        report = run_suite(suite, binary, output / suite["loadable"])
+    for index, (path, suite, digest) in enumerate(suites, 1):
+        loadable = suite["loadable"]
+        evidence = Path(loadable)
+        if counts[loadable] > 1:
+            evidence /= f"{index:04d}-{path.stem}"
+        report = run_suite(suite, binary, output / evidence)
+        report["evidence_directory"] = str(evidence)
+        report["fixture_name"] = path.name
         report["fixture_sha256"] = digest
         reports.append(report)
         for status, count in report["summary"].items():

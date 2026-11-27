@@ -5,6 +5,8 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -33,6 +35,25 @@ class RunnerTests(unittest.TestCase):
         case["timeout"] = 60
         with self.assertRaises(ValueError):
             runner.validate(dict(version=1, loadable="cat", cases=[case]))
+
+    def test_cli_keeps_evidence_for_suites_with_the_same_loadable(self):
+        case = dict(id="same-case", kind="contract", purpose="test fixture",
+                    script="true", expected_status=0, stdout="", stderr="empty")
+        fixtures = self.root / "fixtures"
+        fixtures.mkdir()
+        for name in ("original.json", "followup.json"):
+            (fixtures / name).write_text(json.dumps(dict(version=1, loadable="cat", cases=[case])))
+        output = self.root / "results"
+        subprocess.run([sys.executable, str(Path(__file__).with_name("run.py")),
+                        "--binary", str(self.binary), "--output", str(output), str(fixtures)],
+                       check=True, capture_output=True)
+        report = json.loads((output / "summary.json").read_text())
+        self.assertEqual(report["summary"]["PASS"], 2)
+        self.assertEqual({suite["fixture_name"] for suite in report["suites"]},
+                         {"original.json", "followup.json"})
+        evidence = {output / suite["evidence_directory"] for suite in report["suites"]}
+        self.assertEqual(len(evidence), 2)
+        self.assertTrue(all(path.is_dir() for path in evidence))
 
     def test_classifications_do_not_turn_absence_or_bad_oracles_into_passes(self):
         cases = [dict(id="pass", kind="parity", purpose="small ordinary input",
