@@ -25,11 +25,11 @@
     {
       "id": "pass9-wrap-forms",
       "kind": "parity",
-      "purpose": "Wrap sizes GNU accepts: a leading sign or blank, leading zeros, an abbreviated --wrap, and a width too large to hold (no wrapping).",
+      "purpose": "Wrap sizes GNU accepts: a leading sign or blank, leading zeros, an abbreviated --wrap, and a width too large for a signed index (no wrapping), and signed zero.",
       "requires": [
         "base64"
       ],
-      "script": "printf 'abcdefgh' | base64 -w +5 </dev/null || echo \"rc=$?\"\nprintf 'abcdefgh' | base64 -w ' 4' </dev/null || echo \"rc=$?\"\nprintf 'abcdefgh' | base64 -w 05 </dev/null || echo \"rc=$?\"\nprintf 'abcdefgh' | base64 --wr=3 </dev/null || echo \"rc=$?\"\nprintf 'abcdefgh' | base64 -w 99999999999999999999 </dev/null || echo \"rc=$?\"",
+      "script": "printf 'abcdefgh' | base64 -w +5 || echo \"rc=$?\"\nprintf 'abcdefgh' | base64 -w ' 4' || echo \"rc=$?\"\nprintf 'abcdefgh' | base64 -w 05 || echo \"rc=$?\"\nprintf 'abcdefgh' | base64 --wr=3 || echo \"rc=$?\"\nprintf 'abcdefgh' | base64 -w 99999999999999999999 || echo \"rc=$?\"\nprintf 'abcdefgh' | base64 -w -0 || echo \"rc=$?\"\nbase64 -w + </dev/null || echo \"rc=$?\"",
       "expected_status": 0,
       "stderr": "exact"
     }

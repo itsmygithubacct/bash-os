@@ -43,11 +43,11 @@ b64_write_all (int fd, const char *buf, size_t n)
 }
 
 /* Emit N base64 chars, inserting '\n' every WRAP chars (GNU `base64 -w`).
-   *col tracks the column across chunks. WRAP <= 0 disables wrapping. */
+   *col tracks the column across chunks. WRAP == 0 disables wrapping. */
 static int
-b64_emit (int out_fd, const char *buf, size_t n, int wrap, int *col)
+b64_emit (int out_fd, const char *buf, size_t n, size_t wrap, size_t *col)
 {
-    if (wrap <= 0)
+    if (wrap == 0)
         return b64_write_all (out_fd, buf, n);
     size_t i = 0;
     while (i < n) {
@@ -55,10 +55,10 @@ b64_emit (int out_fd, const char *buf, size_t n, int wrap, int *col)
             if (b64_write_all (out_fd, "\n", 1) < 0) return -1;
             *col = 0;
         }
-        size_t span = (size_t) (wrap - *col);
+        size_t span = wrap - *col;
         if (span > n - i) span = n - i;
         if (b64_write_all (out_fd, buf + i, span) < 0) return -1;
-        *col += (int) span;
+        *col += span;
         i += span;
     }
     return 0;
@@ -68,13 +68,13 @@ b64_emit (int out_fd, const char *buf, size_t n, int wrap, int *col)
    WRAP > 0 line-wraps every WRAP chars (GNU -w); 0 = single line (the
    bash-os shell-variable-round-trip default). */
 static int
-b64_encode (int in_fd, int out_fd, int url_safe, int wrap)
+b64_encode (int in_fd, int out_fd, int url_safe, size_t wrap)
 {
     const char *alpha = url_safe ? b64_url : b64_std;
     unsigned char inbuf[B64_BUFSZ * 3 + 2];  /* + carry from prior read */
     char outbuf[B64_BUFSZ * 4];
     ssize_t n;
-    int col = 0;
+    size_t col = 0;
     size_t carry = 0;
     for (;;) {
         n = read (in_fd, inbuf + carry, sizeof inbuf - carry);

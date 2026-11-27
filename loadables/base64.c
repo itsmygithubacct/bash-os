@@ -7,7 +7,7 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <limits.h>
+#include <inttypes.h>
 #include "loadables.h"
 #include "base64-codec.h"
 #include "shim-prog-name.h"
@@ -62,17 +62,14 @@ static int base64_decode(int fd, int ignore)
     return 0;
 }
 
-/* GNU takes any decimal count; one too large for an int wraps nowhere. */
-static int base64_width(const char *s, int *width)
+/* GNU disables wrapping for a count outside its signed index range. */
+static int base64_width(const char *s, size_t *width)
 {
-    const char *t = s;
     char *end;
-    while (*t == ' ' || (*t >= '\t' && *t <= '\r')) t++;
-    if (!*s || *t == '-') return -1;
     errno = 0;
-    unsigned long long n = strtoull(s, &end, 10);
-    if (*end) return -1;
-    *width = errno == ERANGE || n > INT_MAX ? INT_MAX : (int)n;
+    intmax_t n = strtoimax(s, &end, 10);
+    if (end == s || *end || n < 0) return -1;
+    *width = errno == ERANGE || n > PTRDIFF_MAX ? 0 : (size_t)n;
     return 0;
 }
 
@@ -87,7 +84,8 @@ static const struct bos_longopt base64_longopts[] = {
 
 int base64_builtin(WORD_LIST *list)
 {
-    int decode = 0, ignore = 0, wrap = 76, c, rc;
+    int decode = 0, ignore = 0, c, rc;
+    size_t wrap = 76;
     const char *file = NULL, *prog = bos_shim_prog_name("base64");
     bos_getopt g;
 
