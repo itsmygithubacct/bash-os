@@ -43,21 +43,21 @@ later addition separately.
 <!-- BEGIN SUMMARY -->
 Inventory and coverage references reviewed **2026-10-19** at `7f2a2416d6a4993c6738aaab322a1cdf0448881e`.
 
-Full catalog: **291 loadables** (268 local sources, 23 stock Bash sources), plus **2 [optional integrations](#optional-integrations)** selected explicitly. The CSV contains the 291 full-catalog entries.
+Full catalog: **292 loadables** (269 local sources, 23 stock Bash sources), plus **2 [optional integrations](#optional-integrations)** selected explicitly. The CSV contains the 292 full-catalog entries.
 
-Historical command benchmark, **2026-09-12**: **297 cases covering 248 loadables**; 248 passed the selected output checks and 0 failed on that measured binary. The other 43 full-catalog entries have no individual command timings here; GPU transport measurements are reported separately.
+Historical command benchmark, **2026-09-12**: **297 cases covering 248 loadables**; 248 passed the selected output checks and 0 failed on that measured binary. The other 44 full-catalog entries have no individual command timings here; GPU transport measurements are reported separately.
 
-Metric kinds: **155 compared** against an external program or a BusyBox applet, **93 self-timed** where no counterpart implements the command and the repeated batch is a determinism check instead, **43 with no metric**. A self-timed figure is comparable with another run of the same case, never presented as a ratio.
+Metric kinds: **155 compared** against an external program or a BusyBox applet, **93 self-timed** where no counterpart implements the command and the repeated batch is a determinism check instead, **44 with no metric**. A self-timed figure is comparable with another run of the same case, never presented as a ratio.
 
 | Profile | Included loadables |
 | --- | --- |
 | shell | 0 |
 | pure | 28 |
-| core | 98 |
-| device | 170 |
-| server | 225 |
-| desktop | 164 |
-| full | 291 |
+| core | 99 |
+| device | 171 |
+| server | 226 |
+| desktop | 165 |
+| full | 292 |
 
 Historical command measurement source: `63cb23df1c3012dde4b07657cc27e4f1e5015b2f`. At measurement time, the full catalog contained 279 entries: 248 had individual command timings and 31 did not. The batch used seven samples per case, pinned to one CPU under the shared benchmark lock. The measured binary includes repeated-input fixes for more, less, uuencode, xargs, obj and bsdgames, affinity-aware coreutils nproc, and col output termination. The full test harness was not rerun for that measurement batch.
 
@@ -360,6 +360,7 @@ separate package. Fixture tests use a stand-in
 | [`prlimit`](../loadables/prlimit.c) | D S F | [Contract](../tests/process-wrapper-state.py); [S](../tests/system-process-sanitize.sh) | —; prlimit | 3.905 / — / 81.730; [prlimit-cpu](#case-prlimit-cpu), 120 passes; 2 cases total | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`procstat`](../loadables/procstat.c) | D S T F | [Contract](../tests/procstat-smoke.py); [S](../tests/procstat-sanitize.sh) | —; iostat / mpstat / sar / pidstat / pmap / pldd | 69.377 / — / —; [procstat-pidstat](#case-procstat-pidstat), 21 passes; self-timed; 2 cases total | P4 | Historical self-timed baseline; rerun the same workload to assess the current implementation. No external ratio applies. |
 | [`ps`](../loadables/ps.c) | C D S T F | [Parity](../tests/loadable-parity/regressions/ps.json) | ps; ps | 77.492 / — / —; [ps-procfixture](#case-ps-procfixture), 10 passes; self-timed | P4 | Historical self-timed baseline; rerun the same workload to assess the current implementation. No external ratio applies. |
+| [`ptx`](../loadables/ptx.c) | C D S T F | [Parity](../tests/loadable-parity/suites/ptx.json) | —; ptx (missing) | N/M | P3 | Add a matched workload and timing. |
 | [`pty`](../loadables/pty.c) | T F | [Contract](../tests/pty-primitives.py); [S](../tests/terminal-sanitize.sh) | —; Python pty | 35.534 / — / —; [pty-spawn](#case-pty-spawn), 55 passes; self-timed | P4 | Historical self-timed baseline; rerun the same workload to assess the current implementation. No external ratio applies. |
 | [`ptybroker`](../loadables/ptybroker.c) | T F | [Contract](../tests/ptybroker.py); [limited](#scope-notes); [S](../tests/sol-ptybroker-build-checks.sh) | —; ptybroker (missing) | N/M | P3 | Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed. |
 | [`ramdisk`](../loadables/ramdisk.c) | D S F | [Contract](../tests/ramdisk-smoke.py) | —; ramdisk (missing) | N/M | P3 | Add a matched workload and timing. |

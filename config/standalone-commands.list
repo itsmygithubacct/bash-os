@@ -134,6 +134,7 @@ pr
 printenv
 prlimit
 ps
+ptx
 readlink
 realpath
 reboot

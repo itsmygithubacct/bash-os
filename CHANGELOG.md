@@ -5,6 +5,12 @@ All notable changes to bash-os are recorded here. Versions follow
 
 ## 0.1.5 — Unreleased
 
+- New `ptx` builtin: GNU ptx's permuted index in GNU and traditional (`-G`) modes, with
+  dumb, roff (`-O`) and TeX (`-T`) output, `-A`/`-r` references, `-R`, `-F`, `-M`, `-W`,
+  `-S`, `-b`, `-i`, `-o`, `-f`, `-g` and `-w`.
+- `tty` accepts `--silent`, `--quiet`, `--help`, `--version` and `--`, with GNU's errors and status 2.
+- `sed` prints GNU sed's usage on a usage error or a missing script; `zcat`'s option errors name gzip,
+  as GNU zcat's do; `ls` names `dir` or `vdir` in its diagnostics when run under those names.
 - New `ramdisk` builtin for RAM-backed storage. `ramdisk setup` mounts /run, /run/lock,
   /dev/shm and /dev/mqueue (and /tmp with `--tmp`) for an init script, skipping what is
   already mounted; `--root DIR` sets up another tree and `-n` only reports. `ramdisk list`

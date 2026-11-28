@@ -53,6 +53,12 @@ bash-os is assembled from these sources:
   takes the source's mode and mtime. `tests/zstd-check.sh` checks it against
   the host's zstd both ways; `tests/zstd-host.c` runs the buffer paths under
   the sanitizers.
+- **Written for bash-os** (MIT): `ptx`, the permuted index: GNU and
+  traditional (-G) modes, field fitting with head/tail wrapping and the
+  truncation flag, dumb, roff and TeX output, -A/-r references and the -i,
+  -o, -b, -W and -S word and context controls. Written from the coreutils
+  manual's description of ptx and checked case by case against GNU ptx
+  output; regexes are Emacs syntax translated to POSIX ERE.
 - **Written for bash-os** (MIT): `ramdisk`, RAM-backed storage for an init:
   `setup` mounts /run, /run/lock, /dev/shm, /dev/mqueue and (`--tmp`) /tmp,
   leaving whatever is already mounted, and `list`, `create`, `resize`,

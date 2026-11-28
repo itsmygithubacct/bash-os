@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "loadable": "ptx",
+  "reference": "GNU coreutils ptx selected from PATH under system Bash in the C locale; the runner compares raw stdout and the fixture tree.",
+  "coverage": [
+    "GNU and traditional (-G) modes: sentence and line contexts, word definitions and default formats.",
+    "Field fitting with -w and -g, head/tail wrapping and the -F truncation flag.",
+    "roff (-O, -M) and TeX (-T) output escapes.",
+    "-A and -r references, left and right (-R).",
+    "-i/-o word lists, -f folding, -W/-S Emacs regexps and -b break files.",
+    "Option and value errors."
+  ],
+  "exclusions": [
+    "Equal keywords from different input files of different sizes: GNU orders them by the addresses of its file buffers, which follow the heap layout; bash-os uses file order. The several-input case uses inputs for which GNU's order is file order.",
+    "Locale-specific quoting, multibyte words and very large inputs are not exercised."
+  ],
+  "cases": [
+    {
+      "id": "default_sentences",
+      "kind": "parity",
+      "purpose": "GNU mode: sentence contexts across a line break, default width 72 and gap 3.",
+      "requires": [
+        "ptx"
+      ],
+      "script": "printf 'the cat sat\\non the mat\\n' > t\nprintf 'The quick brown fox jumps over the lazy dog. It was \"very\" quick!  Then {it} ran_away & hid $5 #1 50%%.\\nA second paragraph line\\twith a tab, and some more words to wrap around the width limit of seventy-two columns.\\n' > long\nptx t\nptx long",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "widths_and_gap",
+      "kind": "parity",
+      "purpose": "Fitting the fields to -w 40/100 and -g 1, with wrapped head and tail fields.",
+      "requires": [
+        "ptx"
+      ],
+      "script": "printf 'the cat sat\\non the mat\\n' > t\nprintf 'The quick brown fox jumps over the lazy dog. It was \"very\" quick!  Then {it} ran_away & hid $5 #1 50%%.\\nA second paragraph line\\twith a tab, and some more words to wrap around the width limit of seventy-two columns.\\n' > long\nptx -w 40 long\nptx -w 100 long\nptx -g 1 long\nptx -w 30 -g 5 long",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "truncation_flag",
+      "kind": "parity",
+      "purpose": "-F sets the truncation flag; an empty -F turns flagging off.",
+      "requires": [
+        "ptx"
+      ],
+      "script": "printf 'the cat sat\\non the mat\\n' > t\nprintf 'The quick brown fox jumps over the lazy dog. It was \"very\" quick!  Then {it} ran_away & hid $5 #1 50%%.\\nA second paragraph line\\twith a tab, and some more words to wrap around the width limit of seventy-two columns.\\n' > long\nptx -F ... -w 50 long\nptx -F '' -w 50 long",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "roff_and_tex",
+      "kind": "parity",
+      "purpose": "-O roff (quotes doubled) and -T TeX (special characters escaped, key and after split) output, with -M.",
+      "requires": [
+        "ptx"
+      ],
+      "script": "printf 'the cat sat\\non the mat\\n' > t\nprintf 'The quick brown fox jumps over the lazy dog. It was \"very\" quick!  Then {it} ran_away & hid $5 #1 50%%.\\nA second paragraph line\\twith a tab, and some more words to wrap around the width limit of seventy-two columns.\\n' > long\nptx -O long\nptx -T long\nptx -M yy -O t\nptx -G -T long",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "traditional",
+      "kind": "parity",
+      "purpose": "-G: lines are contexts, a word is any run of non-blanks, roff output by default.",
+      "requires": [
+        "ptx"
+      ],
+      "script": "printf 'the cat sat\\non the mat\\n' > t\nprintf 'The quick brown fox jumps over the lazy dog. It was \"very\" quick!  Then {it} ran_away & hid $5 #1 50%%.\\nA second paragraph line\\twith a tab, and some more words to wrap around the width limit of seventy-two columns.\\n' > long\nptx -G t\nptx -G long\nptx -G -w 50 long",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "traditional_output_operand",
+      "kind": "parity",
+      "purpose": "-G INPUT OUTPUT writes the index to the file OUTPUT; an OUTPUT of - is a file named -, as in GNU.",
+      "requires": [
+        "ptx"
+      ],
+      "script": "printf 'the cat sat\\non the mat\\n' > t\nprintf 'The quick brown fox jumps over the lazy dog. It was \"very\" quick!  Then {it} ran_away & hid $5 #1 50%%.\\nA second paragraph line\\twith a tab, and some more words to wrap around the width limit of seventy-two columns.\\n' > long\nptx -G t out\n/usr/bin/cat out\nptx -G t -\n/usr/bin/cat ./-",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "auto_references",
+      "kind": "parity",
+      "purpose": "-A FILE:LINE references on the left and, with -R, on the right.",
+      "requires": [
+        "ptx"
+      ],
+      "script": "printf 'the cat sat\\non the mat\\n' > t\nprintf 'The quick brown fox jumps over the lazy dog. It was \"very\" quick!  Then {it} ran_away & hid $5 #1 50%%.\\nA second paragraph line\\twith a tab, and some more words to wrap around the width limit of seventy-two columns.\\n' > long\nptx -A t\nptx -A -R t\nptx -A -R -w 60 long\nptx -T -M zz -A t",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "input_references",
+      "kind": "parity",
+      "purpose": "-r: the first field of each line is its reference and lines are contexts.",
+      "requires": [
+        "ptx"
+      ],
+      "script": "printf 'the cat sat\\non the mat\\n' > t\nprintf 'The quick brown fox jumps over the lazy dog. It was \"very\" quick!  Then {it} ran_away & hid $5 #1 50%%.\\nA second paragraph line\\twith a tab, and some more words to wrap around the width limit of seventy-two columns.\\n' > long\nprintf 'r1 the cat sat\\nr22 on the mat\\n' > r\nptx -r r\nptx -r -w 50 r",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "word_lists",
+      "kind": "parity",
+      "purpose": "-i and -o word lists, -f case folding.",
+      "requires": [
+        "ptx"
+      ],
+      "script": "printf 'the cat sat\\non the mat\\n' > t\nprintf 'The quick brown fox jumps over the lazy dog. It was \"very\" quick!  Then {it} ran_away & hid $5 #1 50%%.\\nA second paragraph line\\twith a tab, and some more words to wrap around the width limit of seventy-two columns.\\n' > long\nprintf 'the\\nand\\n' > ign\nprintf 'quick\\nfox\\n' > only\nptx -i ign long\nptx -o only long\nptx -f long",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "regexps_and_breaks",
+      "kind": "parity",
+      "purpose": "-W word and -S sentence regexps (Emacs syntax), an empty -S, and a -b break file.",
+      "requires": [
+        "ptx"
+      ],
+      "script": "printf 'the cat sat\\non the mat\\n' > t\nprintf 'The quick brown fox jumps over the lazy dog. It was \"very\" quick!  Then {it} ran_away & hid $5 #1 50%%.\\nA second paragraph line\\twith a tab, and some more words to wrap around the width limit of seventy-two columns.\\n' > long\nprintf ' .,' > brk\nptx -W '[a-z]+' long\nptx -S '\\.' long\nptx -S '' long\nptx -b brk long",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "several_inputs",
+      "kind": "parity",
+      "purpose": "Several inputs in GNU mode; -t is accepted.",
+      "requires": [
+        "ptx"
+      ],
+      "script": "printf 'the cat sat\\non the mat\\n' > t\nprintf 'The quick brown fox jumps over the lazy dog. It was \"very\" quick!  Then {it} ran_away & hid $5 #1 50%%.\\nA second paragraph line\\twith a tab, and some more words to wrap around the width limit of seventy-two columns.\\n' > long\nptx t long\nptx -t t",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "option_errors",
+      "kind": "parity",
+      "purpose": "Bad options and values: usage errors with status 1.",
+      "requires": [
+        "ptx"
+      ],
+      "script": "printf 'the cat sat\\non the mat\\n' > t\nprintf 'The quick brown fox jumps over the lazy dog. It was \"very\" quick!  Then {it} ran_away & hid $5 #1 50%%.\\nA second paragraph line\\twith a tab, and some more words to wrap around the width limit of seventy-two columns.\\n' > long\nst() { if \"$@\" 2>&1; then echo rc=0; else echo rc=$?; fi; }\nst ptx --bogus\nst ptx -Z\nst ptx -w\nst ptx -w x t\nst ptx -w 0 t\nst ptx -g 0 t\nst ptx -G t t2 t3\nst ptx --format=x t > fmt\n/usr/bin/head -n 1 fmt\n/usr/bin/rm fmt",
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}
