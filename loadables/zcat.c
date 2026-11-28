@@ -28,6 +28,8 @@
 #include "loadables.h"
 #include "gnu-longopt.h"
 
+extern char *this_command_name;
+
 /* GNU zcat is `gzip -cd`, so its diagnostics name gzip. Like gzip, a
    problem with the compressed data starts on a new line (BLANK). */
 static void
@@ -290,9 +292,13 @@ zcat_builtin (WORD_LIST *list)
     };
     /* gzip -cd options: -f passes non-gzip input through, -q silences the
        trailing-garbage warning, -S adds a suffix to look up; -c, -d, -n and
-       -N change nothing for zcat. Option errors exit 1, naming zcat. */
+       -N change nothing for zcat. Option errors exit 1 and, as GNU zcat
+       runs gzip -cd, name gzip with gzip's `gzip --help' hint. */
     bos_getopt g;
-    bos_getopt_init (&g, "zcat", "fcdnNqS:", longopts, list);
+    bos_getopt_init (&g, "gzip", "fcdnNqS:", longopts, list);
+    g.no_hint = 1;
+    char *saved_name = this_command_name;
+    this_command_name = "gzip";
     while ((c = bos_getopt_next (&g)) != -1) {
         switch (c) {
             case 'f': force = 1; break;
@@ -300,11 +306,13 @@ zcat_builtin (WORD_LIST *list)
             case 'S': suffix = g.optarg; break;
             case 'c': case 'd': case 'n': case 'N': break;
             default:
-                /* As the pass 8 contract: the getopt error names zcat. */
+                this_command_name = saved_name;
+                fprintf (stderr, "Try `gzip --help' for more information.\n");
                 bos_getopt_free (&g);
                 return EXECUTION_FAILURE;
         }
     }
+    this_command_name = saved_name;
     if (!*suffix) {
         bz_error (0, "invalid suffix ''");
         bos_getopt_free (&g);

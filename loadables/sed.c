@@ -3745,6 +3745,56 @@ fail:
     return -1;
 }
 
+/* GNU sed 4.9's usage text (bash-os footer instead of the gnu.org
+   lines): on stdout for --help, on stderr with status 1 for a usage
+   error, as GNU sed prints it. */
+static void
+bs_usage (FILE *fp)
+{
+    fputs (
+        "Usage: sed [OPTION]... {script-only-if-no-other-script} [input-file]...\n"
+        "\n"
+        "  -n, --quiet, --silent\n"
+        "                 suppress automatic printing of pattern space\n"
+        "      --debug\n"
+        "                 annotate program execution\n"
+        "  -e script, --expression=script\n"
+        "                 add the script to the commands to be executed\n"
+        "  -f script-file, --file=script-file\n"
+        "                 add the contents of script-file to the commands to be executed\n"
+        "  --follow-symlinks\n"
+        "                 follow symlinks when processing in place\n"
+        "  -i[SUFFIX], --in-place[=SUFFIX]\n"
+        "                 edit files in place (makes backup if SUFFIX supplied)\n"
+        "  -l N, --line-length=N\n"
+        "                 specify the desired line-wrap length for the `l' command\n"
+        "  --posix\n"
+        "                 disable all GNU extensions.\n"
+        "  -E, -r, --regexp-extended\n"
+        "                 use extended regular expressions in the script\n"
+        "                 (for portability use POSIX -E).\n"
+        "  -s, --separate\n"
+        "                 consider files as separate rather than as a single,\n"
+        "                 continuous long stream.\n"
+        "      --sandbox\n"
+        "                 operate in sandbox mode (disable e/r/w commands).\n"
+        "  -u, --unbuffered\n"
+        "                 load minimal amounts of data from the input files and flush\n"
+        "                 the output buffers more often\n"
+        "  -z, --null-data\n"
+        "                 separate lines by NUL characters\n"
+        "      --help     display this help and exit\n"
+        "      --version  output version information and exit\n"
+        "\n"
+        "If no -e, --expression, -f, or --file option is given, then the first\n"
+        "non-option argument is taken as the sed script to interpret.  All\n"
+        "remaining arguments are names of input files; if no input files are\n"
+        "specified, then the standard input is read.\n"
+        "\n"
+        "This is the bash-os sed builtin; see the bash-os documentation.\n",
+        fp);
+}
+
 int
 sed_builtin (WORD_LIST *list)
 {
@@ -3812,11 +3862,8 @@ sed_builtin (WORD_LIST *list)
                 if (w[2] == 'v')
                     puts ("sed (bash-os loadable) 1.0\n"
                           "GNU sed 4.9 command subset; see sed --help.");
-                else {
-                    puts ("bashsed: stream editor");
-                    puts ("Usage: bashsed [-bnsiEuz] [-l WIDTH] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]");
-                    puts ("Long options: --posix --debug --sandbox --follow-symlinks --null-data --version");
-                }
+                else
+                    bs_usage (stdout);
                 free (files); free (script);
                 int failed = fflush (stdout) == EOF || ferror (stdout);
                 clearerr (stdout);
@@ -3845,7 +3892,7 @@ sed_builtin (WORD_LIST *list)
             else if (w[1] == '-') {
                 /* glibc getopt's wording; GNU sed then prints its usage. */
                 builtin_error ("unrecognized option '%s'", w);
-                builtin_usage ();
+                bs_usage (stderr);
                 free (files); free (script);
                 return 1;
             }
@@ -3879,7 +3926,7 @@ sed_builtin (WORD_LIST *list)
                                     builtin_error ("option '%s' requires an argument", given);
                                 else
                                     builtin_error ("option requires an argument -- '%c'", opt);
-                                builtin_usage ();
+                                bs_usage (stderr);
                                 free (files); free (script); return 1;
                             }
                             p = p->next;
@@ -3929,7 +3976,7 @@ sed_builtin (WORD_LIST *list)
                     }
                     default:
                         builtin_error ("invalid option -- '%c'", *c);
-                        builtin_usage ();
+                        bs_usage (stderr);
                         free (files); free (script);
                         return 1;
                 }
@@ -3961,7 +4008,7 @@ sed_builtin (WORD_LIST *list)
         p = p->next;
     }
 
-    if (!script_seen) { free (files); free (script); builtin_error ("no script"); return 1; }
+    if (!script_seen) { free (files); free (script); bs_usage (stderr); return 1; }
 
     if (!script) { script = strdup (""); if (!script) { free (files); return 4; } }
     if (script[0] == '#' && script[1] == 'n') suppress_default = 1;

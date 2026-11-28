@@ -197,6 +197,17 @@
       "requires": [
         "sed"
       ]
+    },
+    {
+      "id": "usage_error_text",
+      "kind": "parity",
+      "purpose": "An unknown option and a missing script both print GNU sed's usage synopsis on stderr with status 1 (the footer lines differ: bash-os names itself, not gnu.org).",
+      "requires": [
+        "sed"
+      ],
+      "script": "rc=0; sed --bogus 2>e || rc=$?; echo \"rc=$rc\"; /usr/bin/head -n 3 e\nrc=0; sed 2>e </dev/null || rc=$?; echo \"rc=$rc\"; /usr/bin/head -n 2 e\n/usr/bin/rm e",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

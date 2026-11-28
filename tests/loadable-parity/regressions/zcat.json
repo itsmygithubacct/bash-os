@@ -360,23 +360,25 @@
     },
     {
       "id": "pass8-unknown-long-option",
-      "kind": "contract",
-      "purpose": "G120: zcat --bogus reports a GNU getopt option error naming zcat (gzip itself says 'gzip' and quotes `gzip --help'), status 1.",
-      "script": "rc=0\nzcat --bogus </dev/null || rc=$?\necho \"rc=$rc\"",
+      "kind": "parity",
+      "purpose": "zcat --bogus reports the option error as GNU zcat (gzip -cd) does: naming gzip, with gzip's `gzip --help' hint, status 1.",
+      "script": "rc=0\nzcat --bogus </dev/null 2>&1 || rc=$?\necho \"rc=$rc\"",
       "expected_status": 0,
-      "stdout": "rc=1\n",
-      "stderr": "exact",
-      "stderr_text": "zcat: unrecognized option '--bogus'\nTry 'zcat --help' for more information.\n"
+      "stderr": "empty",
+      "requires": [
+        "zcat"
+      ]
     },
     {
       "id": "pass8-unknown-short-option",
-      "kind": "contract",
-      "purpose": "G120: zcat -Y reports a GNU getopt option error naming zcat (gzip itself says 'gzip' and quotes `gzip --help'), status 1.",
-      "script": "rc=0\nzcat -Y </dev/null || rc=$?\necho \"rc=$rc\"",
+      "kind": "parity",
+      "purpose": "zcat -Y reports the option error as GNU zcat (gzip -cd) does: naming gzip, with gzip's `gzip --help' hint, status 1.",
+      "script": "rc=0\nzcat -Y </dev/null 2>&1 || rc=$?\necho \"rc=$rc\"",
       "expected_status": 0,
-      "stdout": "rc=1\n",
-      "stderr": "exact",
-      "stderr_text": "zcat: invalid option -- 'Y'\nTry 'zcat --help' for more information.\n"
+      "stderr": "empty",
+      "requires": [
+        "zcat"
+      ]
     },
     {
       "id": "pass9-errors-and-suffix",
