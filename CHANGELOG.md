@@ -5,6 +5,10 @@ All notable changes to bash-os are recorded here. Versions follow
 
 ## 0.1.5 — Unreleased
 
+- `curl` takes several URLs per call and globs them as curl does (`{a,b}`, `[1-10]`, `[01-10:2]`,
+  `[a-z]`, `#N` in `-o` names, `-g` to turn it off); the Nth `-o`/`-O` names the Nth URL's output,
+  `--remote-name` and `--remote-name-all` are accepted, and `--fail-early` stops at the first
+  failure. `--limit-rate` now limits the read rate, and `-#` draws curl's progress bar.
 - New `ptx` builtin: GNU ptx's permuted index in GNU and traditional (`-G`) modes, with
   dumb, roff (`-O`) and TeX (`-T`) output, `-A`/`-r` references, `-R`, `-F`, `-M`, `-W`,
   `-S`, `-b`, `-i`, `-o`, `-f`, `-g` and `-w`.

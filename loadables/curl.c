@@ -79,11 +79,18 @@
  *     --resolve HOST:PORT:ADDR, -4/-6, --noproxy LIST, -z/--time-cond,
  *     --proto LIST, -n/--netrc, -R/--remote-time, --stderr FILE and
  *     --trace-ascii FILE (request/response heads and data only) follow
- *     curl(1); -g, -N, -#, -q, -l, -j, --fail-early and --limit-rate are
- *     accepted without effect (no globbing, progress meter or shaping).
+ *     curl(1); -N, -q, -l and -j are accepted without effect.
+ *
+ *     Several URLs per call run one after another; the Nth -o/-O (or
+ *     --remote-name-all) names the Nth URL's output, and the exit status is
+ *     the last transfer's (--fail-early stops at the first failure). URLs
+ *     are globbed as curl does ({a,b} sets, [1-10], [01-10:2] and [a-z]
+ *     ranges, "#N" in -o names; -g turns it off; IPv6 literals stay).
+ *     --limit-rate caps the average network read rate; -# draws curl's
+ *     progress bar when each transfer ends.
  *
  * Deliberately omitted (out of scope, per work-doc):
- *     non-HTTP cookie schemes, multiple URLs, HTTP/2 framing, SOCKS proxies, OAuth.
+ *     non-HTTP cookie schemes, HTTP/2 framing, SOCKS proxies, OAuth.
  *
  * Transport layer:
  *     http://  — raw TCP socket via getaddrinfo + connect.
@@ -118,6 +125,7 @@
 #include <strings.h>
 #include <errno.h>
 #include <ctype.h>
+#include <sys/ioctl.h>
 #include <time.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -250,6 +258,26 @@ static int bc_header_value (const char *hdrs, const char *name, char *out, size_
  * code (CURLE_*) out of the transport, 0 meaning a plain failure. */
 static int bc_quiet;
 static int bc_errcode;
+
+/* Several URLs and URL globs in one call. curl_builtin runs bc_main once
+   per transfer; the parser records every URL operand and every -o/-O, and
+   bc_select picks this run's URL, glob expansion and output: the Nth -o or
+   -O pairs with the Nth URL, wherever it is on the line, as in curl. */
+#define BC_MAX_URLS 256
+#define BC_MAX_GLOBS 16
+static const char bc_remote_name[] = "";     /* an -O entry in outs[] */
+static struct {
+  long run;                                   /* transfer this run makes */
+  long total;                                 /* transfers in the call */
+  int parsed;                                 /* the options parsed */
+  int nurl, nout, remote_all, globoff, progress_bar, fail_early, silent;
+  const char *urls[BC_MAX_URLS];
+  const char *outs[BC_MAX_URLS];
+} bc_sel;
+static double bc_rate;                        /* --limit-rate, bytes/s */
+static char *bc_stdin_data;                   /* @- read once per call */
+static size_t bc_stdin_len;
+static int bc_stdin_read;
 static int bc_family = AF_UNSPEC;            /* -4 / -6 */
 static const char *const *bc_resolve_list;   /* --resolve entries */
 static int bc_nresolve;
@@ -1319,6 +1347,24 @@ bc_response_complete (const unsigned char *buf, size_t len, int head_request)
     }
 }
 
+/* --limit-rate: after GOT bytes, sleep until the average since START is
+   no faster than the limit. */
+static void
+bc_throttle (const struct timespec *start, size_t got)
+{
+  if (bc_rate <= 0) return;
+  struct timespec now;
+  clock_gettime (CLOCK_MONOTONIC, &now);
+  double spent = (double) (now.tv_sec - start->tv_sec) + (now.tv_nsec - start->tv_nsec) / 1e9;
+  double due = (double) got / bc_rate;
+  if (due > spent)
+    {
+      double w = due - spent;
+      struct timespec ts = { (time_t) w, (long) ((w - (double) (time_t) w) * 1e9) };
+      while (nanosleep (&ts, &ts) < 0 && errno == EINTR) ;
+    }
+}
+
 static unsigned char *
 bc_read_until_close (int fd, int timeout_s, int head_request,
                      int *framed, size_t *out_len)
@@ -1330,6 +1376,8 @@ bc_read_until_close (int fd, int timeout_s, int head_request,
   if (!buf) { bc_error ("out of memory"); return NULL; }
 
   time_t deadline = time (NULL) + timeout_s;
+  struct timespec rate_start;
+  clock_gettime (CLOCK_MONOTONIC, &rate_start);
   for (;;)
     {
       time_t now = time (NULL);
@@ -1362,6 +1410,7 @@ bc_read_until_close (int fd, int timeout_s, int head_request,
                    free (buf); return NULL; }
       if (r == 0) break;                       /* clean EOF */
       got += (size_t) r;
+      bc_throttle (&rate_start, got);
       if (bc_response_complete (buf, got, head_request))
         { *framed = 1; break; }
     }
@@ -2760,7 +2809,21 @@ static int
 bc_read_data_file (const char *arg, char **out, size_t *out_len)
 {
   if (!strcmp (arg, "@-"))
-    return bc_slurp_fd_string (STDIN_FILENO, out, out_len) < 0 ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+    {
+      /* Every transfer of the call sends the same data, read once. */
+      if (!bc_stdin_read)
+        {
+          if (bc_slurp_fd_string (STDIN_FILENO, &bc_stdin_data, &bc_stdin_len) < 0)
+            return EXECUTION_FAILURE;
+          bc_stdin_read = 1;
+        }
+      *out = malloc (bc_stdin_len + 1);
+      if (!*out) { builtin_error ("out of memory"); return EXECUTION_FAILURE; }
+      memcpy (*out, bc_stdin_data, bc_stdin_len);
+      (*out)[bc_stdin_len] = '\0';
+      *out_len = bc_stdin_len;
+      return EXECUTION_SUCCESS;
+    }
   int fd = open (arg + 1, O_RDONLY | O_CLOEXEC);
   if (fd < 0)
     {
@@ -3091,6 +3154,333 @@ bc_set_resume (bc_opts *o, const char *arg)
   return EXECUTION_SUCCESS;
 }
 
+/* ---- several URLs, URL globs and output pairing ---- */
+
+static void
+bc_sel_out (const char *file)
+{
+  if (bc_sel.nout < BC_MAX_URLS) bc_sel.outs[bc_sel.nout] = file;
+  bc_sel.nout++;
+}
+
+static void
+bc_sel_url (bc_opts *o, const char *url)
+{
+  if (bc_sel.nurl < BC_MAX_URLS) bc_sel.urls[bc_sel.nurl] = url;
+  bc_sel.nurl++;
+  o->url = url;
+}
+
+/* One glob in a URL: a {a,b,...} set or a [N-M:S] / [a-z:S] range. */
+typedef struct {
+  long start;                 /* offset of the glob in the pattern */
+  long len;                   /* its length */
+  int nitems;                 /* sets: items; ranges: values */
+  const char *items[64];      /* set items (pointers into a copy) */
+  size_t itemlen[64];
+  int alpha;                  /* range of letters */
+  long from, step;
+  int width;                  /* zero-padded width of a number range */
+} bc_glob;
+
+typedef struct {
+  char copy[BCURL_URL_MAX];
+  bc_glob g[BC_MAX_GLOBS];
+  int n;
+} bc_globs;
+
+/* curl's glob error: "(3) WHAT in URL position N:", the URL and a caret
+   under the offending character (POS, 0-based). */
+static int
+bc_glob_error (const char *url, const char *what, size_t pos)
+{
+  bc_curl_error (3, "%s in URL position %zu:", what, pos + 1);
+  if (!bc_quiet)
+    fprintf (stderr, "%s\n%*s^\n", url, (int) pos, "");
+  return 3;
+}
+
+/* Does "[...]" at P look like an IPv6 address literal (curl leaves those
+   alone)? Hex digits, ':' and '.', with at least one ':', then ']'. */
+static int
+bc_glob_ipv6 (const char *p)
+{
+  const char *q = p + 1;
+  int colon = 0;
+  for (; *q && *q != ']'; q++)
+    {
+      if (*q == ':') colon = 1;
+      else if (!isxdigit ((unsigned char) *q) && *q != '.' && *q != '%') return 0;
+    }
+  return *q == ']' && colon;
+}
+
+static int
+bc_glob_parse (const char *url, bc_globs *gs)
+{
+  size_t n = strlen (url);
+  if (n >= sizeof gs->copy) n = sizeof gs->copy - 1;
+  memcpy (gs->copy, url, n);
+  gs->copy[n] = '\0';
+  gs->n = 0;
+  char *c = gs->copy;
+  for (size_t i = 0; i < n; i++)
+    {
+      if (c[i] == '\\' && i + 1 < n) { i++; continue; }
+      if (c[i] == '}' || c[i] == ']')
+        return bc_glob_error (url, "unmatched close brace/bracket", i);
+      if (c[i] != '{' && c[i] != '[') continue;
+      if (c[i] == '[' && bc_glob_ipv6 (c + i))
+        { i = (size_t) (strchr (c + i, ']') - c); continue; }
+      if (gs->n >= BC_MAX_GLOBS) return bc_glob_error (url, "too many globs", i);
+      bc_glob *g = &gs->g[gs->n];
+      memset (g, 0, sizeof *g);
+      g->start = (long) i;
+      if (c[i] == '{')
+        {
+          size_t j = i + 1, item = j;
+          for (;; j++)
+            {
+              if (j >= n) return bc_glob_error (url, "unmatched brace", i);
+              if (c[j] == '\\' && j + 1 < n) { j++; continue; }
+              if (c[j] == '{' || c[j] == '[') return bc_glob_error (url, "nested brace", j);
+              if (c[j] == ',' || c[j] == '}')
+                {
+                  if (g->nitems >= 64) return bc_glob_error (url, "too many elements", j);
+                  g->items[g->nitems] = c + item;
+                  g->itemlen[g->nitems++] = j - item;
+                  item = j + 1;
+                  if (c[j] == '}') break;
+                }
+            }
+          g->len = (long) (j + 1 - i);
+          i = j;
+        }
+      else
+        {
+          size_t j = i + 1;
+          char *end;
+          if (isalpha ((unsigned char) c[j]) && c[j + 1] == '-' && isalpha ((unsigned char) c[j + 2]))
+            {
+              char a = c[j], b = c[j + 2];
+              if ((islower ((unsigned char) a) != 0) != (islower ((unsigned char) b) != 0) || a > b)
+                return bc_glob_error (url, "bad range", j + 2);
+              g->alpha = 1; g->from = a; g->step = 1;
+              j += 3;
+              if (c[j] == ':')
+                {
+                  long st = strtol (c + j + 1, &end, 10);
+                  if (end == c + j + 1 || st < 1) return bc_glob_error (url, "bad range", j + 1);
+                  g->step = st; j = (size_t) (end - c);
+                }
+              if (c[j] != ']') return bc_glob_error (url, "bad range", j);
+              g->nitems = (int) ((b - a) / g->step + 1);
+            }
+          else if (isdigit ((unsigned char) c[j]))
+            {
+              long a = strtol (c + j, &end, 10);
+              size_t w = (size_t) (end - (c + j));
+              if (*end != '-' || !isdigit ((unsigned char) end[1]))
+                return bc_glob_error (url, "bad range", (size_t) (end - c));
+              char *e2;
+              long b = strtol (end + 1, &e2, 10);
+              j = (size_t) (e2 - c);
+              long st = 1;
+              if (c[j] == ':')
+                {
+                  st = strtol (c + j + 1, &end, 10);
+                  if (end == c + j + 1 || st < 1) return bc_glob_error (url, "bad range", j + 1);
+                  j = (size_t) (end - c);
+                }
+              if (c[j] != ']' || a > b) return bc_glob_error (url, "bad range", j);
+              g->from = a; g->step = st;
+              g->width = c[i + 1] == '0' ? (int) w : 0;
+              g->nitems = (int) ((b - a) / st + 1);
+            }
+          else
+            return bc_glob_error (url, "bad range specification", j);
+          g->len = (long) (j + 1 - i);
+          i = j;
+        }
+      gs->n++;
+    }
+  return 0;
+}
+
+static long
+bc_glob_total (const bc_globs *gs)
+{
+  long t = 1;
+  for (int i = 0; i < gs->n; i++)
+    {
+      t *= gs->g[i].nitems;
+      if (t > 100000) return 100000;
+    }
+  return t;
+}
+
+/* The text of glob G's value V into OUT. */
+static void
+bc_glob_value (const bc_glob *g, int v, char *out, size_t cap)
+{
+  if (g->items[0] || (!g->alpha && !g->step))
+    snprintf (out, cap, "%.*s", (int) g->itemlen[v], g->items[v]);
+  else if (g->alpha)
+    snprintf (out, cap, "%c", (int) (g->from + v * g->step));
+  else
+    snprintf (out, cap, "%0*ld", g->width, g->from + v * g->step);
+}
+
+/* Unescape the literal text of a URL glob pattern part ("\{" -> "{"). */
+static size_t
+bc_glob_literal (const char *s, size_t n, char *out, size_t cap, size_t at)
+{
+  for (size_t i = 0; i < n && at + 1 < cap; i++)
+    {
+      if (s[i] == '\\' && i + 1 < n && strchr ("{}[]", s[i + 1])) i++;
+      out[at++] = s[i];
+    }
+  return at;
+}
+
+/* Expansion IDX of GS: the URL into URL, each glob's value into VALS. */
+static void
+bc_glob_expand (const bc_globs *gs, long idx, char *url, size_t cap, char vals[][256])
+{
+  int digit[BC_MAX_GLOBS];
+  for (int i = gs->n - 1; i >= 0; i--)
+    {
+      digit[i] = (int) (idx % gs->g[i].nitems);
+      idx /= gs->g[i].nitems;
+    }
+  size_t at = 0;
+  long pos = 0;
+  for (int i = 0; i < gs->n; i++)
+    {
+      at = bc_glob_literal (gs->copy + pos, (size_t) (gs->g[i].start - pos), url, cap, at);
+      bc_glob_value (&gs->g[i], digit[i], vals[i], 256);
+      for (const char *v = vals[i]; *v && at + 1 < cap; v++) url[at++] = *v;
+      pos = gs->g[i].start + gs->g[i].len;
+    }
+  at = bc_glob_literal (gs->copy + pos, strlen (gs->copy + pos), url, cap, at);
+  url[at] = '\0';
+}
+
+/* Choose this run's URL and output after the options are parsed. Sets
+   bc_sel.total to the transfers of the whole call. */
+static int
+bc_select (bc_opts *o, char *url, size_t urlcap, char *out, size_t outcap)
+{
+  static bc_globs gs;
+  char vals[BC_MAX_GLOBS][256];
+  long base = 0;
+  int k;
+
+  bc_sel.parsed = 1;
+  o->outfile = NULL;
+  o->use_basename = 0;
+  if (!o->url) return EXECUTION_SUCCESS;
+  if (bc_sel.nurl > BC_MAX_URLS)
+    { builtin_error ("more than %d URLs", BC_MAX_URLS); return EX_USAGE; }
+  bc_sel.total = 0;
+  for (k = 0; k < bc_sel.nurl; k++)
+    {
+      long n = 1;
+      if (!bc_sel.globoff && strlen (bc_sel.urls[k]) < BCURL_URL_MAX)
+        {
+          bc_globs probe;
+          int saved = bc_quiet;
+          bc_quiet = 1;
+          int bad = bc_glob_parse (bc_sel.urls[k], &probe);
+          bc_quiet = saved;
+          if (!bad) n = bc_glob_total (&probe);
+        }
+      bc_sel.total += n;
+    }
+  for (k = 0; k < bc_sel.nurl; k++)
+    {
+      long n = 1;
+      gs.n = 0;
+      /* An over-long URL is not globbed; the length check below reports it. */
+      if (!bc_sel.globoff && strlen (bc_sel.urls[k]) < BCURL_URL_MAX)
+        {
+          int saved = bc_quiet;
+          bc_quiet = 1;
+          int bad = bc_glob_parse (bc_sel.urls[k], &gs);
+          bc_quiet = saved;
+          if (bad)
+            {
+              if (bc_sel.run == base) return bc_glob_parse (bc_sel.urls[k], &gs);
+              n = 1;
+            }
+          else
+            n = bc_glob_total (&gs);
+        }
+      if (bc_sel.run < base + n) break;
+      base += n;
+    }
+  if (k >= bc_sel.nurl) return EXECUTION_SUCCESS;
+  if (bc_sel.globoff || gs.n == 0)
+    {
+      o->url = bc_sel.urls[k];
+      gs.n = 0;
+    }
+  else
+    {
+      bc_glob_expand (&gs, bc_sel.run - base, url, urlcap, vals);
+      o->url = url;
+    }
+
+  const char *spec = k < bc_sel.nout ? bc_sel.outs[k] : bc_sel.remote_all ? bc_remote_name : NULL;
+  if (spec == bc_remote_name)
+    o->use_basename = 1;
+  else if (spec)
+    {
+      /* "#N" in the name is the current text of the URL's Nth glob. */
+      size_t at = 0;
+      for (const char *p = spec; *p && at + 1 < outcap; p++)
+        {
+          if (*p == '#' && isdigit ((unsigned char) p[1]))
+            {
+              char *end;
+              long gi = strtol (p + 1, &end, 10);
+              if (gi >= 1 && gi <= gs.n)
+                {
+                  for (const char *v = vals[gi - 1]; *v && at + 1 < outcap; v++) out[at++] = *v;
+                  p = end - 1;
+                  continue;
+                }
+            }
+          out[at++] = *p;
+        }
+      out[at] = '\0';
+      o->outfile = out;
+    }
+  return EXECUTION_SUCCESS;
+}
+
+/* -#: curl's progress bar, drawn complete when a transfer ends. */
+static void
+bc_progress_bar_done (void)
+{
+  long cols = 0;
+  const char *c = getenv ("COLUMNS");
+  if (c && *c) cols = strtol (c, NULL, 10);
+  if (cols <= 0)
+    {
+      struct winsize ws;
+      if (isatty (STDERR_FILENO) && ioctl (STDERR_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col)
+        cols = ws.ws_col;
+      else
+        cols = 79;
+    }
+  long hashes = cols > 8 ? cols - 7 : 1;
+  fflush (stdout);
+  fputc ('\r', stderr);
+  for (long i = 0; i < hashes; i++) fputc ('#', stderr);
+  fputs (" 100.0%\n", stderr);
+}
+
 static int
 bc_apply_short_options (bc_opts *o, const char *w, WORD_LIST **pp)
 {
@@ -3104,7 +3494,9 @@ bc_apply_short_options (bc_opts *o, const char *w, WORD_LIST **pp)
         case 'S': o->show_error = 1; break;
         case 'L': o->follow = 1; break;
         case 'k': o->insecure = 1; break;
-        case 'O': o->use_basename = 1; break;
+        case 'O': bc_sel_out (bc_remote_name); break;
+        case 'g': bc_sel.globoff = 1; break;
+        case '#': bc_sel.progress_bar = 1; break;
         case 'I': o->head = 1; break;
         case 'v': o->verbose = 1; break;
         case 'G': o->get_query = 1; break;
@@ -3150,7 +3542,7 @@ bc_apply_short_options (bc_opts *o, const char *w, WORD_LIST **pp)
         case 'o':
           arg = p[1] ? p + 1 : NULL;
           if (!arg && bc_next_arg (pp, "-o", &arg) != EXECUTION_SUCCESS) return EX_USAGE;
-          o->outfile = arg;
+          bc_sel_out (arg);
           return EXECUTION_SUCCESS;
         case 'D':
           arg = p[1] ? p + 1 : NULL;
@@ -3190,7 +3582,7 @@ bc_apply_short_options (bc_opts *o, const char *w, WORD_LIST **pp)
           return EXECUTION_SUCCESS;
         case 'i': o->include = 1; break;
         case 'R': o->remote_time = 1; break;
-        case 'g': case 'N': case '#': case 'q': case 'l': case 'j': break;
+        case 'N': case 'q': case 'l': case 'j': break;
         case '4': bc_family = AF_INET; break;
         case '6': bc_family = AF_INET6; break;
         case 'n': o->netrc = 1; break;
@@ -3249,8 +3641,10 @@ bc_main (WORD_LIST *list)
             BC_PARSE_FAIL (EXECUTION_FAILURE);
         }
       else if ((v = bc_long_eq (w, "--data-binary"))) { if (bc_set_data_binary_opt (&o, v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EXECUTION_FAILURE); }
-      else if (!strcmp (w, "--output"))              { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.outfile = v; }
-      else if ((v = bc_long_eq (w, "--output")))      { o.outfile = v; }
+      else if (!strcmp (w, "--output"))              { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); bc_sel_out (v); }
+      else if ((v = bc_long_eq (w, "--output")))      { bc_sel_out (v); }
+      else if (!strcmp (w, "--remote-name"))          bc_sel_out (bc_remote_name);
+      else if (!strcmp (w, "--remote-name-all"))      bc_sel.remote_all = 1;
       else if (!strcmp (w, "--dump-header"))         { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.dump_headers = v; }
       else if ((v = bc_long_eq (w, "--dump-header"))) { o.dump_headers = v; }
       else if (!strcmp (w, "--write-out"))           { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.write_out = v; }
@@ -3350,16 +3744,17 @@ bc_main (WORD_LIST *list)
       else if (!strcmp (w, "--netrc"))                 o.netrc = 1;
       /* Accepted; this curl has no globbing, progress meter, FTP listing,
          rate shaping or session cookie store for them to change. */
-      else if (!strcmp (w, "--globoff") || !strcmp (w, "--no-buffer") || !strcmp (w, "--progress-bar")
-               || !strcmp (w, "--disable") || !strcmp (w, "--list-only")
-               || !strcmp (w, "--junk-session-cookies") || !strcmp (w, "--fail-early")) ;
+      else if (!strcmp (w, "--globoff"))              bc_sel.globoff = 1;
+      else if (!strcmp (w, "--progress-bar"))         bc_sel.progress_bar = 1;
+      else if (!strcmp (w, "--fail-early"))           bc_sel.fail_early = 1;
+      else if (!strcmp (w, "--no-buffer") || !strcmp (w, "--disable") || !strcmp (w, "--list-only")
+               || !strcmp (w, "--junk-session-cookies")) ;
       else if (!strcmp (w, "--referer") || (v = bc_long_eq (w, "--referer")))
         { if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.referer = v; }
       else if (!strcmp (w, "--url") || (v = bc_long_eq (w, "--url")))
         {
           if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE);
-          if (o.url) { builtin_error ("extra URL: %s", v); BC_PARSE_FAIL (EX_USAGE); }
-          o.url = v;
+          bc_sel_url (&o, v);
         }
       else if (!strcmp (w, "--resolve") || (v = bc_long_eq (w, "--resolve")))
         {
@@ -3379,7 +3774,7 @@ bc_main (WORD_LIST *list)
       else if (!strcmp (w, "--limit-rate") || (v = bc_long_eq (w, "--limit-rate")))
         {
           if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE);
-          /* SPEED[k|m|g|t] bytes per second; accepted, not enforced. */
+          /* SPEED[k|m|g|t] bytes per second (powers of 1024). */
           char *end;
           errno = 0;
           double sp = strtod (v, &end);
@@ -3390,6 +3785,12 @@ bc_main (WORD_LIST *list)
                        "curl: try 'curl --help' or 'curl --manual' for more information\n");
               BC_PARSE_FAIL (EX_USAGE);
             }
+          for (const char *u = "kmgt"; *end && *u; u++)
+            {
+              sp *= 1024;
+              if (tolower ((unsigned char) *end) == *u) break;
+            }
+          bc_rate = sp;
         }
       else if (!strcmp (w, "--version") || !strcmp (w, "-V")) { bc_version (); BC_PARSE_FAIL (EXECUTION_SUCCESS); }
       else if (!strcmp (w, "-h") || !strcmp (w, "--help"))       { bc_usage (); BC_PARSE_FAIL (EXECUTION_SUCCESS); }
@@ -3402,8 +3803,7 @@ bc_main (WORD_LIST *list)
         { bc_option_error (w, "is unknown"); BC_PARSE_FAIL (EX_USAGE); }
       else
         {
-          if (o.url) { builtin_error ("extra URL: %s", w); BC_PARSE_FAIL (EX_USAGE); }
-          o.url = w;
+          bc_sel_url (&o, w);
         }
     }
   if (o.features) { bc_features (); BC_PARSE_FAIL (EXECUTION_SUCCESS); }
@@ -3450,6 +3850,15 @@ bc_main (WORD_LIST *list)
    * we just gate the call. */
   int show_errs = (!o.silent) || o.show_error;
   bc_quiet = !show_errs;
+  bc_sel.silent = o.silent;
+
+  /* This run's URL (a glob expansion of it) and output file. */
+  static char bc_sel_url_buf[BCURL_URL_MAX], bc_sel_out_buf[PATH_MAX];
+  {
+    int grc = bc_select (&o, bc_sel_url_buf, sizeof bc_sel_url_buf,
+                         bc_sel_out_buf, sizeof bc_sel_out_buf);
+    if (grc != EXECUTION_SUCCESS) BC_PARSE_FAIL (grc);
+  }
 
   /* --resolve entries are checked before any transfer. */
   for (int i = 0; i < o.nresolve; i++)
@@ -3516,7 +3925,7 @@ bc_main (WORD_LIST *list)
         fprintf (stderr, "Warning: Illegal date format for -z, --time-cond (and not a file name).\n"
                  "Warning: Disabling time condition. See curl_getdate(3) for valid date syntax.\n");
     }
-  if (o.trace_ascii)
+  if (o.trace_ascii && !bc_trace)
     {
       bc_trace = strcmp (o.trace_ascii, "-") ? fopen (o.trace_ascii, "w") : stdout;
       if (!bc_trace)
@@ -3919,7 +4328,28 @@ curl_builtin (WORD_LIST *list)
           close (fd);
         }
     }
-  rc = bc_main (words);
+  /* One bc_main run per transfer: URL operands and their globs, in order. */
+  memset (&bc_sel, 0, sizeof bc_sel);
+  bc_rate = 0;
+  bc_stdin_read = 0;
+  rc = EXECUTION_SUCCESS;
+  for (long run = 0;; run++)
+    {
+      long prev_total = bc_sel.total;
+      memset (&bc_sel, 0, sizeof bc_sel);
+      bc_sel.run = run;
+      bc_sel.total = prev_total;
+      rc = bc_main (words);
+      if (!bc_sel.parsed) break;                 /* help, version or a usage error */
+      if (rc == EXECUTION_SUCCESS && bc_sel.progress_bar && !bc_sel.silent)
+        bc_progress_bar_done ();
+      if (run + 1 >= bc_sel.total) break;
+      if (rc != EXECUTION_SUCCESS && bc_sel.fail_early) break;
+    }
+  free (bc_stdin_data);
+  bc_stdin_data = NULL;
+  bc_stdin_len = 0;
+  bc_stdin_read = 0;
   if (bc_trace && bc_trace != stdout) fclose (bc_trace);
   else if (bc_trace) fflush (bc_trace);
   bc_trace = NULL;

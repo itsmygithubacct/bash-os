@@ -9,7 +9,8 @@
     "Deferred: HTTP body framing, request construction, file output, HTTP errors, redirects, and HTTPS certificate behavior.",
     "Parser-only missing option arguments and unknown option status/diagnostics against external curl.",
     "Redirect Location hygiene against a private loopback peer: bare CR/LF, control bytes, spaces, high bytes, trailing blanks and NUL.",
-    "Credential headers across redirect origins against a private loopback peer: -u, -H Authorization, -H Cookie and a -b literal cookie."
+    "Credential headers across redirect origins against a private loopback peer: -u, -H Authorization, -H Cookie and a -b literal cookie.",
+    "Several URLs per call, URL globbing with -o #N names and -O pairing, glob errors and --fail-early."
   ],
   "exclusions": [
     "Apart from the loopback redirect cases, no transfer command is executed; parser-only errors return before URL or network handling.",
@@ -388,6 +389,50 @@
       "stdout": "invalid framing rejected\n",
       "stderr": "empty",
       "timeout": 15
+    },
+    {
+      "id": "several_urls",
+      "kind": "parity",
+      "purpose": "Several URLs run in order; the exit status is the last transfer's, and --fail-early stops at the first failure.",
+      "requires": [
+        "curl"
+      ],
+      "script": "echo A > a.txt; echo B > b.txt; echo 1 > f01; echo 2 > f02\nP=file://$PWD\nst() { if \"$@\"; then echo rc=0; else echo rc=$?; fi; }\nst curl -s \"$P/a.txt\" \"$P/b.txt\"\nst curl -s \"$P/nope\" \"$P/a.txt\"\nst curl -s \"$P/a.txt\" \"$P/nope\"\nst curl -s --fail-early \"$P/nope\" \"$P/a.txt\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "url_globs",
+      "kind": "parity",
+      "purpose": "{a,b} sets, zero-padded and stepped ranges, letter ranges, and -g turning globbing off.",
+      "requires": [
+        "curl"
+      ],
+      "script": "echo A > a.txt; echo B > b.txt; echo 1 > f01; echo 2 > f02\nP=file://$PWD\nst() { if \"$@\"; then echo rc=0; else echo rc=$?; fi; }\nst curl -s \"$P/{a,b}.txt\"\nst curl -s \"$P/f[01-02]\"\nst curl -s \"$P/[a-c:2].txt\"\nst curl -s -g \"$P/{a,b}.txt\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "output_pairing",
+      "kind": "parity",
+      "purpose": "The Nth -o/-O names the Nth URL's output wherever it is given; #N takes a glob's value.",
+      "requires": [
+        "curl"
+      ],
+      "script": "echo A > a.txt; echo B > b.txt; echo 1 > f01; echo 2 > f02\nP=file://$PWD\nst() { if \"$@\"; then echo rc=0; else echo rc=$?; fi; }\ncurl -s -o o1 -o o2 \"$P/a.txt\" \"$P/b.txt\"; /usr/bin/cat o1 o2\ncurl -s \"$P/a.txt\" -o o3 \"$P/b.txt\"; /usr/bin/cat o3\ncurl -s \"$P/{a,b}.txt\" -o 'out_#1'; /usr/bin/cat out_a out_b\n/usr/bin/rm -f o1 o2 o3 out_a out_b\nmkdir d; cd d; curl -s -O \"$P/a.txt\" -O \"$P/b.txt\"; /usr/bin/cat a.txt b.txt; cd ..; /usr/bin/rm -r d",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "glob_errors",
+      "kind": "parity",
+      "purpose": "Bad globs exit 3 with curl's message and a caret under the position; an IPv6 literal is not a glob.",
+      "requires": [
+        "curl"
+      ],
+      "script": "echo A > a.txt; echo B > b.txt; echo 1 > f01; echo 2 > f02\nP=file://$PWD\nst() { if \"$@\"; then echo rc=0; else echo rc=$?; fi; }\nst curl 'file:///x/{a,b' 2>&1\nst curl 'file:///x/[1-3' 2>&1\nst curl 'file:///x/a}' 2>&1\nst curl 'http://[::1' 2>&1",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }
