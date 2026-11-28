@@ -164,6 +164,18 @@
         "ls",
         "mkdir"
       ]
+    },
+    {
+      "id": "shim_display_name",
+      "purpose": "Under the shim name dir (unexported BASHOS_SHIM_COMMAND=ls=dir) usage errors name dir, as GNU dir does.",
+      "kind": "contract",
+      "requires": [
+        "ls"
+      ],
+      "script": "declare BASHOS_SHIM_COMMAND=ls=dir; ls --bogus 2>&1",
+      "expected_status": 2,
+      "stdout": "dir: unrecognized option '--bogus'\nTry 'dir --help' for more information.\n",
+      "stderr": "empty"
     }
   ]
 }

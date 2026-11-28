@@ -68,6 +68,7 @@
 #include <wctype.h>
 
 #include "loadables.h"
+#include "shim-prog-name.h"
 
 /* The system <getopt.h> is shadowed by bash's builtins/getopt.h on the
    loadable include path, so declare the libc getopt_long(3) interface
@@ -480,10 +481,14 @@ bl_push_dired_pos (ls_opts *o, bl_posbuf *pb)
 /* GNU error()-shaped diagnostics for option/usage problems: these keep
    the literal "ls: " prefix for byte parity.  Runtime file errors go
    through builtin_error() instead (so `bashls` reports as a builtin). */
+/* The name GNU would print: "ls", or dir/vdir under the bashy-box shim
+   (BASHOS_SHIM_COMMAND, see common/shim-prog-name.h). */
+static const char *bl_prog = "ls";
+
 static void
 bl_try_help (void)
 {
-    fprintf (stderr, "Try 'ls --help' for more information.\n");
+    fprintf (stderr, "Try '%s --help' for more information.\n", bl_prog);
 }
 
 /* ---------------- uid/gid name cache (from v2) ---------------- */
@@ -2262,7 +2267,7 @@ bl_parse_ls_color (ls_opts *o)
                     }
                     if (state == PS_FAIL)
                         fprintf (stderr,
-                                 "ls: unrecognized prefix: '%c%c'\n",
+                                 "%s: unrecognized prefix: '%c%c'\n", bl_prog,
                                  label0, label1);
                 }
                 break;
@@ -2290,7 +2295,7 @@ done:
     if (state == PS_FAIL)
     {
         fprintf (stderr,
-                 "ls: unparsable value for LS_COLORS environment variable\n");
+                 "%s: unparsable value for LS_COLORS environment variable\n", bl_prog);
         free (o->color_buf);
         o->color_buf = NULL;
         for (bl_color_ext *e = o->color_ext_list; e != NULL;)
@@ -4084,7 +4089,7 @@ bl_argmatch (const char *context, const char *arg,
 
     if (!quiet)
     {
-        fprintf (stderr, "ls: %s argument '%s' for '%s'\n",
+        fprintf (stderr, "%s: %s argument '%s' for '%s'\n", bl_prog,
                  ambiguous ? "ambiguous" : "invalid", arg, context);
         fputs ("Valid arguments are:\n", stderr);
         for (int i = 0; args[i]; i++)
@@ -4209,6 +4214,7 @@ ls_builtin (WORD_LIST *list)
 {
     ls_opts o;
     memset (&o, 0, sizeof o);
+    bl_prog = bos_shim_prog_name ("ls");
     o.qflag = -1;
     o.print_owner = 1;
     o.print_group = 1;
@@ -4340,7 +4346,7 @@ ls_builtin (WORD_LIST *list)
                 width_opt = bl_decode_line_length (optarg);
                 if (width_opt < 0)
                 {
-                    fprintf (stderr, "ls: invalid line width: '%s'\n", optarg);
+                    fprintf (stderr, "%s: invalid line width: '%s'\n", bl_prog, optarg);
                     usage_rc = 2;
                 }
                 break;
@@ -4393,7 +4399,7 @@ ls_builtin (WORD_LIST *list)
                 if (bl_xstrtoumax (optarg, NULL, 0, &v, "") != BL_LONGINT_OK
                     || v > (uintmax_t) (LONG_MAX / 2))
                 {
-                    fprintf (stderr, "ls: invalid tab size: '%s'\n", optarg);
+                    fprintf (stderr, "%s: invalid tab size: '%s'\n", bl_prog, optarg);
                     usage_rc = 2;
                 }
                 else
@@ -4518,11 +4524,11 @@ ls_builtin (WORD_LIST *list)
                 {
                     if (e & BL_LONGINT_OVERFLOW)
                         fprintf (stderr,
-                                 "ls: --block-size argument '%s' too large\n",
+                                 "%s: --block-size argument '%s' too large\n", bl_prog,
                                  optarg);
                     else
                         fprintf (stderr,
-                                 "ls: invalid --block-size argument '%s'\n",
+                                 "%s: invalid --block-size argument '%s'\n", bl_prog,
                                  optarg);
                     usage_rc = 2;
                 }
@@ -4564,12 +4570,12 @@ ls_builtin (WORD_LIST *list)
                     const struct option *m;
                     size_t wl = strcspn (bad + 2, "=");
                     bl_match_long (bad + 2, wl, &m);
-                    fprintf (stderr, "ls: option '--%s' requires an argument\n",
+                    fprintf (stderr, "%s: option '--%s' requires an argument\n", bl_prog,
                              m ? m->name : bad + 2);
                 }
                 else
                     fprintf (stderr,
-                             "ls: option requires an argument -- '%c'\n",
+                             "%s: option requires an argument -- '%c'\n", bl_prog,
                              optopt);
                 bl_try_help ();
                 usage_rc = 2;
@@ -4590,14 +4596,14 @@ ls_builtin (WORD_LIST *list)
                     if (nm == 1 && m && bad[2 + wl] == '='
                         && m->has_arg == no_argument)
                         fprintf (stderr,
-                                 "ls: option '--%s' doesn't allow an argument\n",
+                                 "%s: option '--%s' doesn't allow an argument\n", bl_prog,
                                  m->name);
                     else if (nm == 0)
-                        fprintf (stderr, "ls: unrecognized option '%s'\n", bad);
+                        fprintf (stderr, "%s: unrecognized option '%s'\n", bl_prog, bad);
                     else if (nm > 1)
                     {
                         fprintf (stderr,
-                                 "ls: option '--%.*s' is ambiguous; possibilities:",
+                                 "%s: option '--%.*s' is ambiguous; possibilities:", bl_prog,
                                  (int) wl, bad + 2);
                         for (const struct option *op = bl_long_options;
                              op->name; op++)
@@ -4606,12 +4612,12 @@ ls_builtin (WORD_LIST *list)
                         fputc ('\n', stderr);
                     }
                     else
-                        fprintf (stderr, "ls: unrecognized option '%s'\n", bad);
+                        fprintf (stderr, "%s: unrecognized option '%s'\n", bl_prog, bad);
                 }
                 else if (optopt)
-                    fprintf (stderr, "ls: invalid option -- '%c'\n", optopt);
+                    fprintf (stderr, "%s: invalid option -- '%c'\n", bl_prog, optopt);
                 else
-                    fprintf (stderr, "ls: unrecognized option '%s'\n", bad);
+                    fprintf (stderr, "%s: unrecognized option '%s'\n", bl_prog, bad);
                 bl_try_help ();
                 usage_rc = 2;
                 break;
@@ -4705,8 +4711,8 @@ ls_builtin (WORD_LIST *list)
                     linelen = bl_decode_line_length (p);
                     if (linelen < 0)
                         fprintf (stderr,
-                                 "ls: ignoring invalid width in environment "
-                                 "variable COLUMNS: '%s'\n", p);
+                                 "%s: ignoring invalid width in environment "
+                                 "variable COLUMNS: '%s'\n", bl_prog, p);
                 }
             }
         }
@@ -4733,8 +4739,8 @@ ls_builtin (WORD_LIST *list)
                     o.tabsize = (size_t) tmp;
                 else
                     fprintf (stderr,
-                             "ls: ignoring invalid tab size in environment "
-                             "variable TABSIZE: '%s'\n", p);
+                             "%s: ignoring invalid tab size in environment "
+                             "variable TABSIZE: '%s'\n", bl_prog, p);
             }
         }
     }
@@ -4753,8 +4759,8 @@ ls_builtin (WORD_LIST *list)
                                   bl_quoting_vals, 1);
                 if (qs < 0)
                     fprintf (stderr,
-                             "ls: ignoring invalid value of environment "
-                             "variable QUOTING_STYLE: '%s'\n", q_style);
+                             "%s: ignoring invalid value of environment "
+                             "variable QUOTING_STYLE: '%s'\n", bl_prog, q_style);
             }
         }
         if (qs < 0)
@@ -4786,7 +4792,7 @@ ls_builtin (WORD_LIST *list)
 
     if (o.eolbyte == 0 && o.dired)
     {
-        fprintf (stderr, "ls: --dired and --zero are incompatible\n");
+        fprintf (stderr, "%s: --dired and --zero are incompatible\n", bl_prog);
         bl_free_all (&o);
         free (argv);
         return 2;
@@ -4827,7 +4833,7 @@ ls_builtin (WORD_LIST *list)
                         if (strchr (nl + 1, '\n'))
                         {
                             fprintf (stderr,
-                                     "ls: invalid time style format '%s'\n",
+                                     "%s: invalid time style format '%s'\n", bl_prog,
                                      style + 1);
                             bl_free_all (&o);
                             free (argv);
@@ -4856,7 +4862,7 @@ ls_builtin (WORD_LIST *list)
                         if (strncmp (ts_args[i], style, sl) == 0)
                             nm++;
                     ambig = nm > 1;
-                    fprintf (stderr, "ls: %s argument '%s' for 'time style'\n",
+                    fprintf (stderr, "%s: %s argument '%s' for 'time style'\n", bl_prog,
                              ambig ? "ambiguous" : "invalid", style);
                     fputs ("Valid arguments are:\n"
                            "  - [posix-]full-iso\n"
