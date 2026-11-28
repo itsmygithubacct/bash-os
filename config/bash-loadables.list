@@ -33,7 +33,7 @@ strftime|strftime format [seconds]
 strptime|strptime [-f format] date-time
 sync|sync
 tee|tee [-aip] [--output-error[=MODE]] [file ...]
-tty|tty [-s]
+tty|tty [-s] [--help] [--version]
 uname|uname [-amnrsvpio]
 unlink|unlink name
 whoami|whoami [--help] [--version]

@@ -8,7 +8,8 @@
     "Non-terminal detection when stdin is redirected from a relative regular fixture file.",
     "Invalid option diagnostics/status and extra-operand validation, including with -s.",
     "Bash type and help metadata: configured short help and the documented command description.",
-    "Successful ttyname(0) behavior is recorded as deferred because the runner does not provide PTY-attached stdin."
+    "Successful ttyname(0) behavior is recorded as deferred because the runner does not provide PTY-attached stdin.",
+    "Long options --silent, --quiet (and unique prefixes), --help, --version, and unknown long options."
   ],
   "exclusions": [
     "Successful terminal-name output and -s success require stdin attached to a PTY; no such input fixture is available in this runner.",
@@ -114,11 +115,11 @@
     },
     {
       "id": "help_short_doc",
-      "purpose": "Bash help exposes the documented tty [-s] synopsis; metadata only.",
+      "purpose": "Bash help exposes the tty [-s] [--help] [--version] synopsis; metadata only.",
       "kind": "contract",
       "script": "help_text=$(help tty); synopsis=${help_text%%$'\\n'*}; printf '%s\\n' \"$synopsis\"",
       "expected_status": 0,
-      "stdout": "tty: tty [-s]\n",
+      "stdout": "tty: tty [-s] [--help] [--version]\n",
       "stderr": "empty"
     },
     {
@@ -148,6 +149,79 @@
           "id": "tty-silent-status"
         }
       ]
+    },
+    {
+      "id": "long_silent",
+      "purpose": "GNU tty accepts --silent as -s.",
+      "kind": "parity",
+      "requires": [
+        "tty"
+      ],
+      "script": "tty --silent",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "long_quiet",
+      "purpose": "GNU tty accepts --quiet as -s.",
+      "kind": "parity",
+      "requires": [
+        "tty"
+      ],
+      "script": "tty --quiet",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "long_prefix",
+      "purpose": "GNU tty accepts a unique long-option prefix.",
+      "kind": "parity",
+      "requires": [
+        "tty"
+      ],
+      "script": "tty --sil",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "end_of_options_silent",
+      "purpose": "-- ends options after -s.",
+      "kind": "parity",
+      "requires": [
+        "tty"
+      ],
+      "script": "tty -s --",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "unknown_long_option",
+      "purpose": "An unknown long option is a usage error.",
+      "kind": "parity",
+      "requires": [
+        "tty"
+      ],
+      "script": "tty --bogus",
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "help_status",
+      "purpose": "--help succeeds and writes help to stdout (wording is bash-os's own).",
+      "kind": "contract",
+      "script": "tty --help >/dev/null; echo $?",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "0\n"
+    },
+    {
+      "id": "version_status",
+      "purpose": "--version succeeds (wording is bash-os's own).",
+      "kind": "contract",
+      "script": "tty --version >/dev/null; echo $?",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "0\n"
     }
   ]
 }

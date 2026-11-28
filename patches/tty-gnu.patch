@@ -1,14 +1,121 @@
 --- builtins/tty.c
 +++ builtins/tty.c
-@@ -52,6 +52,11 @@
+@@ -23,6 +23,7 @@
+ #include "config.h"
+ 
+ #include <stdio.h>
++#include <string.h>
+ #include "../builtins.h"
+ #include "../shell.h"
+ #include "bashgetopt.h"
+@@ -30,33 +31,77 @@
+ 
+ extern char *ttyname (int);
+ 
++/* GNU tty: -s, --silent and --quiet (unique long prefixes), --help,
++   --version and `--'; operands are rejected. Status 2 for usage. */
++static int
++tty_longopt (const char *arg, const char *name)
++{
++  size_t len = strlen (arg);
++  return len && strncmp (name, arg, len) == 0;
++}
++
+ int
+ tty_builtin (WORD_LIST *list)
+ {
+-  int opt, sflag;
+-  char *t;
++  int sflag, end_options;
++  char *t, *arg, *p;
+ 
+-  reset_internal_getopt ();
+-  sflag = 0;
+-  while ((opt = internal_getopt (list, "s")) != -1)
++  sflag = end_options = 0;
++  for (; list; list = list->next)
+     {
+-      switch (opt)
++      arg = list->word->word;
++      if (end_options || arg[0] != '-' || arg[1] == 0)
++	{
++	  builtin_error ("extra operand '%s'", arg);
++	  fprintf (stderr, "Try 'tty --help' for more information.\n");
++	  return (2);
++	}
++      if (arg[1] == '-')
++	{
++	  if (arg[2] == 0)
++	    {
++	      end_options = 1;
++	      continue;
++	    }
++	  if (tty_longopt (arg + 2, "help") )
++	    {
++	      builtin_help ();
++	      return (sh_chkwrite (EXECUTION_SUCCESS));
++	    }
++	  if (tty_longopt (arg + 2, "version"))
++	    {
++	      printf ("tty (bash-os builtin, Bash %s)\n", dist_version);
++	      return (sh_chkwrite (EXECUTION_SUCCESS));
++	    }
++	  if (tty_longopt (arg + 2, "silent") || tty_longopt (arg + 2, "quiet"))
++	    {
++	      /* "--s" and "--q" are unique; anything matching both is not. */
++	      sflag = 1;
++	      continue;
++	    }
++	  builtin_error ("unrecognized option '%s'", arg);
++	  fprintf (stderr, "Try 'tty --help' for more information.\n");
++	  return (2);
++	}
++      for (p = arg + 1; *p; p++)
+ 	{
+-	case 's':
++	  if (*p != 's')
++	    {
++	      builtin_error ("invalid option -- '%c'", *p);
++	      fprintf (stderr, "Try 'tty --help' for more information.\n");
++	      return (2);
++	    }
+ 	  sflag = 1;
+-	  break;
+-	CASE_HELPOPT;
+-	default:
+-	  builtin_usage ();
+-	  return (EX_USAGE);
  	}
      }
-   list = loptend;
-+  if (list)
-+    {
-+      builtin_error ("extra operand: %s", list->word->word);
-+      return EX_USAGE;
-+    }
+-  list = loptend;
  
    t = ttyname (0);
    QUIT;
+-  if (sflag == 0)
+-    puts (t ? t : "not a tty");
++  if (sflag)
++    return (t ? EXECUTION_SUCCESS : EXECUTION_FAILURE);
++  puts (t ? t : "not a tty");
++  if (sh_chkwrite (EXECUTION_SUCCESS) != EXECUTION_SUCCESS)
++    return (3);
+   return (t ? EXECUTION_SUCCESS : EXECUTION_FAILURE);
+ }
+ 
+@@ -66,7 +111,8 @@
+ 	"tty writes the name of the terminal that is opened for standard",
+ 	"input to standard output.  If the `-s' option is supplied, nothing",
+ 	"is written; the exit status determines whether or not the standard",
+-	"input is connected to a tty.",
++	"input is connected to a tty.  --silent and --quiet are -s;",
++	"--help and --version are accepted.",
+ 	(char *)NULL
+ };
+ 
+@@ -77,6 +123,6 @@
+ 	tty_builtin,		/* function implementing the builtin */
+ 	BUILTIN_ENABLED,	/* initial flags for builtin */
+ 	tty_doc,		/* array of long documentation strings. */
+-	"tty [-s]",		/* usage synopsis; becomes short_doc */
++	"tty [-s] [--help] [--version]",		/* usage synopsis; becomes short_doc */
+ 	0			/* reserved for internal use */
+ };

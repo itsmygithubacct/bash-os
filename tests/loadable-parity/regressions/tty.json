@@ -118,7 +118,7 @@
       "kind": "contract",
       "script": "help_text=$(help tty); synopsis=${help_text%%$'\\n'*}; printf '%s\\n' \"$synopsis\"",
       "expected_status": 0,
-      "stdout": "tty: tty [-s]\n",
+      "stdout": "tty: tty [-s] [--help] [--version]\n",
       "stderr": "empty"
     },
     {
