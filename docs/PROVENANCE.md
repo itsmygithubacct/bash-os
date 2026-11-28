@@ -525,7 +525,12 @@ inputs; building does not fetch moving library branches.
 
 The staged Mbed TLS headers identify 4.1.0, with TF-PSA-Crypto compatibility
 headers and a selected configuration. This supersedes the collection's stale
-3.6.x version label. The libssh headers identify 0.11.2. Tree-sitter supports
+3.6.x version label. The libssh headers identify 0.11.2. The Tree-sitter
+runtime is upstream's development line for 0.27.0 at commit
+a53c3b03a005ef51f21e12f39c2a27e10d008b6e (2026-05-18): every file of its
+`lib/src` and `lib/include` that `loadables/_tree_sitter` carries matches that
+commit apart from include paths, the WebAssembly store is replaced by
+`wasm_stub.c`, and no release tag matches (v0.26.9 is the nearest). It supports
 language ABIs 13 through 15 and includes generated Bash, JSON, TOML, Markdown,
 and inline-Markdown parsers. Monocypher supplies Ed25519 and Argon2id; SHA1DC
 supplies Git object/index checksums; stb_image supplies image decoding. Original
