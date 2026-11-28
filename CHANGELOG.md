@@ -9,6 +9,8 @@ All notable changes to bash-os are recorded here. Versions follow
   `[a-z]`, `#N` in `-o` names, `-g` to turn it off); the Nth `-o`/`-O` names the Nth URL's output,
   `--remote-name` and `--remote-name-all` are accepted, and `--fail-early` stops at the first
   failure. `--limit-rate` now limits the read rate, and `-#` draws curl's progress bar.
+- `ps` takes procps' `KEY:WIDTH`, `-O`, `-q`, `-s`, `-g`, `-t`, `--forest`, BSD `o`, `f`, `v` and `s`;
+  headers overflow instead of being cut.
 - New `ptx` builtin: GNU ptx's permuted index in GNU and traditional (`-G`) modes, with
   dumb, roff (`-O`) and TeX (`-T`) output, `-A`/`-r` references, `-R`, `-F`, `-M`, `-W`,
   `-S`, `-b`, `-i`, `-o`, `-f`, `-g` and `-w`.

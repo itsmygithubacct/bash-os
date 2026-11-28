@@ -8,7 +8,8 @@
     "Synthetic proc records for stat field parsing, UID fallback, STAT flags, comm containing a right parenthesis, and NUL-separated argv conversion.",
     "Full-format row layout, explicit PID-list order, and the documented [comm] fallback for empty cmdline.",
     "Procps-shaped lstart with a fixed boot time, local timezone, repeated -o options and empty headings.",
-    "Exact synthetic PID selection and empty headers for -p and --pid; invalid attached, combined and repeated column options, missing column list, invalid PID list and unknown option."
+    "Exact synthetic PID selection and empty headers for -p and --pid; invalid attached, combined and repeated column options, missing column list, invalid PID list and unknown option.",
+    "procps KEY:WIDTH, -O, -q/-s/-g selection, --forest, BSD o/v/s layouts against procps-ng."
   ],
   "exclusions": [
     "Full process-table enumeration and aux percentages/START values are deferred because a stable VM process set and procps comparison are required.",
@@ -179,6 +180,61 @@
           "id": "migration-ps-live-pidns-tables"
         }
       ]
+    },
+    {
+      "id": "procps-key-width",
+      "kind": "parity",
+      "purpose": "KEY:WIDTH cuts values to the width but never widens for, or cuts, the header.",
+      "requires": [
+        "ps"
+      ],
+      "script": "f=$(mktemp -u); mkfifo \"$f\"; exec 3<>\"$f\"; rm -f \"$f\"\n( read -t 20 <&3 ) & c=$!\nps -o pid:3,comm:2=LONGHEADER,ppid:12 -p \"$c\" | sed -E \"s/[0-9]+/N/g; s/bash(-os)?/SH/g\"\nkill \"$c\"; wait \"$c\" || :\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "procps-capital-o",
+      "kind": "parity",
+      "purpose": "-O LIST preloads pid and appends state, tname, time and args (shown here up to the args column).",
+      "requires": [
+        "ps"
+      ],
+      "script": "f=$(mktemp -u); mkfifo \"$f\"; exec 3<>\"$f\"; rm -f \"$f\"\n( read -t 20 <&3 ) & c=$!\nps -O tty,nice -p \"$c\" | cut -c1-36 | sed -E \"s/[0-9]+/N/g; s/bash(-os)?/SH/g\"\nkill \"$c\"; wait \"$c\" || :\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "procps-session-pgrp-quick",
+      "kind": "parity",
+      "purpose": "-q, -s and -g select by pid, session and process group.",
+      "requires": [
+        "ps"
+      ],
+      "script": "f=$(mktemp -u); mkfifo \"$f\"; exec 3<>\"$f\"; rm -f \"$f\"\n( read -t 20 <&3 ) & c=$!\ns=$(ps -o sid= -p \"$c\"); g=$(ps -o pgid= -p \"$c\")\nps -q \"$c\" -o comm= | sed -E \"s/[0-9]+/N/g; s/bash(-os)?/SH/g\"\nps -s $s -o comm= | grep -c .\nps -g $g -o comm= | grep -c .\nkill \"$c\"; wait \"$c\" || :\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "procps-forest-and-bsd-o",
+      "kind": "parity",
+      "purpose": "--forest indents children under their parent; BSD o takes a format.",
+      "requires": [
+        "ps"
+      ],
+      "script": "f=$(mktemp -u); mkfifo \"$f\"; exec 3<>\"$f\"; rm -f \"$f\"\n( read -t 20 <&3 ) & c=$!\n{ ps --forest -o comm -p $$,\"$c\"; ps -p \"$c\" o comm=; } | sed -E \"s/[0-9]+/N/g; s/bash(-os)?/SH/g\"\nkill \"$c\"; wait \"$c\" || :\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "procps-bsd-v-s-headers",
+      "kind": "parity",
+      "purpose": "BSD v and s print procps' signal and memory layouts.",
+      "requires": [
+        "ps"
+      ],
+      "script": "f=$(mktemp -u); mkfifo \"$f\"; exec 3<>\"$f\"; rm -f \"$f\"\n( read -t 20 <&3 ) & c=$!\nps v \"$c\" | head -1\nps s \"$c\" | head -1\nkill \"$c\"; wait \"$c\" || :\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

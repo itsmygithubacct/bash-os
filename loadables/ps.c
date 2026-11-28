@@ -63,6 +63,9 @@ typedef struct {
     long  vmrss_kb;          /* /proc/[pid]/status VmRSS, or -1 if absent */
     long  rss_pages;
     long  vsize_bytes;
+    long  maj_flt;           /* field 12 */
+    unsigned long long start_code, end_code;   /* fields 26 and 27 */
+    unsigned long long sig_pnd, sig_blk, sig_ign, sig_cgt;  /* status masks */
 } bps_proc;
 
 static const char *
@@ -213,6 +216,8 @@ bps_read_task (int pid, int tid, bps_proc *p)
     p->priority = (long) f[18]; p->nice = (long) f[19]; p->num_threads = (long) f[20];
     p->starttime_ticks = (long) f[22]; p->vsize_bytes = (long) f[23]; p->rss_pages = (long) f[24];
     p->processor = (long) f[39]; p->rt_priority = (long) f[40]; p->policy = (long) f[41];
+    p->maj_flt = (long) f[12];
+    p->start_code = (unsigned long long) f[26]; p->end_code = (unsigned long long) f[27];
     p->vmrss_kb = -1;
 
     /* uid: read /proc/PID/status. */
@@ -259,6 +264,17 @@ bps_read_task (int pid, int tid, bps_proc *p)
             if (vl) sscanf (vl + 7, "%ld", &p->vmlck_kb);
             /* procps reports RSS from VmRSS; stat's rss field can lag
                behind it by the kernel's per-CPU counter batches. */
+            /* Signal masks for BSD s and the -o signal keys; pending is
+               what the thread and the process have pending. */
+            static const char *const masks[] = { "\nSigPnd:", "\nShdPnd:", "\nSigBlk:",
+                                                  "\nSigIgn:", "\nSigCgt:" };
+            unsigned long long mv[5] = { 0, 0, 0, 0, 0 };
+            for (int mi = 0; mi < 5; mi++) {
+                char *m = strstr (sbuf, masks[mi]);
+                if (m) mv[mi] = strtoull (m + 8, NULL, 16);
+            }
+            p->sig_pnd = mv[0] | mv[1]; p->sig_blk = mv[2];
+            p->sig_ign = mv[3]; p->sig_cgt = mv[4];
             char *vr = strstr (sbuf, "\nVmRSS:");
             if (vr && sscanf (vr + 7, "%ld", &p->vmrss_kb) != 1) p->vmrss_kb = -1;
         }
@@ -760,7 +776,8 @@ typedef enum {
     K_TIME, K_BSDTIME, K_STIME, K_START, K_BSDSTART, K_LSTART, K_ETIME, K_ETIMES,
     K_PCPU, K_PMEM, K_C, K_RSS, K_VSZ, K_SZ,
     K_NI, K_PRI, K_OPRI, K_PRIORITY, K_PSR, K_CLS, K_POLICY, K_SCHED, K_RTPRIO, K_F,
-    K_TTY, K_WCHAN, K_ADDR, K_EXE, K_TTYBYTES
+    K_TTY, K_WCHAN, K_ADDR, K_EXE, K_TTYBYTES,
+    K_MAJFLT, K_TRS, K_DRS, K_PENDING, K_BLOCKED, K_IGNORED, K_CAUGHT
 } bps_col;
 
 #define BPS_NUM   0x1     /* sorts numerically */
@@ -872,6 +889,19 @@ static const bps_key bps_keys[] = {
     { "_addrl",     "ADDR",     4, 'L', 0, K_ADDR },
     { "exe",        "EXE",     27, 'L', BPS_CUT, K_EXE },
     { "ttybytes",   "TTYBYTES", 8, 'L', 0, K_TTYBYTES },
+    { "maj_flt",    "MAJFL",    6, 'R', BPS_NUM, K_MAJFLT },
+    { "majflt",     "MAJFLT",   6, 'R', BPS_NUM, K_MAJFLT },
+    { "trs",        "TRS",      4, 'R', BPS_NUM, K_TRS },
+    { "_trs5",      "TRS",      5, 'R', BPS_NUM, K_TRS },
+    { "drs",        "DRS",      5, 'R', BPS_NUM, K_DRS },
+    { "pending",    "PENDING", 16, 'R', 0, K_PENDING },
+    { "sig",        "PENDING", 16, 'R', 0, K_PENDING },
+    { "blocked",    "BLOCKED", 16, 'R', 0, K_BLOCKED },
+    { "sigmask",    "BLOCKED", 16, 'R', 0, K_BLOCKED },
+    { "ignored",    "IGNORED", 16, 'R', 0, K_IGNORED },
+    { "sigignore",  "IGNORED", 16, 'R', 0, K_IGNORED },
+    { "caught",     "CAUGHT",  16, 'R', 0, K_CAUGHT },
+    { "sigcatch",   "CAUGHT",  16, 'R', 0, K_CAUGHT },
 };
 
 typedef struct {
@@ -928,6 +958,21 @@ bps_add_o_list (const char *list, bps_colspec *cols, int *n_cols)
         const char *ovr = NULL;
         char *eq = strchr (tok, '=');
         if (eq) { ovr = eq + 1; *eq = '\0'; }
+        /* NAME:WIDTH sets the column width; the header does not widen it. */
+        int fixed = -1;
+        char *colon = strchr (tok, ':');
+        if (colon) {
+            char *end;
+            long wv = strtol (colon + 1, &end, 10);
+            if (end == colon + 1 || *end || wv < 0 || wv > 500) {
+                char why[320];
+                snprintf (why, sizeof why, "unknown user-defined format specifier \"%s\"", tok);
+                bps_usage_error (why);
+                return -1;
+            }
+            *colon = '\0';
+            fixed = (int) wv;
+        }
         const bps_key *k = *tok ? bps_key_find (tok, 0) : NULL;
         if (!k) {
             char why[320];
@@ -939,7 +984,9 @@ bps_add_o_list (const char *list, bps_colspec *cols, int *n_cols)
             bps_usage_error ("too many output columns");
             return -1;
         }
-        bps_col_set (&cols[(*n_cols)++], k, ovr);
+        bps_col_set (&cols[*n_cols], k, ovr);
+        if (fixed >= 0) cols[*n_cols].width = fixed;
+        (*n_cols)++;
     }
     return 0;
 }
@@ -1053,6 +1100,9 @@ bps_num_value (const bps_proc *p, bps_col col)
         case K_SCHED: return p->policy;
         case K_RTPRIO: return p->rt_priority;
         case K_F: return (long long) p->flags;
+        case K_MAJFLT: return p->maj_flt;
+        case K_TRS: return (long long) ((p->end_code - p->start_code) >> 10);
+        case K_DRS: return (long long) ((p->vsize_bytes - (long long) (p->end_code - p->start_code)) >> 10);
         default: return 0;
     }
 }
@@ -1133,12 +1183,18 @@ bps_value (const bps_proc *p, bps_col col, char *buf, size_t n)
             if (!buf[0]) snprintf (buf, n, "-");
             break;
         case K_TTYBYTES: snprintf (buf, n, "?"); break;
+        case K_MAJFLT: snprintf (buf, n, "%ld", p->maj_flt); break;
+        case K_TRS: case K_DRS: snprintf (buf, n, "%lld", bps_num_value (p, col)); break;
+        case K_PENDING: snprintf (buf, n, "%016llx", p->sig_pnd); break;
+        case K_BLOCKED: snprintf (buf, n, "%016llx", p->sig_blk); break;
+        case K_IGNORED: snprintf (buf, n, "%016llx", p->sig_ign); break;
+        case K_CAUGHT:  snprintf (buf, n, "%016llx", p->sig_cgt); break;
     }
 }
 
 /* Lay out one line of TEXTS (values or headers) in COLS. */
 static void
-bps_print_line (const bps_colspec *cols, int n_cols, char texts[][512])
+bps_print_line (const bps_colspec *cols, int n_cols, char texts[][512], int header)
 {
     char line[BPS_MAX_COLS * 520];
     size_t len = 0;           /* bytes in line, including padding */
@@ -1150,7 +1206,9 @@ bps_print_line (const bps_colspec *cols, int n_cols, char texts[][512])
         char *t = texts[i];
         size_t w = (size_t) cols[i].width, l = strlen (t);
         size_t start = i ? pos + 1 : 0;
-        if ((k->flags & BPS_NAME) && l > w && w > 0) {
+        /* Headers are never cut: a short KEY:WIDTH header just overflows. */
+        if (header) ;
+        else if ((k->flags & BPS_NAME) && l > w && w > 0) {
             t[w - 1] = '+';
             t[w] = '\0';
             l = w;
@@ -1168,7 +1226,9 @@ bps_print_line (const bps_colspec *cols, int n_cols, char texts[][512])
             pos = at + l > end ? at + l : end;
         } else {
             at = start > min ? start : min;
-            pos = at + w > at + l ? at + w : at + l;
+            /* An overflowing text does not move the column end; the next
+               value keeps one blank after it through MIN. */
+            pos = at + w;
         }
         while (len < at && len < sizeof line - 1) line[len++] = ' ';
         if (len > at) len = at;
@@ -1192,16 +1252,26 @@ bps_print_header (const bps_colspec *cols, int n_cols)
         snprintf (texts[i], sizeof texts[i], "%s", cols[i].header);
         if (cols[i].header[0]) any = 1;
     }
-    if (any) bps_print_line (cols, n_cols, texts);
+    if (any) bps_print_line (cols, n_cols, texts, 1);
 }
+
+static int bps_forest_depth;   /* --forest level of the row being printed */
 
 static void
 bps_print_row (const bps_proc *p, const bps_colspec *cols, int n_cols)
 {
     static char texts[BPS_MAX_COLS][512];
-    for (int i = 0; i < n_cols; i++)
-        bps_value (p, cols[i].key->col, texts[i], sizeof texts[i]);
-    bps_print_line (cols, n_cols, texts);
+    for (int i = 0; i < n_cols; i++) {
+        bps_col c = cols[i].key->col;
+        if (bps_forest_depth > 0 && (c == K_ARGS || c == K_COMM || c == K_FNAME)) {
+            int pre = (bps_forest_depth - 1) * 4;
+            snprintf (texts[i], sizeof texts[i], "%*s \\_ ", pre, "");
+            size_t at = strlen (texts[i]);
+            bps_value (p, c, texts[i] + at, sizeof texts[i] - at);
+        } else
+            bps_value (p, c, texts[i], sizeof texts[i]);
+    }
+    bps_print_line (cols, n_cols, texts, 0);
 }
 
 #define BPS_MAX_SORT 16
@@ -1265,13 +1335,16 @@ bps_compare (const void *x, const void *y)
     return c ? c : bps_cmp_long (a->lwp, b->lwp);
 }
 
-/* A BSD-syntax option word (no dash): procps' a, u, x, j, l and w. */
+/* A BSD-syntax option word (no dash): procps' a, u, x, j, l, v, s, f
+   (forest), w and o FORMAT. */
 static int
 bps_bsd_word (const char *s)
 {
     if (!s[0] || !isalpha ((unsigned char) s[0])) return 0;
-    for (const char *p = s; *p; p++)
-        if (!strchr ("auxjlw", *p)) return -1;
+    for (const char *p = s; *p; p++) {
+        if (*p == 'o') return 1;          /* o FORMAT: the rest is its argument */
+        if (!strchr ("auxjlwvsf", *p)) return -1;
+    }
     return 1;
 }
 
@@ -1295,6 +1368,45 @@ bps_format_replace (char *s, size_t size, const char *from, const char *to)
     snprintf (s, size, "%s", b);
 }
 
+/* --forest (BSD f): procps' process tree. Roots are the listed processes
+   whose parent is not listed, last pid first; children follow their parent
+   in pid order, one level deeper, except that pid 1's children stay at the
+   top level. The command column is prefixed with " \\_ " per level. */
+
+static void
+bps_forest_emit (const bps_list *l, size_t i, int depth, size_t *order, int *depths,
+                 size_t *n, unsigned char *done)
+{
+    if (done[i]) return;
+    done[i] = 1;
+    order[*n] = i;
+    depths[(*n)++] = depth;
+    int child_depth = l->v[i].pid == 1 ? 0 : depth + 1;
+    for (size_t j = 0; j < l->n; j++)
+        if (!done[j] && j != i && l->v[j].ppid == l->v[i].pid && l->v[j].lwp == l->v[j].pid)
+            bps_forest_emit (l, j, child_depth, order, depths, n, done);
+}
+
+static int
+bps_forest_order (const bps_list *l, size_t *order, int *depths)
+{
+    unsigned char *done = calloc (l->n ? l->n : 1, 1);
+    size_t n = 0;
+    if (!done) return -1;
+    for (size_t k = l->n; k-- > 0; ) {
+        int listed = 0;
+        for (size_t j = 0; j < l->n && !listed; j++)
+            listed = j != k && l->v[j].pid == l->v[k].ppid;
+        if (!listed && l->v[k].lwp == l->v[k].pid)
+            bps_forest_emit (l, k, 0, order, depths, &n, done);
+    }
+    /* Anything left (threads, a cycle) keeps its place at the top level. */
+    for (size_t k = 0; k < l->n; k++)
+        if (!done[k]) { done[k] = 1; order[n] = k; depths[n++] = 0; }
+    free (done);
+    return 0;
+}
+
 int
 ps_builtin (WORD_LIST *list)
 {
@@ -1310,7 +1422,13 @@ ps_builtin (WORD_LIST *list)
     int n_cmds = 0;
     int ppids[256];
     int n_ppids = 0;
-    int no_headers = 0, threads = 0, end_options = 0;
+    int no_headers = 0, threads = 0, end_options = 0, forest = 0, bsd_v = 0, bsd_s = 0;
+    int sids[256], n_sids = 0;
+    gid_t gids[64];
+    int n_gids = 0;
+    char ttys[64][64];
+    int n_ttys = 0;
+    char O_list[512] = "";
     bps_list procs = { 0 };
     int rc = EXECUTION_SUCCESS;
 
@@ -1332,7 +1450,25 @@ ps_builtin (WORD_LIST *list)
                         case 'u': bsd_u = 1; break;
                         case 'j': bsd_j = 1; break;
                         case 'l': bsd_l = 1; break;
+                        case 'v': bsd_v = 1; break;
+                        case 's': bsd_s = 1; break;
+                        case 'f': forest = 1; break;
+                        case 'o': {
+                            const char *arg = c + 1;
+                            if (!*arg) {
+                                list = list->next;
+                                if (!list) {
+                                    bps_usage_error ("format specification must follow o");
+                                    return EXECUTION_FAILURE;
+                                }
+                                arg = list->word->word;
+                            }
+                            if (bps_add_o_list (arg, cols, &n_cols) < 0)
+                                return EXECUTION_FAILURE;
+                            goto bsd_done;
+                        }
                     }
+            bsd_done:
                 continue;
             }
             /* A bare PID selects it, as -p does, with BSD-style output. */
@@ -1351,9 +1487,42 @@ ps_builtin (WORD_LIST *list)
             puts ("bashps 1.0 (bash-loadable, procps-compatible)");
             return EXECUTION_SUCCESS;
         }
+        if (!strcmp (w, "--forest")) { forest = 1; continue; }
         if (!strcmp (w, "--no-headers") || !strcmp (w, "--no-heading") ||
             !strcmp (w, "--noheaders") || !strcmp (w, "--noheading")) {
             no_headers = 1;
+            continue;
+        }
+        if (!strcmp (w, "--sid") || !strncmp (w, "--sid=", 6)
+            || !strcmp (w, "--quick-pid") || !strncmp (w, "--quick-pid=", 12)) {
+            const char *arg = strchr (w, '=');
+            if (arg) arg++;
+            else {
+                list = list->next;
+                if (!list) {
+                    bps_usage_error ("list of session IDs must follow --sid");
+                    return EXECUTION_FAILURE;
+                }
+                arg = list->word->word;
+            }
+            int bad = w[2] == 's'
+                ? bps_add_pid_list (arg, sids, &n_sids, (int) (sizeof sids / sizeof sids[0]))
+                : bps_add_pid_list (arg, explicit_pids, &n_pids,
+                                    (int) (sizeof explicit_pids / sizeof explicit_pids[0]));
+            if (bad < 0) return EXECUTION_FAILURE;
+            continue;
+        }
+        if (!strcmp (w, "--tty") || !strncmp (w, "--tty=", 6)) {
+            const char *arg = w[5] == '=' ? w + 6 : NULL;
+            if (!arg) {
+                list = list->next;
+                if (!list) {
+                    bps_usage_error ("list of ttys must follow --tty");
+                    return EXECUTION_FAILURE;
+                }
+                arg = list->word->word;
+            }
+            if (bps_add_name_list (arg, ttys, &n_ttys, 64) < 0) return EXECUTION_FAILURE;
             continue;
         }
         if (!strcmp (w, "--pid") || !strcmp (w, "--ppid") || !strcmp (w, "--sort")
@@ -1416,7 +1585,8 @@ ps_builtin (WORD_LIST *list)
                 case 'y':           yflag = 1; break;
                 case 'w':           break;
                 case 'L':           threads = 1; break;
-                case 'o': case 'p': case 'u': case 'U': case 'C': {
+                case 'o': case 'p': case 'u': case 'U': case 'C':
+                case 'q': case 's': case 'g': case 't': case 'O': {
                     /* Argument-taking options inside a combined token, e.g.
                        procps `ps -eo comm` or `ps -ep PID`. The remainder of
                        the token after this letter is the argument; if empty
@@ -1426,10 +1596,13 @@ ps_builtin (WORD_LIST *list)
                     if (*arg == '\0') {
                         list = list->next;
                         if (!list) {
-                            builtin_error (opt == 'o'
-                                ? "option -o requires a column list"
-                                : opt == 'p' ? "option -p requires a PID list"
+                            builtin_error (opt == 'o' || opt == 'O'
+                                ? "option -%c requires a column list"
+                                : opt == 'p' || opt == 'q' ? "option -%c requires a PID list"
                                 : opt == 'C' ? "list of command names must follow -C"
+                                : opt == 's' ? "list of session IDs must follow -%c"
+                                : opt == 'g' ? "list of session leaders OR effective group names must follow -%c"
+                                : opt == 't' ? "list of ttys must follow -%c"
                                 : "list of users must follow -%c", opt);
                             builtin_usage ();
                             return EXECUTION_FAILURE;
@@ -1446,6 +1619,34 @@ ps_builtin (WORD_LIST *list)
                     } else if (opt == 'o') {
                         if (bps_add_o_list (arg, cols, &n_cols) < 0)
                             return EXECUTION_FAILURE;
+                    } else if (opt == 'O') {
+                        /* -O LIST: -o preloaded with pid,LIST,state,tname,time,args. */
+                        size_t ol = strlen (O_list);
+                        snprintf (O_list + ol, sizeof O_list - ol, "%s%s", ol ? "," : "", arg);
+                    } else if (opt == 's') {
+                        if (bps_add_pid_list (arg, sids, &n_sids, (int) (sizeof sids / sizeof sids[0])) < 0)
+                            return EXECUTION_FAILURE;
+                    } else if (opt == 't') {
+                        if (bps_add_name_list (arg, ttys, &n_ttys, 64) < 0)
+                            return EXECUTION_FAILURE;
+                    } else if (opt == 'g') {
+                        /* procps: a number is a session, a name an effective group. */
+                        char gb[512];
+                        snprintf (gb, sizeof gb, "%s", arg);
+                        for (char *sv = NULL, *t = strtok_r (gb, ", ", &sv); t; t = strtok_r (NULL, ", ", &sv)) {
+                            char *e;
+                            long v = strtol (t, &e, 10);
+                            if (!*e && e != t && v > 0) {
+                                if (n_sids < (int) (sizeof sids / sizeof sids[0])) sids[n_sids++] = (int) v;
+                            } else {
+                                struct group *gr = getgrnam (t);
+                                if (!gr) {
+                                    bps_usage_error ("group name does not exist");
+                                    return EXECUTION_FAILURE;
+                                }
+                                if (n_gids < 64) gids[n_gids++] = gr->gr_gid;
+                            }
+                        }
                     } else {
                         if (bps_add_pid_list (arg, explicit_pids, &n_pids,
                                               (int) (sizeof explicit_pids / sizeof explicit_pids[0])) < 0)
@@ -1469,14 +1670,27 @@ ps_builtin (WORD_LIST *list)
         ;
     }
 
-    if (n_cols > 0 && (longf || Full || jobs || bsd_u || bsd_j || bsd_l)) {
+    if (O_list[0]) {
+        if (n_cols > 0) {
+            bps_usage_error ("conflicting format options");
+            return EXECUTION_FAILURE;
+        }
+        bps_add_format ("pid", cols, &n_cols);
+        if (bps_add_o_list (O_list, cols, &n_cols) < 0) return EXECUTION_FAILURE;
+        bps_add_format ("state tname time args", cols, &n_cols);
+    }
+    if (n_cols > 0 && !O_list[0] && (longf || Full || jobs || bsd_u || bsd_j || bsd_l || bsd_v || bsd_s)) {
         bps_usage_error ("conflicting format options");
         return EXECUTION_FAILURE;
     }
     if (n_cols == 0) {
         char fmt[512];
         int sysv_full = full || Full;
-        if (bsd_u)
+        if (bsd_v)
+            snprintf (fmt, sizeof fmt, "pid tname stat bsdtime maj_flt _trs5 drs rss pmem args");
+        else if (bsd_s)
+            snprintf (fmt, sizeof fmt, "uid pid pending blocked ignored caught stat tname bsdtime args");
+        else if (bsd_u)
             snprintf (fmt, sizeof fmt, "user pid pcpu pmem vsz rss tname stat start_time bsdtime args");
         else if (bsd_j)
             snprintf (fmt, sizeof fmt, "ppid pid pgid sid tname tpgid stat uid bsdtime args");
@@ -1514,7 +1728,7 @@ ps_builtin (WORD_LIST *list)
        -p, -u, -U, -C, --ppid, or BSD a (has a terminal) / x (own process);
        every process with -e or ax, or when nothing selects. */
     int by_select = n_pids > 0 || n_euids > 0 || n_ruids > 0 || n_cmds > 0 || n_ppids > 0
-                    || bsd_a || bsd_x;
+                    || n_sids > 0 || n_gids > 0 || n_ttys > 0 || bsd_a || bsd_x;
     if ((bsd_a && bsd_x) || !by_select) all = 1;
     uid_t self = geteuid ();
 
@@ -1535,6 +1749,19 @@ ps_builtin (WORD_LIST *list)
                 keep = explicit_pids[i] == pid;
             for (int i = 0; !keep && i < n_ppids; i++)
                 keep = ppids[i] == p.ppid;
+            for (int i = 0; !keep && i < n_sids; i++)
+                keep = sids[i] == p.sid;
+            for (int i = 0; !keep && i < n_gids; i++)
+                keep = gids[i] == p.egid;
+            if (!keep && n_ttys > 0) {
+                char tn[64];
+                bps_tty_name (&p, tn, sizeof tn);
+                for (int i = 0; !keep && i < n_ttys; i++) {
+                    const char *want = ttys[i];
+                    if (!strncmp (want, "/dev/", 5)) want += 5;
+                    keep = !strcmp (want, tn) || (!strcmp (want, "-") && !strcmp (tn, "?"));
+                }
+            }
             for (int i = 0; !keep && i < n_cmds; i++)
                 keep = strncmp (cmds[i], p.comm, 15) == 0 && strlen (p.comm) == (strlen (cmds[i]) < 15 ? strlen (cmds[i]) : 15);
             if (!keep) continue;
@@ -1551,8 +1778,23 @@ ps_builtin (WORD_LIST *list)
 
     if (!no_headers)
         bps_print_header (cols, n_cols);
-    for (size_t i = 0; i < procs.n; i++)
-        bps_print_row (&procs.v[i], cols, n_cols);
+    if (forest && procs.n > 0) {
+        size_t *order = malloc (procs.n * sizeof *order);
+        int *depths = malloc (procs.n * sizeof *depths);
+        if (!order || !depths || bps_forest_order (&procs, order, depths) < 0) {
+            free (order); free (depths); free (procs.v);
+            builtin_error ("out of memory");
+            return EXECUTION_FAILURE;
+        }
+        for (size_t i = 0; i < procs.n; i++) {
+            bps_forest_depth = depths[i];
+            bps_print_row (&procs.v[order[i]], cols, n_cols);
+        }
+        bps_forest_depth = 0;
+        free (order); free (depths);
+    } else
+        for (size_t i = 0; i < procs.n; i++)
+            bps_print_row (&procs.v[i], cols, n_cols);
     free (procs.v);
     return rc;
 }
@@ -1577,6 +1819,12 @@ char *ps_doc[] = {
     "    -U LIST   select by real user name or ID (also --User=LIST)",
     "    -C LIST   select by command name (comm)",
     "    --ppid LIST  select by parent process ID (selections add up)",
+    "    -q LIST   select by process ID (also --quick-pid)",
+    "    -s LIST   select by session ID (also --sid); -g LIST by session or group name",
+    "    -t LIST   select by terminal (also --tty; - is no terminal)",
+    "    -O LIST   like -o pid,LIST,state,tname,time,args",
+    "    --forest  show the process tree (BSD f); BSD v and s: memory and signal formats",
+    "    KEY:WIDTH in a format list sets that column's width",
     "    -L        one line per thread (adds the LWP column)",
     "    --sort=[+|-]KEY,...  order by -o key names (- descending)",
     "    --no-headers  omit the header row (also --no-heading)",
